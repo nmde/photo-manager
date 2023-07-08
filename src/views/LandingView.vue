@@ -26,6 +26,7 @@ async function openFolder() {
     setWorkingDir(selected);
     router.push('/collection');
   }
+  loading.value = false;
 }
 </script>
 
