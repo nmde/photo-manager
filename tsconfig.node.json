@@ -1,7 +1,8 @@
 {
-  "extends": "@vue/tsconfig/tsconfig.node.json",
   "include": ["vite.config.*", "vitest.config.*", "cypress.config.*", "playwright.config.*"],
   "compilerOptions": {
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "composite": true,
     "types": ["node"],
     "module": "ESNext",

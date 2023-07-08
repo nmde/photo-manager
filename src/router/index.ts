@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import CollectionView from '../views/CollectionView.vue';
 import LandingView from '../views/LandingView.vue';
 
 const router = createRouter({
@@ -8,6 +9,11 @@ const router = createRouter({
       path: '/',
       name: 'landing',
       component: LandingView,
+    },
+    {
+      path: '/collection',
+      name: 'collection',
+      component: CollectionView,
     },
   ],
 });
