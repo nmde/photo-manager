@@ -10,6 +10,8 @@ export interface Photo {
         lng: number;
     };
     locationApprox: boolean;
+    tags: string[];
+    isDuplicate: boolean;
 };
 
 export function createPhoto(name: string, path: string): Photo {
@@ -19,5 +21,7 @@ export function createPhoto(name: string, path: string): Photo {
         title: name,
         description: '',
         locationApprox: false,
+        tags: [],
+        isDuplicate: false,
     };
 }

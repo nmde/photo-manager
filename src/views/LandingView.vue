@@ -6,9 +6,10 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
+import { PhotoDataFile } from '../types/photo-data';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setPhotoData } = useFileStore();
+const { addFile, setWorkingDir, setPhotoData, addTags } = useFileStore();
 
 const loading = ref(false);
 
@@ -28,11 +29,11 @@ async function openFolder() {
     setWorkingDir(selected);
     const photoManagerFile = await join(selected, 'photo-data.json');
     if (await exists(photoManagerFile)) {
-      Object.entries(JSON.parse(await readTextFile(photoManagerFile))).forEach(([name, data]) => {
+      const photoData = JSON.parse(await readTextFile(photoManagerFile)) as PhotoDataFile;
+      Object.entries(photoData.files).forEach(([name, data]) => {
         setPhotoData(name, data as Photo);
       });
-    } else {
-      await writeTextFile(photoManagerFile, '{}');
+      addTags(photoData.tags);
     }
     router.push('/collection');
   }

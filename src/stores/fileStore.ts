@@ -8,6 +8,8 @@ export const useFileStore = defineStore('files', () => {
 
   const workingDir = ref('');
 
+  const tags = ref<string[]>([]);
+
   /**
    * Adds a file to the registry.
    * @param file - The file to add.
@@ -37,11 +39,23 @@ export const useFileStore = defineStore('files', () => {
     files.value[name] = data;
   }
 
+  /**
+   * Adds tags.
+   * @param newTags - The tags to add. 
+   */
+  function addTags(newTags: string[]) {
+    newTags.forEach((tag) => {
+      tags.value.push(tag);
+    });
+  }
+
   return {
     files,
     workingDir,
+    tags,
     addFile,
     setWorkingDir,
     setPhotoData,
+    addTags,
   };
 });

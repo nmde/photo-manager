@@ -29,6 +29,8 @@ const emit = defineEmits<{
         :src="props.photo.path"
       >
         <v-card-title class="photo-name">{{ props.photo.name }}</v-card-title>
+        <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
+        <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
       </v-img>
     </v-card>
   </div>
