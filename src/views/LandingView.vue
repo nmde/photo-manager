@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/api/dialog';
-import { readDir, exists, writeTextFile, readTextFile } from '@tauri-apps/api/fs';
+import { readDir, exists, readTextFile } from '@tauri-apps/api/fs';
 import { join } from '@tauri-apps/api/path';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -33,7 +33,7 @@ async function openFolder() {
       Object.entries(photoData.files).forEach(([name, data]) => {
         setPhotoData(name, data as Photo);
       });
-      addTags(photoData.tags);
+      addTags(...photoData.tags);
     }
     router.push('/collection');
   }

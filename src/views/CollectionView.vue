@@ -10,9 +10,12 @@ import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
 import { PhotoDataFile } from '../types/photo-data';
 import { onMounted } from 'vue';
 
-const { files, workingDir, tags, locations } = storeToRefs(useFileStore());
+const fileStore = useFileStore();
+const { addTags } = fileStore;
+const { files, workingDir, tags, locations } = storeToRefs(fileStore);
 
-const showOnlyUntagged = ref(true);
+const showOnlyUntagged = ref(false);
+const showOnlyUnlocated = ref(false);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
@@ -112,6 +115,17 @@ onMounted(() => {
       });
     });
 });
+
+/**
+ * Adds new tags to the master list.
+ */
+function updateTags() {
+  selected.value.tags.forEach((tag) => {
+    if (tags.value.indexOf(tag) < 0) {
+      addTags(tag);
+    }
+  });
+}
 </script>
 
 <template>
@@ -127,7 +141,7 @@ onMounted(() => {
       </div>
       <div class="info-panel">
         <h2 class="info-panel-title">{{ selected?.name }}</h2>
-        <v-img :src="selected.path"></v-img>
+        <v-img cover :src="selected.path"></v-img>
         <div class="info-panel-body">
           <v-combobox
             label="Photo Tags"
@@ -135,6 +149,7 @@ onMounted(() => {
             multiple
             chips
             v-model="selected.tags"
+            @update:model-value="updateTags"
           ></v-combobox>
           <v-text-field label="Photo Title" v-model="selected.title"></v-text-field>
           <v-textarea label="Photo Description" v-model="selected.description"></v-textarea>
@@ -147,7 +162,20 @@ onMounted(() => {
       </div>
     </div>
     <div class="collection">
-      <v-checkbox v-model="showOnlyUntagged" label="Show only untagged"></v-checkbox>
+      <div>
+        <v-checkbox
+          class="collection-control"
+          density="compact"
+          v-model="showOnlyUntagged"
+          label="Show only untagged"
+        ></v-checkbox>
+        <v-checkbox
+          class="collection-control"
+          density="compact"
+          v-model="showOnlyUnlocated"
+          label="Show only unlocated"
+        ></v-checkbox>
+      </div>
       <div class="photo-grid">
         <photo-icon
           v-for="(photo, i) in files"
@@ -192,5 +220,9 @@ onMounted(() => {
 .photo-grid {
   height: 200px;
   overflow-y: scroll;
+}
+
+.collection-control {
+  display: inline-block;
 }
 </style>

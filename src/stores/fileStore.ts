@@ -82,7 +82,7 @@ export const useFileStore = defineStore('files', () => {
    * Adds tags.
    * @param newTags - The tags to add. 
    */
-  function addTags(newTags: string[]) {
+  function addTags(...newTags: string[]) {
     newTags.forEach((tag) => {
       tags.value.push(tag);
     });
