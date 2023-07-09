@@ -1,7 +1,32 @@
 import { FileEntry } from '@tauri-apps/api/fs';
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { createPhoto, Photo } from '../classes/Photo';
+
+/**
+ * Helper method to get lat,lng as a string.
+ * @param param0 - The location.
+ * @returns The location string.
+ */
+export function locToString(location?: { lat: number, lng: number}) {
+  if (location) {
+    return `${location.lat},${location.lng}`;
+  }
+  return '';
+}
+
+/**
+ * Helper method to get lat,lng from a string.
+ * @param str - The string.
+ * @returns The location object.
+ */
+export function stringToLoc(str: string) {
+  const split = str.split(',').map((x) => Number(x));
+  return {
+    lat: split[0],
+    lng: split[1],
+  };
+}
 
 export const useFileStore = defineStore('files', () => {
   const files = ref<Record<string, Photo>>({});
@@ -9,6 +34,20 @@ export const useFileStore = defineStore('files', () => {
   const workingDir = ref('');
 
   const tags = ref<string[]>([]);
+
+  const locations = computed(() => {
+    const locRecord: Record<string, string[]> = {};
+    Object.values(files.value).forEach((file) => {
+      if (file.location !== undefined) {
+        const key = locToString(file.location);
+        if (!locRecord[key]) {
+          locRecord[key] = [];
+        }
+        locRecord[key].push(file.name);
+      }
+    });
+    return locRecord;
+  });
 
   /**
    * Adds a file to the registry.
@@ -53,6 +92,7 @@ export const useFileStore = defineStore('files', () => {
     files,
     workingDir,
     tags,
+    locations,
     addFile,
     setWorkingDir,
     setPhotoData,

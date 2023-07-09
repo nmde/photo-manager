@@ -6,10 +6,11 @@ import { storeToRefs } from 'pinia';
 import { ref } from 'vue';
 import { Photo, createPhoto } from '../classes/Photo';
 import PhotoIcon from '../components/PhotoIcon.vue';
-import { useFileStore } from '../stores/fileStore';
-import { PhotoDataFile } from '@/types/photo-data';
+import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
+import { PhotoDataFile } from '../types/photo-data';
+import { onMounted } from 'vue';
 
-const { files, workingDir, tags } = storeToRefs(useFileStore());
+const { files, workingDir, tags, locations } = storeToRefs(useFileStore());
 
 const showOnlyUntagged = ref(true);
 const selected = ref<Photo>(createPhoto('', ''));
@@ -18,45 +19,25 @@ const mapEl = ref(null);
 const saved = ref(false);
 
 let map: google.maps.Map;
-let infoWindow: google.maps.InfoWindow;
-let marker: google.maps.marker.AdvancedMarkerElement;
 let placedMarker = false;
-let mapInitialized = false;
 let GoogleAdvancedMarkerElement: typeof google.maps.marker.AdvancedMarkerElement;
+const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
 
 /**
  * Creates a marker on the map.
  * @param pos - The position to create the marker at.
  */
-function createMarker(pos?: { lat: number; lng: number }) {
-  if (marker) {
-    marker.position = pos;
-    marker.title = selected.value?.name;
-    marker.map = map;
-  } else {
-    marker = new GoogleAdvancedMarkerElement({
+function createMarker(pos: string) {
+  if (!markers[pos]) {
+    markers[pos] = new GoogleAdvancedMarkerElement({
       map: map,
-      position: pos,
+      position: stringToLoc(pos),
       title: selected.value?.name,
       gmpDraggable: true,
     });
-    google.maps.event.addListener(marker, 'click', () => {
-      infoWindow.close();
-      infoWindow.setContent(selected.value?.name);
-      infoWindow.open(map, marker);
+    google.maps.event.addListener(markers[pos], 'click', () => {
+      selected.value.location = stringToLoc(pos);
     });
-  }
-}
-
-/**
- * Initializes the selected photo's marker and centers the map.
- */
-function placePhotoMarker() {
-  if (selected.value.location) {
-    map.setCenter(selected.value.location);
-    createMarker(selected.value.location);
-  } else if (marker) {
-    marker.map = null;
   }
 }
 
@@ -67,49 +48,11 @@ function placePhotoMarker() {
 function selectPhoto(photo: Photo) {
   selected.value = photo;
   hasSelected.value = true;
-  placedMarker = selected.value.location !== undefined;
-  if (mapInitialized) {
-    placePhotoMarker();
+  if (selected.value.location !== undefined) {
+    placedMarker = true;
+    map.setCenter(selected.value.location);
   } else {
-    new Loader({
-      apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
-      version: 'weekly',
-    })
-      .load()
-      .then(async () => {
-        mapInitialized = true;
-        const { Map, InfoWindow } = (await google.maps.importLibrary(
-          'maps',
-        )) as google.maps.MapsLibrary;
-        const { AdvancedMarkerElement } = (await google.maps.importLibrary(
-          'marker',
-        )) as google.maps.MarkerLibrary;
-        GoogleAdvancedMarkerElement = AdvancedMarkerElement;
-
-        map = new Map(mapEl.value as unknown as HTMLElement, {
-          zoom: 6,
-          mapId: 'DEMO_MAP_ID',
-        });
-
-        navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
-          map.setCenter({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        });
-
-        infoWindow = new InfoWindow();
-
-        map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
-          if (!placedMarker && hasSelected) {
-            createMarker(e.latLng?.toJSON());
-            placedMarker = true;
-            selected.value.location = e.latLng?.toJSON();
-          }
-        });
-
-        placePhotoMarker();
-      });
+    placedMarker = false;
   }
 }
 
@@ -130,6 +73,45 @@ async function save() {
   saving.value = false;
   saved.value = true;
 }
+
+onMounted(() => {
+  new Loader({
+    apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
+    version: 'weekly',
+  })
+    .load()
+    .then(async () => {
+      const { Map } = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
+      const { AdvancedMarkerElement } = (await google.maps.importLibrary(
+        'marker',
+      )) as google.maps.MarkerLibrary;
+      GoogleAdvancedMarkerElement = AdvancedMarkerElement;
+
+      map = new Map(mapEl.value as unknown as HTMLElement, {
+        zoom: 6,
+        mapId: 'DEMO_MAP_ID',
+      });
+
+      navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
+        map.setCenter({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      });
+
+      map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
+        if (!placedMarker && hasSelected.value) {
+          createMarker(locToString(e.latLng?.toJSON()));
+          placedMarker = true;
+          selected.value.location = e.latLng?.toJSON();
+        }
+      });
+
+      Object.entries(locations.value).forEach(([loc]) => {
+        createMarker(loc);
+      });
+    });
+});
 </script>
 
 <template>
