@@ -8,7 +8,7 @@ import { createPhoto, Photo } from '../classes/Photo';
  * @param param0 - The location.
  * @returns The location string.
  */
-export function locToString(location?: { lat: number, lng: number}) {
+export function locToString(location?: { lat: number; lng: number }) {
   if (location) {
     return `${location.lat},${location.lng}`;
   }
@@ -80,11 +80,13 @@ export const useFileStore = defineStore('files', () => {
 
   /**
    * Adds tags.
-   * @param newTags - The tags to add. 
+   * @param newTags - The tags to add.
    */
   function addTags(...newTags: string[]) {
     newTags.forEach((tag) => {
-      tags.value.push(tag);
+      if (tags.value.indexOf(tag) < 0) {
+        tags.value.push(tag);
+      }
     });
   }
 
