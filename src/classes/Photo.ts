@@ -1,17 +1,23 @@
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 
-/**
- * Represents information about a photo.
- */
-export class Photo {
-    public path: string;
+export interface Photo {
+    name: string;
+    path: string;
+    title: string;
+    description: string;
+    location?: {
+        lat: number;
+        lng: number;
+    };
+    locationApprox: boolean;
+};
 
-    /**
-     * Constructs Photo.
-     * @param name - The file name.
-     * @param path - The file path.
-     */
-    public constructor(public name: string, path: string) {
-        this.path = convertFileSrc(path);
-    }
+export function createPhoto(name: string, path: string): Photo {
+    return {
+        name,
+        path: convertFileSrc(path),
+        title: name,
+        description: '',
+        locationApprox: false,
+    };
 }

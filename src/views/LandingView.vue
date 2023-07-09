@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/api/dialog';
-import { readDir } from '@tauri-apps/api/fs';
+import { readDir, exists, writeTextFile, readTextFile } from '@tauri-apps/api/fs';
+import { join } from '@tauri-apps/api/path';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
 
 const router = useRouter();
-const { addFile, setWorkingDir } = useFileStore();
+const { addFile, setWorkingDir, setPhotoData } = useFileStore();
 
 const loading = ref(false);
 
@@ -14,16 +16,24 @@ const loading = ref(false);
  * Prompts the user to select the folder to manage.
  */
 async function openFolder() {
-    loading.value = true;
+  loading.value = true;
   const selected = await open({
     directory: true,
     multiple: false,
   });
   if (selected && typeof selected === 'string') {
     (await readDir(selected)).forEach((file) => {
-        addFile(file);
+      addFile(file);
     });
     setWorkingDir(selected);
+    const photoManagerFile = await join(selected, 'photo-data.json');
+    if (await exists(photoManagerFile)) {
+      Object.entries(JSON.parse(await readTextFile(photoManagerFile))).forEach(([name, data]) => {
+        setPhotoData(name, data as Photo);
+      });
+    } else {
+      await writeTextFile(photoManagerFile, '{}');
+    }
     router.push('/collection');
   }
   loading.value = false;

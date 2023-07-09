@@ -17,8 +17,6 @@ const emit = defineEmits<{
     :style="{
       height: `${size}px`,
       width: `${size}px`,
-      maxHeight: `${size}px`,
-      maxWidth: `${size}px`,
     }"
   >
     <v-card @click="emit('select')">

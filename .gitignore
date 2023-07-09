@@ -34,3 +34,5 @@ manual.html
 data/cli.json
 exported fomods/ignore
 graph
+
+.env
