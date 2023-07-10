@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Photo, createPhoto } from '../classes/Photo';
 import PhotoIcon from '../components/PhotoIcon.vue';
 import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
@@ -12,11 +12,27 @@ const fileStore = useFileStore();
 const { addTags } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
-const showOnlyUntagged = ref(false);
-const showOnlyUnlocated = ref(false);
+const hideTagged = ref(false);
+const hideLocated = ref(false);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
+
+const filteredPhotos = computed(() => {
+  if (hideTagged.value === false && hideLocated.value === false) {
+    return files.value;
+  }
+  const filtered: Record<string, Photo> = {};
+  Object.values(files.value).forEach((file) => {
+    if (
+      (hideTagged.value === true && file.tags.length === 0) ||
+      (hideLocated.value === true && file.location === undefined)
+    ) {
+      filtered[file.name] = file;
+    }
+  });
+  return filtered;
+});
 
 let map: google.maps.Map;
 let placedMarker = false;
@@ -140,19 +156,19 @@ function updateTags() {
         <v-checkbox
           class="collection-control"
           density="compact"
-          v-model="showOnlyUntagged"
-          label="Show only untagged"
+          v-model="hideTagged"
+          label="Hide tagged"
         ></v-checkbox>
         <v-checkbox
           class="collection-control"
           density="compact"
-          v-model="showOnlyUnlocated"
-          label="Show only unlocated"
+          v-model="hideLocated"
+          label="Hide located"
         ></v-checkbox>
       </div>
       <div class="photo-grid">
         <photo-icon
-          v-for="(photo, i) in files"
+          v-for="(photo, i) in filteredPhotos"
           :key="i"
           :photo="photo"
           :size="200"
