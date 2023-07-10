@@ -1,83 +1,87 @@
 <script setup lang="ts">
 import { Loader } from '@googlemaps/js-api-loader';
-import { writeTextFile } from '@tauri-apps/api/fs';
-import { join } from '@tauri-apps/api/path';
 import { storeToRefs } from 'pinia';
-import { ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { Photo, createPhoto } from '../classes/Photo';
 import PhotoIcon from '../components/PhotoIcon.vue';
-import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
-import { PhotoDataFile } from '../types/photo-data';
-import { onMounted } from 'vue';
+import { useFileStore, stringToLoc } from '../stores/fileStore';
 
-const fileStore = useFileStore();
-const { addTags } = fileStore;
-const { files, workingDir, tags, locations } = storeToRefs(fileStore);
+const { locations, tags, files } = storeToRefs(useFileStore());
 
-const showOnlyUntagged = ref(false);
-const showOnlyUnlocated = ref(false);
-const selected = ref<Photo>(createPhoto('', ''));
-const hasSelected = ref(false);
+const tagMap = ref<Record<string, boolean>>({});
 const mapEl = ref(null);
-const saved = ref(false);
+const filterBy = ref(0); // 0 - tags, 1 - location
+const filterPos = ref<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
 
-let map: google.maps.Map;
-let placedMarker = false;
-let GoogleAdvancedMarkerElement: typeof google.maps.marker.AdvancedMarkerElement;
+/**
+ * Toggles a tag.
+ * @param tag - The tag to toggle.
+ */
+function toggle(tag: string) {
+  filterBy.value = 0;
+  tagMap.value[tag] = !tagMap.value[tag];
+}
+
+/**
+ * Sets the value of all tags.
+ * @param to - The value to set to.
+ */
+function toggleAll(to: boolean) {
+  filterBy.value = 0;
+  Object.keys(tagMap.value).forEach((key) => {
+    tagMap.value[key] = to;
+  });
+}
+
+const filteredPhotos = computed(() => {
+  const filtered: Record<string, Photo> = {};
+  if (filterBy.value === 0) {
+    const enabledTags: string[] = [];
+    Object.entries(tagMap.value).forEach(([tag, enabled]) => {
+      if (enabled) {
+        enabledTags.push(tag);
+      }
+    });
+    Object.values(files.value).forEach((file) => {
+      file.tags.forEach((tag) => {
+        if (enabledTags.indexOf(tag) >= 0) {
+          filtered[file.name] = file;
+        }
+      });
+    });
+  } else if (filterBy.value === 1) {
+    Object.values(files.value).forEach((file) => {
+      if (file.location) {
+        if (
+          file.location.lat === filterPos.value.lat &&
+          file.location.lng === filterPos.value.lng
+        ) {
+          filtered[file.name] = file;
+        }
+      }
+    });
+  }
+  return filtered;
+});
+
+const photoView = ref(false);
+const selected = ref<Photo>(createPhoto('', ''));
+
+/**
+ * Opens the single photo view.
+ * @param photo - The photo to open for.
+ */
+function view(photo: string) {
+  selected.value = files.value[photo];
+  photoView.value = true;
+}
+
 const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
 
-/**
- * Creates a marker on the map.
- * @param pos - The position to create the marker at.
- */
-function createMarker(pos: string) {
-  if (!markers[pos]) {
-    markers[pos] = new GoogleAdvancedMarkerElement({
-      map: map,
-      position: stringToLoc(pos),
-      title: selected.value?.name,
-      gmpDraggable: true,
-    });
-    google.maps.event.addListener(markers[pos], 'click', () => {
-      selected.value.location = stringToLoc(pos);
-    });
-  }
-}
-
-/**
- * Select a photo to edit.
- * @param photo - The photo.
- */
-function selectPhoto(photo: Photo) {
-  selected.value = photo;
-  hasSelected.value = true;
-  if (selected.value.location !== undefined) {
-    placedMarker = true;
-    map.setCenter(selected.value.location);
-  } else {
-    placedMarker = false;
-  }
-}
-
-const saving = ref(false);
-
-/**
- * Saves the photo data.
- */
-async function save() {
-  saving.value = true;
-  const photoManagerFile = await join(workingDir.value, 'photo-data.json');
-  const photoData: PhotoDataFile = {
-    files: files.value,
-    tags: tags.value,
-    locations: {},
-  };
-  await writeTextFile(photoManagerFile, JSON.stringify(photoData));
-  saving.value = false;
-  saved.value = true;
-}
-
 onMounted(() => {
+  tags.value.forEach((tag) => {
+    tagMap.value[tag] = true;
+  });
   new Loader({
     apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
     version: 'weekly',
@@ -88,9 +92,8 @@ onMounted(() => {
       const { AdvancedMarkerElement } = (await google.maps.importLibrary(
         'marker',
       )) as google.maps.MarkerLibrary;
-      GoogleAdvancedMarkerElement = AdvancedMarkerElement;
 
-      map = new Map(mapEl.value as unknown as HTMLElement, {
+      const map = new Map(mapEl.value as unknown as HTMLElement, {
         zoom: 6,
         mapId: 'DEMO_MAP_ID',
       });
@@ -102,127 +105,73 @@ onMounted(() => {
         });
       });
 
-      map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
-        if (!placedMarker && hasSelected.value) {
-          createMarker(locToString(e.latLng?.toJSON()));
-          placedMarker = true;
-          selected.value.location = e.latLng?.toJSON();
+      const createMarker = (pos: string) => {
+        if (!markers[pos]) {
+          const position = stringToLoc(pos);
+          markers[pos] = new AdvancedMarkerElement({
+            map: map,
+            position,
+          });
+          google.maps.event.addListener(markers[pos], 'click', () => {
+            filterBy.value = 1;
+            filterPos.value = position;
+          });
         }
-      });
+      };
 
       Object.entries(locations.value).forEach(([loc]) => {
         createMarker(loc);
       });
     });
 });
-
-/**
- * Adds new tags to the master list.
- */
-function updateTags() {
-  selected.value.tags.forEach((tag) => {
-    if (tags.value.indexOf(tag) < 0) {
-      addTags(tag);
-    }
-  });
-}
 </script>
 
 <template>
   <v-main>
-    <v-toolbar>
-      <v-toolbar-title>{{ workingDir }}</v-toolbar-title>
-      <v-spacer></v-spacer>
-      <v-btn color="primary" @click="save" :loading="saving">Save</v-btn>
-    </v-toolbar>
-    <div class="details">
-      <div class="map-container">
-        <div ref="mapEl" class="map"></div>
-      </div>
-      <div class="info-panel">
-        <h2 class="info-panel-title">{{ selected?.name }}</h2>
-        <v-img cover :src="selected.path"></v-img>
-        <div class="info-panel-body">
-          <v-combobox
-            label="Photo Tags"
-            :items="tags"
-            multiple
-            chips
-            v-model="selected.tags"
-            @update:model-value="updateTags"
-          ></v-combobox>
-          <v-text-field label="Photo Title" v-model="selected.title"></v-text-field>
-          <v-textarea label="Photo Description" v-model="selected.description"></v-textarea>
-          <v-checkbox
-            label="Location is approximate"
-            v-model="selected.locationApprox"
-          ></v-checkbox>
-          <v-checkbox label="Mark as duplicate" v-model="selected.isDuplicate"></v-checkbox>
-        </div>
-      </div>
-    </div>
-    <div class="collection">
-      <div>
-        <v-checkbox
-          class="collection-control"
-          density="compact"
-          v-model="showOnlyUntagged"
-          label="Show only untagged"
-        ></v-checkbox>
-        <v-checkbox
-          class="collection-control"
-          density="compact"
-          v-model="showOnlyUnlocated"
-          label="Show only unlocated"
-        ></v-checkbox>
-      </div>
-      <div class="photo-grid">
-        <photo-icon
-          v-for="(photo, i) in files"
-          :key="i"
-          :photo="photo"
-          :size="200"
-          @select="selectPhoto(photo)"
-        ></photo-icon>
-      </div>
-    </div>
+    <v-container fluid>
+      <v-row>
+        <v-col cols="6">
+          <v-btn @click="toggleAll(true)">Select All</v-btn>
+          <v-btn @click="toggleAll(false)">Deselect All</v-btn>
+          <br />
+          <v-btn
+            v-for="(enabled, tag) in tagMap"
+            :key="tag"
+            :color="enabled ? 'primary' : ''"
+            @click="toggle(tag)"
+            >{{ tag }}</v-btn
+          >
+          <div class="photo-grid">
+            <photo-icon
+              v-for="(photo, i) in filteredPhotos"
+              :key="i"
+              :photo="photo"
+              :size="240"
+              @select="view(i)"
+            ></photo-icon>
+          </div>
+        </v-col>
+        <v-col cols="6">
+          <div class="map" ref="mapEl"></div>
+        </v-col>
+      </v-row>
+    </v-container>
+    <v-dialog v-model="photoView">
+      <v-card>
+        <v-card-title>{{ selected.name }}</v-card-title>
+        <v-card-text>
+          <v-img max-height="600" :src="selected.path"></v-img>
+          Title: {{ selected.title }} <br />
+          Description: {{ selected.description }} <br />
+          Tags: {{ selected.tags.join(',') }}
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-main>
-  <v-snackbar v-model="saved">Collection saved</v-snackbar>
 </template>
 
 <style scoped>
-.details {
-  display: flex;
-}
-
-.map-container {
-  flex: 2;
-}
-
 .map {
   height: 450px;
-}
-
-.info-panel {
-  height: 450px;
-  overflow-y: scroll;
-  flex: 1;
-}
-
-.info-panel-title {
-  margin-left: 8px;
-}
-
-.info-panel-body {
-  margin: 8px;
-}
-
-.photo-grid {
-  height: 200px;
-  overflow-y: scroll;
-}
-
-.collection-control {
-  display: inline-block;
 }
 </style>

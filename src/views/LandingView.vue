@@ -35,7 +35,7 @@ async function openFolder() {
       });
       addTags(...photoData.tags);
     }
-    router.push('/collection');
+    router.push('/tagger');
   }
   loading.value = false;
 }
