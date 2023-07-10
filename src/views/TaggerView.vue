@@ -14,20 +14,28 @@ const { files, tags, locations } = storeToRefs(fileStore);
 
 const hideTagged = ref(false);
 const hideLocated = ref(false);
+const hideDuplicate = ref(false);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
 
 const filteredPhotos = computed(() => {
-  if (hideTagged.value === false && hideLocated.value === false) {
+  if (hideTagged.value === false && hideLocated.value === false && hideDuplicate.value === false) {
     return files.value;
   }
   const filtered: Record<string, Photo> = {};
   Object.values(files.value).forEach((file) => {
-    if (
-      (hideTagged.value === true && file.tags.length === 0) ||
-      (hideLocated.value === true && file.location === undefined)
-    ) {
+    let visible = true;
+    if (hideTagged.value === true && file.tags.length > 0) {
+      visible = false;
+    }
+    if (hideLocated.value === true && file.location !== undefined) {
+      visible = false;
+    }
+    if (hideDuplicate.value === true && file.isDuplicate) {
+      visible = false;
+    }
+    if (visible) {
       filtered[file.name] = file;
     }
   });
@@ -164,6 +172,12 @@ function updateTags() {
           density="compact"
           v-model="hideLocated"
           label="Hide located"
+        ></v-checkbox>
+        <v-checkbox
+          class="collection-control"
+          density="compact"
+          v-model="hideDuplicate"
+          label="Hide duplicates"
         ></v-checkbox>
       </div>
       <div class="photo-grid">

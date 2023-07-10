@@ -6,7 +6,9 @@ import { Photo, createPhoto } from '../classes/Photo';
 import PhotoIcon from '../components/PhotoIcon.vue';
 import { useFileStore, stringToLoc } from '../stores/fileStore';
 
-const { locations, tags, files } = storeToRefs(useFileStore());
+const fileStore = useFileStore();
+const { addTags } = fileStore;
+const { locations, tags, files } = storeToRefs(fileStore);
 
 const tagMap = ref<Record<string, boolean>>({});
 const mapEl = ref(null);
@@ -74,6 +76,17 @@ const selected = ref<Photo>(createPhoto('', ''));
 function view(photo: string) {
   selected.value = files.value[photo];
   photoView.value = true;
+}
+
+/**
+ * Adds new tags to the master list.
+ */
+function updateTags() {
+  selected.value.tags.forEach((tag) => {
+    if (tags.value.indexOf(tag) < 0) {
+      addTags(tag);
+    }
+  });
 }
 
 const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
@@ -163,7 +176,14 @@ onMounted(() => {
           <v-img max-height="600" :src="selected.path"></v-img>
           Title: {{ selected.title }} <br />
           Description: {{ selected.description }} <br />
-          Tags: {{ selected.tags.join(',') }}
+          <v-combobox
+            label="Photo Tags"
+            :items="tags"
+            multiple
+            chips
+            v-model="selected.tags"
+            @update:model-value="updateTags"
+          ></v-combobox>
         </v-card-text>
       </v-card>
     </v-dialog>
