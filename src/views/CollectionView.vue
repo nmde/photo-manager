@@ -3,62 +3,49 @@ import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, computed } from 'vue';
 import { Photo, createPhoto } from '../classes/Photo';
-import PhotoIcon from '../components/PhotoIcon.vue';
+import PhotoGrid from '../components/PhotoGrid.vue';
 import { useFileStore, stringToLoc } from '../stores/fileStore';
 
 const fileStore = useFileStore();
 const { addTags } = fileStore;
 const { locations, tags, files } = storeToRefs(fileStore);
 
-const tagMap = ref<Record<string, boolean>>({});
 const mapEl = ref(null);
 const filterBy = ref(0); // 0 - tags, 1 - location
 const filterPos = ref<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+const enabledTags = ref<string[]>([]);
+const disabledTags = ref<string[]>([]);
 
-/**
- * Toggles a tag.
- * @param tag - The tag to toggle.
- */
-function toggle(tag: string) {
-  filterBy.value = 0;
-  tagMap.value[tag] = !tagMap.value[tag];
-}
-
-/**
- * Sets the value of all tags.
- * @param to - The value to set to.
- */
-function toggleAll(to: boolean) {
-  filterBy.value = 0;
-  Object.keys(tagMap.value).forEach((key) => {
-    tagMap.value[key] = to;
-  });
-}
+const hideDuplicate = ref(true);
 
 const filteredPhotos = computed(() => {
-  const filtered: Record<string, Photo> = {};
+  const filtered: Photo[] = [];
   if (filterBy.value === 0) {
-    const enabledTags: string[] = [];
-    Object.entries(tagMap.value).forEach(([tag, enabled]) => {
-      if (enabled) {
-        enabledTags.push(tag);
-      }
-    });
     Object.values(files.value).forEach((file) => {
-      file.tags.forEach((tag) => {
-        if (enabledTags.indexOf(tag) >= 0) {
-          filtered[file.name] = file;
+      let satisfiesTags = true;
+      enabledTags.value.forEach((tag) => {
+        if (file.tags.indexOf(tag) < 0) {
+          satisfiesTags = false;
         }
       });
+      disabledTags.value.forEach((tag) => {
+        if (file.tags.indexOf(tag) >= 0) {
+          satisfiesTags = false;
+        }
+      });
+      if (satisfiesTags && (hideDuplicate.value === false || !file.isDuplicate)) {
+        filtered.push(file);
+      }
     });
   } else if (filterBy.value === 1) {
     Object.values(files.value).forEach((file) => {
       if (file.location) {
         if (
           file.location.lat === filterPos.value.lat &&
-          file.location.lng === filterPos.value.lng
+          file.location.lng === filterPos.value.lng &&
+          (hideDuplicate.value === false || !file.isDuplicate)
         ) {
-          filtered[file.name] = file;
+          filtered.push(file);
         }
       }
     });
@@ -73,8 +60,8 @@ const selected = ref<Photo>(createPhoto('', ''));
  * Opens the single photo view.
  * @param photo - The photo to open for.
  */
-function view(photo: string) {
-  selected.value = files.value[photo];
+function view(photo: Photo) {
+  selected.value = photo;
   photoView.value = true;
 }
 
@@ -92,9 +79,6 @@ function updateTags() {
 const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
 
 onMounted(() => {
-  tags.value.forEach((tag) => {
-    tagMap.value[tag] = true;
-  });
   new Loader({
     apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
     version: 'weekly',
@@ -144,25 +128,38 @@ onMounted(() => {
     <v-container fluid>
       <v-row>
         <v-col cols="6">
-          <v-btn @click="toggleAll(true)">Select All</v-btn>
-          <v-btn @click="toggleAll(false)">Deselect All</v-btn>
-          <br />
-          <v-btn
-            v-for="(enabled, tag) in tagMap"
-            :key="tag"
-            :color="enabled ? 'primary' : ''"
-            @click="toggle(tag)"
-            >{{ tag }}</v-btn
+          <v-combobox
+            label="Tags to include"
+            :items="tags"
+            multiple
+            chips
+            clearable
+            v-model="enabledTags"
+            @update:model-value="filterBy = 0"
           >
-          <div class="photo-grid">
-            <photo-icon
-              v-for="(photo, i) in filteredPhotos"
-              :key="i"
-              :photo="photo"
-              :size="240"
-              @select="view(i)"
-            ></photo-icon>
-          </div>
+          </v-combobox>
+          <v-combobox
+            label="Tags to exclude"
+            :items="tags"
+            multiple
+            chips
+            v-model="disabledTags"
+            clearable
+            @update:model-value="filterBy = 0"
+          ></v-combobox>
+          <v-checkbox
+            class="collection-control"
+            density="compact"
+            v-model="hideDuplicate"
+            label="Hide duplicates"
+          ></v-checkbox>
+          <photo-grid
+            :photos="filteredPhotos"
+            :items-per-row="3"
+            :rows="3"
+            :size="230"
+            @select="view"
+          ></photo-grid>
         </v-col>
         <v-col cols="6">
           <div class="map" ref="mapEl"></div>
@@ -184,6 +181,7 @@ onMounted(() => {
             v-model="selected.tags"
             @update:model-value="updateTags"
           ></v-combobox>
+          <v-checkbox label="Mark as duplicate" v-model="selected.isDuplicate"></v-checkbox>
         </v-card-text>
       </v-card>
     </v-dialog>

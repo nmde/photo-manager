@@ -3,7 +3,7 @@ import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Photo, createPhoto } from '../classes/Photo';
-import PhotoIcon from '../components/PhotoIcon.vue';
+import PhotoGrid from '../components/PhotoGrid.vue';
 import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
 
 import { onMounted } from 'vue';
@@ -12,18 +12,18 @@ const fileStore = useFileStore();
 const { addTags } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
-const hideTagged = ref(false);
-const hideLocated = ref(false);
-const hideDuplicate = ref(false);
+const hideTagged = ref(true);
+const hideLocated = ref(true);
+const hideDuplicate = ref(true);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
 
 const filteredPhotos = computed(() => {
   if (hideTagged.value === false && hideLocated.value === false && hideDuplicate.value === false) {
-    return files.value;
+    return Object.values(files.value);
   }
-  const filtered: Record<string, Photo> = {};
+  const filtered: Photo[] = [];
   Object.values(files.value).forEach((file) => {
     let visible = true;
     if (hideTagged.value === true && file.tags.length > 0) {
@@ -36,7 +36,7 @@ const filteredPhotos = computed(() => {
       visible = false;
     }
     if (visible) {
-      filtered[file.name] = file;
+      filtered.push(file);
     }
   });
   return filtered;
@@ -160,7 +160,7 @@ function updateTags() {
       </div>
     </div>
     <div class="collection">
-      <div>
+      <v-toolbar>
         <v-checkbox
           class="collection-control"
           density="compact"
@@ -179,16 +179,14 @@ function updateTags() {
           v-model="hideDuplicate"
           label="Hide duplicates"
         ></v-checkbox>
-      </div>
-      <div class="photo-grid">
-        <photo-icon
-          v-for="(photo, i) in filteredPhotos"
-          :key="i"
-          :photo="photo"
-          :size="200"
-          @select="selectPhoto(photo)"
-        ></photo-icon>
-      </div>
+      </v-toolbar>
+      <photo-grid
+        :photos="filteredPhotos"
+        :items-per-row="7"
+        @select="selectPhoto"
+        :size="200"
+        :rows="1"
+      ></photo-grid>
     </div>
   </v-main>
 </template>
@@ -222,7 +220,6 @@ function updateTags() {
 
 .photo-grid {
   height: 200px;
-  overflow-y: scroll;
 }
 
 .collection-control {
