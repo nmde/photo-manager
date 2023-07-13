@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import PhotoIcon from './PhotoIcon.vue';
 
@@ -14,28 +14,66 @@ const emit = defineEmits<{
   (e: 'select', photo: Photo): void;
 }>();
 
+const hideTagged = ref(false);
+const hideLocated = ref(false);
+const hideDuplicate = ref(false);
+
 type GridRow = Photo[];
 
-const rows = computed(() => {
+// Filters the photos based on the options
+const filteredPhotos = computed(() => {
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  props.photos.forEach((photo) => {
-    row.push(photo);
-    if (row.length === props.itemsPerRow) {
-      rows.push(row);
-      row = [];
+  console.log(props.photos);
+  props.photos.forEach((file) => {
+    let visible = true;
+    if (hideTagged.value === true && file.tags.length > 0) {
+      visible = false;
+    }
+    if (hideLocated.value === true && file.location !== undefined) {
+      visible = false;
+    }
+    if (hideDuplicate.value === true && file.isDuplicate) {
+      visible = false;
+    }
+    if (visible) {
+      row.push(file);
+      if (row.length === props.itemsPerRow) {
+        rows.push(row);
+        row = [];
+      }
     }
   });
   return rows;
 });
-
-const visibleRows = computed(() => {
-  return props.rows * props.size;
-});
 </script>
 
 <template>
-  <v-virtual-scroll :height="visibleRows" :item-height="props.size" :items="rows">
+  <v-toolbar>
+    <v-checkbox
+      class="collection-control"
+      density="compact"
+      v-model="hideTagged"
+      label="Hide tagged"
+    ></v-checkbox>
+    <v-checkbox
+      class="collection-control"
+      density="compact"
+      v-model="hideLocated"
+      label="Hide located"
+    ></v-checkbox>
+    <v-checkbox
+      class="collection-control"
+      density="compact"
+      v-model="hideDuplicate"
+      label="Hide duplicates"
+    ></v-checkbox>
+  </v-toolbar>
+  <v-virtual-scroll
+    :height="props.rows * props.size"
+    :item-height="props.size"
+    :items="filteredPhotos"
+  >
     <template v-slot:default="{ item }">
       <photo-icon
         v-for="(photo, i) in item"

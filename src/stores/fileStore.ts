@@ -75,13 +75,7 @@ export const useFileStore = defineStore('files', () => {
    * @param data - The data to set.
    */
   function setPhotoData(name: string, data: Photo) {
-    // Delete the photo entry if the file no longer exists
-    // Probably shouldn't be in this function, but oh well
-    if (!files.value[name]) {
-      delete files.value[name];
-    } else {
-      files.value[name] = data;
-    }
+    files.value[name] = data;
   }
 
   /**

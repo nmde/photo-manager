@@ -16,8 +16,6 @@ const filterPos = ref<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
 const enabledTags = ref<string[]>([]);
 const disabledTags = ref<string[]>([]);
 
-const hideDuplicate = ref(true);
-
 const filteredPhotos = computed(() => {
   const filtered: Photo[] = [];
   if (filterBy.value === 0) {
@@ -33,7 +31,7 @@ const filteredPhotos = computed(() => {
           satisfiesTags = false;
         }
       });
-      if (satisfiesTags && (hideDuplicate.value === false || !file.isDuplicate)) {
+      if (satisfiesTags) {
         filtered.push(file);
       }
     });
@@ -42,8 +40,7 @@ const filteredPhotos = computed(() => {
       if (file.location) {
         if (
           file.location.lat === filterPos.value.lat &&
-          file.location.lng === filterPos.value.lng &&
-          (hideDuplicate.value === false || !file.isDuplicate)
+          file.location.lng === filterPos.value.lng
         ) {
           filtered.push(file);
         }
@@ -147,12 +144,6 @@ onMounted(() => {
             clearable
             @update:model-value="filterBy = 0"
           ></v-combobox>
-          <v-checkbox
-            class="collection-control"
-            density="compact"
-            v-model="hideDuplicate"
-            label="Hide duplicates"
-          ></v-checkbox>
           <photo-grid
             :photos="filteredPhotos"
             :items-per-row="3"

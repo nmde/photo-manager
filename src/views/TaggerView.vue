@@ -12,34 +12,12 @@ const fileStore = useFileStore();
 const { addTags } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
-const hideTagged = ref(true);
-const hideLocated = ref(true);
-const hideDuplicate = ref(true);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
 
-const filteredPhotos = computed(() => {
-  if (hideTagged.value === false && hideLocated.value === false && hideDuplicate.value === false) {
-    return Object.values(files.value);
-  }
-  const filtered: Photo[] = [];
-  Object.values(files.value).forEach((file) => {
-    let visible = true;
-    if (hideTagged.value === true && file.tags.length > 0) {
-      visible = false;
-    }
-    if (hideLocated.value === true && file.location !== undefined) {
-      visible = false;
-    }
-    if (hideDuplicate.value === true && file.isDuplicate) {
-      visible = false;
-    }
-    if (visible) {
-      filtered.push(file);
-    }
-  });
-  return filtered;
+const photos = computed(() => {
+  return Object.values(files.value);
 });
 
 let map: google.maps.Map;
@@ -160,28 +138,8 @@ function updateTags() {
       </div>
     </div>
     <div class="collection">
-      <v-toolbar>
-        <v-checkbox
-          class="collection-control"
-          density="compact"
-          v-model="hideTagged"
-          label="Hide tagged"
-        ></v-checkbox>
-        <v-checkbox
-          class="collection-control"
-          density="compact"
-          v-model="hideLocated"
-          label="Hide located"
-        ></v-checkbox>
-        <v-checkbox
-          class="collection-control"
-          density="compact"
-          v-model="hideDuplicate"
-          label="Hide duplicates"
-        ></v-checkbox>
-      </v-toolbar>
       <photo-grid
-        :photos="filteredPhotos"
+        :photos="photos"
         :items-per-row="7"
         @select="selectPhoto"
         :size="200"

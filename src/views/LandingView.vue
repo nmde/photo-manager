@@ -12,6 +12,8 @@ const router = useRouter();
 const { addFile, setWorkingDir, setPhotoData, addTags } = useFileStore();
 
 const loading = ref(false);
+const deletedDialog = ref(false);
+const deleted = ref<string[]>([]);
 
 /**
  * Prompts the user to select the folder to manage.
@@ -23,7 +25,8 @@ async function openFolder() {
     multiple: false,
   });
   if (selected && typeof selected === 'string') {
-    (await readDir(selected)).forEach((file) => {
+    const files = await readDir(selected);
+    files.forEach((file) => {
       addFile(file);
     });
     setWorkingDir(selected);
@@ -31,11 +34,19 @@ async function openFolder() {
     if (await exists(photoManagerFile)) {
       const photoData = JSON.parse(await readTextFile(photoManagerFile)) as PhotoDataFile;
       Object.entries(photoData.files).forEach(([name, data]) => {
-        setPhotoData(name, data as Photo);
+        if (!files.find((f) => f.name === name)) {
+          deleted.value.push(name);
+        } else {
+          setPhotoData(name, data as Photo);
+        }
       });
       addTags(...photoData.tags);
     }
-    router.push('/tagger');
+    if (deleted.value.length > 0) {
+      deletedDialog.value = true;
+    } else {
+      router.push('/tagger');
+    }
   }
   loading.value = false;
 }
@@ -57,6 +68,20 @@ async function openFolder() {
         <v-col cols="4"></v-col>
       </v-row>
     </v-container>
+    <v-dialog v-model="deletedDialog">
+      <v-card>
+        <v-card-title>Missing Files</v-card-title>
+        <v-card-text>
+          The following files could not be found:
+          <ul>
+            <li v-for="(file, i) in deleted" :key="i">{{ file }}</li>
+          </ul>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn color="primary" @click="router.push('/tagger')">Continue</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
