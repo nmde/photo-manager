@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
+import { useFileStore } from '../stores/fileStore';
 import PhotoIcon from './PhotoIcon.vue';
 
 const props = defineProps<{
@@ -14,6 +16,8 @@ const emit = defineEmits<{
   (e: 'select', photo: Photo): void;
 }>();
 
+const { photoCount } = storeToRefs(useFileStore());
+
 const hideTagged = ref(false);
 const hideLocated = ref(false);
 const hideDuplicate = ref(false);
@@ -24,7 +28,6 @@ type GridRow = Photo[];
 const filteredPhotos = computed(() => {
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  console.log(props.photos);
   props.photos.forEach((file) => {
     let visible = true;
     if (hideTagged.value === true && file.tags.length > 0) {
@@ -44,7 +47,16 @@ const filteredPhotos = computed(() => {
       }
     }
   });
+  rows.push(row);
   return rows;
+});
+
+// The number of visible photos after filter rules are applied
+const visiblePhotoCount = computed(() => {
+  return (
+    (filteredPhotos.value.length - 1) * props.itemsPerRow +
+    filteredPhotos.value[filteredPhotos.value.length - 1].length
+  );
 });
 </script>
 
@@ -69,6 +81,7 @@ const filteredPhotos = computed(() => {
       label="Hide duplicates"
     ></v-checkbox>
   </v-toolbar>
+  Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
     :height="props.rows * props.size"
     :item-height="props.size"

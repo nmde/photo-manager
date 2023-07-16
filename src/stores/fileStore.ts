@@ -90,6 +90,10 @@ export const useFileStore = defineStore('files', () => {
     });
   }
 
+  const photoCount = computed(() => {
+    return Object.values(files.value).length;
+  });
+
   return {
     files,
     workingDir,
@@ -99,5 +103,6 @@ export const useFileStore = defineStore('files', () => {
     setWorkingDir,
     setPhotoData,
     addTags,
+    photoCount,
   };
 });

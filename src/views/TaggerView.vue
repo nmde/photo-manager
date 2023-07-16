@@ -15,6 +15,7 @@ const { files, tags, locations } = storeToRefs(fileStore);
 const selected = ref<Photo>(createPhoto('', ''));
 const hasSelected = ref(false);
 const mapEl = ref(null);
+const photoView = ref(false);
 
 const photos = computed(() => {
   return Object.values(files.value);
@@ -117,7 +118,7 @@ function updateTags() {
       </div>
       <div class="info-panel">
         <h2 class="info-panel-title">{{ selected?.name }}</h2>
-        <v-img cover :src="selected.path"></v-img>
+        <v-img cover :src="selected.path" @click="photoView = true"></v-img>
         <div class="info-panel-body">
           <v-combobox
             label="Photo Tags"
@@ -147,6 +148,14 @@ function updateTags() {
       ></photo-grid>
     </div>
   </v-main>
+  <v-dialog v-model="photoView">
+    <v-card>
+      <v-card-title>{{ selected.name }}</v-card-title>
+      <v-card-text>
+        <v-img :src="selected.path"></v-img>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
