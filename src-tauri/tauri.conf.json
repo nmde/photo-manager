@@ -33,7 +33,15 @@
       },
       "shell": {
         "all": false,
-        "open": true
+        "execute": true,
+        "open": true,
+        "scope": [
+          {
+            "name": "magick",
+            "cmd": "magick",
+            "args": true
+          }
+        ]
       }
     },
     "bundle": {

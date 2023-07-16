@@ -12,6 +12,7 @@ export interface Photo {
     locationApprox: boolean;
     tags: string[];
     isDuplicate: boolean;
+    thumbnail?: string;
 };
 
 export function createPhoto(name: string, path: string): Photo {

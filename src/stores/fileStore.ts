@@ -79,6 +79,15 @@ export const useFileStore = defineStore('files', () => {
   }
 
   /**
+   * Sets a photo's thumbnail property.
+   * @param photo - The photo to set for.
+   * @param thumbnail - The path to the thumbnail.
+   */
+  function setThumbnail(photo: string, thumbnail: string) {
+    files.value[photo].thumbnail = thumbnail;
+  }
+
+  /**
    * Adds tags.
    * @param newTags - The tags to add.
    */
@@ -102,6 +111,7 @@ export const useFileStore = defineStore('files', () => {
     addFile,
     setWorkingDir,
     setPhotoData,
+    setThumbnail,
     addTags,
     photoCount,
   };
