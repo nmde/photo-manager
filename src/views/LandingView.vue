@@ -34,7 +34,7 @@ async function openFolder() {
     let raws: FileEntry[] = [];
     files.forEach((file) => {
       addFile(file);
-      if (/^.*\.(ORF)$/.test(file.path)) {
+      if (/^.*\.(ORF|NRW)$/.test(file.path)) {
         raws.push(file);
       }
     });

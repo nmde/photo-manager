@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Photo } from '../classes/Photo';
 
 const props = defineProps<{
@@ -9,6 +10,13 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'select'): void;
 }>();
+
+const photoPath = computed(() => {
+  if (props.photo.thumbnail) {
+    return props.photo.thumbnail;
+  }
+  return props.photo.path;
+});
 </script>
 
 <template>
@@ -26,7 +34,7 @@ const emit = defineEmits<{
         :width="size"
         :height="size"
         cover
-        :src="props.photo.path"
+        :src="photoPath"
       >
         <v-card-title class="photo-name">{{ props.photo.name }}</v-card-title>
         <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>

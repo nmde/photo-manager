@@ -108,6 +108,13 @@ function updateTags() {
     }
   });
 }
+
+const photoPath = computed(() => {
+  if (selected.value.thumbnail) {
+    return selected.value.thumbnail;
+  }
+  return selected.value.path;
+});
 </script>
 
 <template>
@@ -118,7 +125,7 @@ function updateTags() {
       </div>
       <div class="info-panel">
         <h2 class="info-panel-title">{{ selected?.name }}</h2>
-        <v-img cover :src="selected.path" @click="photoView = true"></v-img>
+        <v-img cover :src="photoPath" @click="photoView = true"></v-img>
         <div class="info-panel-body">
           <v-combobox
             label="Photo Tags"
@@ -152,7 +159,7 @@ function updateTags() {
     <v-card>
       <v-card-title>{{ selected.name }}</v-card-title>
       <v-card-text>
-        <v-img :src="selected.path"></v-img>
+        <v-img :src="photoPath"></v-img>
       </v-card-text>
     </v-card>
   </v-dialog>

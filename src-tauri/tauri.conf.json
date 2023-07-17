@@ -29,7 +29,9 @@
         "all": true
       },
       "protocol": {
-        "all": true
+        "all": true,
+        "asset": true,
+        "assetScope": ["**"]
       },
       "shell": {
         "all": false,

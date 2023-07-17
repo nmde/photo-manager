@@ -73,6 +73,13 @@ function updateTags() {
   });
 }
 
+const photoPath = computed(() => {
+  if (selected.value.thumbnail) {
+    return selected.value.thumbnail;
+  }
+  return selected.value.path;
+});
+
 const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
 
 onMounted(() => {
@@ -161,7 +168,7 @@ onMounted(() => {
       <v-card>
         <v-card-title>{{ selected.name }}</v-card-title>
         <v-card-text>
-          <v-img max-height="600" :src="selected.path"></v-img>
+          <v-img max-height="600" :src="photoPath"></v-img>
           Title: {{ selected.title }} <br />
           Description: {{ selected.description }} <br />
           <v-combobox
