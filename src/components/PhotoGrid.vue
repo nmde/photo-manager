@@ -13,7 +13,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'select', photo: Photo): void;
+  (e: 'select', photos: Photo[]): void;
 }>();
 
 const { photoCount } = storeToRefs(useFileStore());
@@ -21,6 +21,8 @@ const { photoCount } = storeToRefs(useFileStore());
 const hideTagged = ref(false);
 const hideLocated = ref(false);
 const hideDuplicate = ref(false);
+const selectMultiple = ref(false);
+const selected = ref<Photo[]>([]);
 
 type GridRow = Photo[];
 
@@ -58,6 +60,19 @@ const visiblePhotoCount = computed(() => {
     filteredPhotos.value[filteredPhotos.value.length - 1].length
   );
 });
+
+/**
+ * Handles selecting one or more photos.
+ * @param photo - The photo being selected.
+ */
+function selectPhoto(photo: Photo) {
+  if (selectMultiple.value) {
+    selected.value = selected.value.concat(photo);
+  } else {
+    selected.value = [photo];
+  }
+  emit('select', selected.value);
+}
 </script>
 
 <template>
@@ -80,6 +95,13 @@ const visiblePhotoCount = computed(() => {
       v-model="hideDuplicate"
       label="Hide duplicates"
     ></v-checkbox>
+    <v-checkbox
+      color="primary"
+      class="collection-control"
+      density="compact"
+      v-model="selectMultiple"
+      label="Select Multiple"
+    ></v-checkbox>
   </v-toolbar>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
@@ -93,7 +115,8 @@ const visiblePhotoCount = computed(() => {
         :key="i"
         :photo="photo"
         :size="props.size"
-        @select="emit('select', photo)"
+        :selected="selected.findIndex((p) => p.name === photo.name) >= 0"
+        @select="selectPhoto(photo)"
       ></photo-icon>
     </template>
   </v-virtual-scroll>

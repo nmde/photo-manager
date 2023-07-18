@@ -103,6 +103,15 @@ export const useFileStore = defineStore('files', () => {
     return Object.values(files.value).length;
   });
 
+  /**
+   * Sets the photo's location data.
+   * @param photo - The target photo.
+   * @param location - The location.
+   */
+  function setLocation(photo: string, location: { lat: number, lng: number }) {
+    files.value[photo].location = location;
+  }
+
   return {
     files,
     workingDir,
@@ -114,5 +123,6 @@ export const useFileStore = defineStore('files', () => {
     setThumbnail,
     addTags,
     photoCount,
+    setLocation,
   };
 });

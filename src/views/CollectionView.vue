@@ -55,10 +55,11 @@ const selected = ref<Photo>(createPhoto('', ''));
 
 /**
  * Opens the single photo view.
- * @param photo - The photo to open for.
+ * @param photos - The photo to open for.
  */
-function view(photo: Photo) {
-  selected.value = photo;
+function view(photos: Photo[]) {
+  // TODO: open a gallery for multiple photos
+  selected.value = photos[0];
   photoView.value = true;
 }
 

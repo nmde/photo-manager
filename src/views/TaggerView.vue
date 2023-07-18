@@ -2,18 +2,17 @@
 import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
-import { Photo, createPhoto } from '../classes/Photo';
+import { Photo } from '../classes/Photo';
 import PhotoGrid from '../components/PhotoGrid.vue';
 import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
 
 import { onMounted } from 'vue';
 
 const fileStore = useFileStore();
-const { addTags } = fileStore;
+const { addTags, setLocation } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
-const selected = ref<Photo>(createPhoto('', ''));
-const hasSelected = ref(false);
+const selected = ref<Photo[]>([]);
 const mapEl = ref(null);
 const photoView = ref(false);
 
@@ -32,29 +31,31 @@ const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
  */
 function createMarker(pos: string) {
   if (!markers[pos]) {
+    const loc = stringToLoc(pos);
     markers[pos] = new GoogleAdvancedMarkerElement({
       map: map,
-      position: stringToLoc(pos),
-      title: selected.value?.name,
+      position: loc,
       gmpDraggable: true,
     });
     google.maps.event.addListener(markers[pos], 'click', () => {
-      selected.value.location = stringToLoc(pos);
+      selected.value.forEach((photo) => {
+        setLocation(photo.name, loc);
+      });
     });
   }
 }
 
 /**
  * Select a photo to edit.
- * @param photo - The photo.
+ * @param photos - The photo.
  */
-function selectPhoto(photo: Photo) {
-  selected.value = photo;
-  hasSelected.value = true;
-  if (selected.value.location !== undefined) {
+function selectPhoto(photos: Photo[]) {
+  selected.value = photos;
+  if (selected.value.length === 1 && selected.value[0].location !== undefined) {
     placedMarker = true;
-    map.setCenter(selected.value.location);
+    map.setCenter(selected.value[0].location);
   } else {
+    // TODO
     placedMarker = false;
   }
 }
@@ -85,10 +86,15 @@ onMounted(() => {
       });
 
       map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
-        if (!placedMarker && hasSelected.value) {
+        if (!placedMarker && selected.value.length > 0) {
           createMarker(locToString(e.latLng?.toJSON()));
           placedMarker = true;
-          selected.value.location = e.latLng?.toJSON();
+          const location = e.latLng?.toJSON();
+          selected.value.forEach((photo) => {
+            if (location) {
+              setLocation(photo.name, location);
+            }
+          });
         }
       });
 
@@ -102,7 +108,7 @@ onMounted(() => {
  * Adds new tags to the master list.
  */
 function updateTags() {
-  selected.value.tags.forEach((tag) => {
+  selected.value[0].tags.forEach((tag) => {
     if (tags.value.indexOf(tag) < 0) {
       addTags(tag);
     }
@@ -110,10 +116,10 @@ function updateTags() {
 }
 
 const photoPath = computed(() => {
-  if (selected.value.thumbnail) {
-    return selected.value.thumbnail;
+  if (selected.value[0].thumbnail) {
+    return selected.value[0].thumbnail;
   }
-  return selected.value.path;
+  return selected.value[0].path;
 });
 </script>
 
@@ -123,8 +129,8 @@ const photoPath = computed(() => {
       <div class="map-container">
         <div ref="mapEl" class="map"></div>
       </div>
-      <div class="info-panel">
-        <h2 class="info-panel-title">{{ selected?.name }}</h2>
+      <div class="info-panel" v-if="selected.length > 0">
+        <h2 class="info-panel-title">{{ selected[0].name }}</h2>
         <v-img cover :src="photoPath" @click="photoView = true"></v-img>
         <div class="info-panel-body">
           <v-combobox
@@ -132,16 +138,16 @@ const photoPath = computed(() => {
             :items="tags"
             multiple
             chips
-            v-model="selected.tags"
+            v-model="selected[0].tags"
             @update:model-value="updateTags"
           ></v-combobox>
-          <v-text-field label="Photo Title" v-model="selected.title"></v-text-field>
-          <v-textarea label="Photo Description" v-model="selected.description"></v-textarea>
+          <v-text-field label="Photo Title" v-model="selected[0].title"></v-text-field>
+          <v-textarea label="Photo Description" v-model="selected[0].description"></v-textarea>
           <v-checkbox
             label="Location is approximate"
-            v-model="selected.locationApprox"
+            v-model="selected[0].locationApprox"
           ></v-checkbox>
-          <v-checkbox label="Mark as duplicate" v-model="selected.isDuplicate"></v-checkbox>
+          <v-checkbox label="Mark as duplicate" v-model="selected[0].isDuplicate"></v-checkbox>
         </div>
       </div>
     </div>
@@ -157,7 +163,7 @@ const photoPath = computed(() => {
   </v-main>
   <v-dialog v-model="photoView">
     <v-card>
-      <v-card-title>{{ selected.name }}</v-card-title>
+      <v-card-title>{{ selected[0].name }}</v-card-title>
       <v-card-text>
         <v-img :src="photoPath"></v-img>
       </v-card-text>
