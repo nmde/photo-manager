@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, computed } from 'vue';
+import { Map, Position } from '../classes/Map';
 import { Photo, createPhoto } from '../classes/Photo';
 import PhotoGrid from '../components/PhotoGrid.vue';
-import { useFileStore, stringToLoc } from '../stores/fileStore';
+import { useFileStore } from '../stores/fileStore';
 
 const fileStore = useFileStore();
 const { addTags } = fileStore;
@@ -12,9 +12,10 @@ const { locations, tags, files } = storeToRefs(fileStore);
 
 const mapEl = ref(null);
 const filterBy = ref(0); // 0 - tags, 1 - location
-const filterPos = ref<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+const filterPos = ref<Position>({ lat: 0, lng: 0 });
 const enabledTags = ref<string[]>([]);
 const disabledTags = ref<string[]>([]);
+const showHeatmap = ref(false);
 
 const filteredPhotos = computed(() => {
   const filtered: Photo[] = [];
@@ -81,51 +82,28 @@ const photoPath = computed(() => {
   return selected.value.path;
 });
 
-const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
-
-onMounted(() => {
-  new Loader({
-    apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
-    version: 'weekly',
-  })
-    .load()
-    .then(async () => {
-      const { Map } = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
-      const { AdvancedMarkerElement } = (await google.maps.importLibrary(
-        'marker',
-      )) as google.maps.MarkerLibrary;
-
-      const map = new Map(mapEl.value as unknown as HTMLElement, {
-        zoom: 6,
-        mapId: 'DEMO_MAP_ID',
-      });
-
-      navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
-        map.setCenter({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      });
-
-      const createMarker = (pos: string) => {
-        if (!markers[pos]) {
-          const position = stringToLoc(pos);
-          markers[pos] = new AdvancedMarkerElement({
-            map: map,
-            position,
-          });
-          google.maps.event.addListener(markers[pos], 'click', () => {
-            filterBy.value = 1;
-            filterPos.value = position;
-          });
-        }
-      };
-
-      Object.entries(locations.value).forEach(([loc]) => {
-        createMarker(loc);
-      });
-    });
+const map = new Map();
+onMounted(async () => {
+  await map.initialize(mapEl.value as unknown as HTMLElement);
+  Object.entries(locations.value).forEach(([loc, count]) => {
+    map.createMarker(loc, count);
+  });
+  map.createHeatmap();
+  map.on('markerClicked', (pos) => {
+    filterBy.value = 1;
+    filterPos.value = pos;
+  });
 });
+
+function toggleHeatmap() {
+  if (showHeatmap.value) {
+    map.showHeatmap();
+    map.hideAllMarkers();
+  } else {
+    map.hideHeatmap();
+    map.showAllMarkers();
+  }
+}
 </script>
 
 <template>
@@ -162,6 +140,7 @@ onMounted(() => {
         </v-col>
         <v-col cols="6">
           <div class="map" ref="mapEl"></div>
+          <v-checkbox label="Show heatmap" v-model="showHeatmap" @update:model-value="toggleHeatmap()"></v-checkbox>
         </v-col>
       </v-row>
     </v-container>

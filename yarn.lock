@@ -1115,6 +1115,11 @@ doctrine@^3.0.0:
   dependencies:
     esutils "^2.0.2"
 
+ee-ts@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/ee-ts/-/ee-ts-1.0.2.tgz#48ffda9ef18bbba2c42d9a4513ad80559281e6f6"
+  integrity sha512-f4MtWOd6cww9Q/I+Z0R2AeCz/8FSQRLMLCxGbPH/tL6aHvS+bXvXzFOHbRbZOomd1lcS4kQyTqGeXv4EWLF4yQ==
+
 electron-to-chromium@^1.4.431:
   version "1.4.454"
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.454.tgz#774dc7cb5e58576d0125939ec34a4182f3ccc87d"

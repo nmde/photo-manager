@@ -2,14 +2,15 @@
 import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
+import { stringToLoc, locToString } from '../classes/Map';
 import { Photo } from '../classes/Photo';
 import PhotoGrid from '../components/PhotoGrid.vue';
-import { useFileStore, stringToLoc, locToString } from '../stores/fileStore';
+import { useFileStore } from '../stores/fileStore';
 
 import { onMounted } from 'vue';
 
 const fileStore = useFileStore();
-const { addTags, setLocation } = fileStore;
+const { addTags, setLocation, moveTagsToFront } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
@@ -113,6 +114,10 @@ function updateTags() {
       addTags(tag);
     }
   });
+  moveTagsToFront(selected.value[0].tags);
+  for (let i = 1; i < selected.value.length; i += 1) {
+    selected.value[i].tags = selected.value[0].tags;
+  }
 }
 
 const photoPath = computed(() => {

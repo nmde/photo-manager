@@ -28,6 +28,7 @@
     "@googlemaps/js-api-loader": "^1.16.2",
     "@mdi/font": "^7.2.96",
     "@tauri-apps/api": "^1.4.0",
+    "ee-ts": "^1.0.2",
     "pinia": "^2.1.4",
     "roboto-fontface": "^0.10.0",
     "vue": "^3.3.4",

@@ -1,32 +1,8 @@
 import { FileEntry } from '@tauri-apps/api/fs';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { locToString } from '../classes/Map';
 import { createPhoto, Photo } from '../classes/Photo';
-
-/**
- * Helper method to get lat,lng as a string.
- * @param param0 - The location.
- * @returns The location string.
- */
-export function locToString(location?: { lat: number; lng: number }) {
-  if (location) {
-    return `${location.lat},${location.lng}`;
-  }
-  return '';
-}
-
-/**
- * Helper method to get lat,lng from a string.
- * @param str - The string.
- * @returns The location object.
- */
-export function stringToLoc(str: string) {
-  const split = str.split(',').map((x) => Number(x));
-  return {
-    lat: split[0],
-    lng: split[1],
-  };
-}
 
 export const useFileStore = defineStore('files', () => {
   const files = ref<Record<string, Photo>>({});
@@ -36,14 +12,14 @@ export const useFileStore = defineStore('files', () => {
   const tags = ref<string[]>([]);
 
   const locations = computed(() => {
-    const locRecord: Record<string, string[]> = {};
+    const locRecord: Record<string, number> = {};
     Object.values(files.value).forEach((file) => {
       if (file.location !== undefined) {
         const key = locToString(file.location);
         if (!locRecord[key]) {
-          locRecord[key] = [];
+          locRecord[key] = 0;
         }
-        locRecord[key].push(file.name);
+        locRecord[key] += 1;
       }
     });
     return locRecord;
@@ -112,6 +88,17 @@ export const useFileStore = defineStore('files', () => {
     files.value[photo].location = location;
   }
 
+  /**
+   * Moves tags to the front of the list.
+   * @param tags - The tags to move to the front.
+   */
+  function moveTagsToFront(targets: string[]) {
+    targets.forEach((tag) => {
+      tags.value.splice(tags.value.indexOf(tag), 1);
+    });
+    tags.value.unshift(...targets);
+  }
+
   return {
     files,
     workingDir,
@@ -124,5 +111,6 @@ export const useFileStore = defineStore('files', () => {
     addTags,
     photoCount,
     setLocation,
+    moveTagsToFront,
   };
 });

@@ -67,7 +67,12 @@ const visiblePhotoCount = computed(() => {
  */
 function selectPhoto(photo: Photo) {
   if (selectMultiple.value) {
-    selected.value = selected.value.concat(photo);
+    const idx = selected.value.findIndex((p) => p.name === photo.name);
+    if (idx >= 0) {
+      selected.value.splice(idx, 1);
+    } else {
+      selected.value.push(photo);
+    }
   } else {
     selected.value = [photo];
   }
