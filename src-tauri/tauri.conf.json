@@ -42,6 +42,11 @@
             "name": "magick",
             "cmd": "magick",
             "args": true
+          },
+          {
+            "name": "ffmpeg",
+            "cmd": "ffmpeg",
+            "args": true
           }
         ]
       }

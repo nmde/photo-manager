@@ -11,7 +11,7 @@ import { useFileStore } from '../stores/fileStore';
 import { PhotoDataFile } from '../types/photo-data';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setPhotoData, addTags, setThumbnail } = useFileStore();
+const { addFile, setWorkingDir, setPhotoData, addTags, setThumbnail, setVideo } = useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -32,10 +32,13 @@ async function openFolder() {
   if (selected && typeof selected === 'string') {
     const files = await readDir(selected);
     let raws: FileEntry[] = [];
+    let videos: FileEntry[] = [];
     files.forEach((file) => {
       addFile(file);
-      if (/^.*\.(ORF|NRW)$/.test(file.path)) {
+      if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
         raws.push(file);
+      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV)$/.test(file.path.toUpperCase())) {
+        videos.push(file);
       }
     });
     setWorkingDir(selected);
@@ -51,10 +54,10 @@ async function openFolder() {
       });
       addTags(...photoData.tags);
     }
-    if (raws.length > 0) {
+    if (raws.length > 0 || videos.length > 0) {
       thumbnailDialog.value = true;
       thumbnailProgress.value = 0;
-      thumbnailCount.value = raws.length;
+      thumbnailCount.value = raws.length + videos.length;
       const dir = await appDataDir();
       if (!(await exists(dir))) {
         await createDir(dir);
@@ -95,6 +98,29 @@ async function openFolder() {
         }
         thumbnailProgress.value += 1;
         setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath));
+      }
+      for (let i = 0; i < videos.length; i += 1) {
+        const thumbnailPath = await join(
+          projectThumbnailDir,
+          `${(videos[i].name as string).replace(/\..*$/, '')}.png`,
+        );
+        if (!(await exists(thumbnailPath))) {
+          const convertOutput = await new Command('ffmpeg', [
+            '-i',
+            videos[i].path,
+            '-ss',
+            '00:00:01.00',
+            '-vframes',
+            '1',
+            thumbnailPath,
+          ]).execute();
+          if (convertOutput.code !== 0) {
+            console.error(convertOutput.stderr);
+          }
+        }
+        thumbnailProgress.value += 1;
+        setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath));
+        setVideo(videos[i].name as string);
       }
       thumbnailDialog.value = false;
       if (deleted.value.length > 0) {

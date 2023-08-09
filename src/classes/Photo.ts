@@ -13,6 +13,8 @@ export interface Photo {
     tags: string[];
     isDuplicate: boolean;
     thumbnail?: string;
+    rating?: number;
+    video?: boolean;
 };
 
 export function createPhoto(name: string, path: string): Photo {

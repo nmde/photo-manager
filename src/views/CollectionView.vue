@@ -159,6 +159,7 @@ function toggleHeatmap() {
             v-model="selected.tags"
             @update:model-value="updateTags"
           ></v-combobox>
+          <v-rating v-model="selected.rating"></v-rating>
           <v-checkbox label="Mark as duplicate" v-model="selected.isDuplicate"></v-checkbox>
         </v-card-text>
       </v-card>

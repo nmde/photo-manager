@@ -42,6 +42,7 @@ const photoPath = computed(() => {
         <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
         <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
         <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
+        <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
       </v-img>
     </v-card>
   </div>

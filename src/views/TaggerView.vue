@@ -146,6 +146,7 @@ const photoPath = computed(() => {
             v-model="selected[0].tags"
             @update:model-value="updateTags"
           ></v-combobox>
+          <v-rating v-model="selected[0].rating"></v-rating>
           <v-text-field label="Photo Title" v-model="selected[0].title"></v-text-field>
           <v-textarea label="Photo Description" v-model="selected[0].description"></v-textarea>
           <v-checkbox
@@ -170,7 +171,15 @@ const photoPath = computed(() => {
     <v-card>
       <v-card-title>{{ selected[0].name }}</v-card-title>
       <v-card-text>
-        <v-img :src="photoPath"></v-img>
+        <video-player
+          v-if="selected[0].video"
+          :src="selected[0].path"
+          :poster="selected[0].thumbnail"
+          controls
+          :width="700"
+          :height="400"
+        ></video-player>
+        <v-img v-else :src="photoPath"></v-img>
       </v-card-text>
     </v-card>
   </v-dialog>

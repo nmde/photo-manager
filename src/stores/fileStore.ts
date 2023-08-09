@@ -99,6 +99,14 @@ export const useFileStore = defineStore('files', () => {
     tags.value.unshift(...targets);
   }
 
+  /**
+   * Marks the photo as a video.
+   * @param photo - The vidoe.
+   */
+  function setVideo(photo: string) {
+    files.value[photo].video = true;
+  }
+
   return {
     files,
     workingDir,
@@ -112,5 +120,6 @@ export const useFileStore = defineStore('files', () => {
     photoCount,
     setLocation,
     moveTagsToFront,
+    setVideo,
   };
 });

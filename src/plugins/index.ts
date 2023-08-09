@@ -1,5 +1,7 @@
 // Plugins
+import VueVideoPlayer from '@videojs-player/vue';
 import { createPinia } from 'pinia';
+import 'video.js/dist/video-js.css';
 import router from '../router';
 import { loadFonts } from './webfontloader';
 import vuetify from './vuetify';
@@ -12,4 +14,5 @@ export function registerPlugins(app: App) {
   app.use(vuetify);
   app.use(createPinia());
   app.use(router);
+  app.use(VueVideoPlayer);
 }
