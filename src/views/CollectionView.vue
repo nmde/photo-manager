@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, computed } from 'vue';
+import { Bar } from 'vue-chartjs';
 import { Map, Position } from '../classes/Map';
 import { Photo, createPhoto } from '../classes/Photo';
 import PhotoGrid from '../components/PhotoGrid.vue';
 import { useFileStore } from '../stores/fileStore';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement);
 
 const fileStore = useFileStore();
 const { addTags } = fileStore;
@@ -104,6 +108,28 @@ function toggleHeatmap() {
     map.showAllMarkers();
   }
 }
+
+const tagChartData = computed(() => {
+  const map: Record<string, number> = {};
+  Object.values(files.value).forEach((file) => {
+    file.tags.forEach((tag) => {
+      if (!map[tag]) {
+        map[tag] = 0;
+      }
+      map[tag] += 1;
+    });
+  });
+  return {
+    labels: Object.keys(map),
+    datasets: [
+      {
+        axis: 'y',
+        labebl: 'Tag Counts',
+        data: Object.values(map),
+      },
+    ],
+  };
+});
 </script>
 
 <template>
@@ -140,7 +166,12 @@ function toggleHeatmap() {
         </v-col>
         <v-col cols="6">
           <div class="map" ref="mapEl"></div>
-          <v-checkbox label="Show heatmap" v-model="showHeatmap" @update:model-value="toggleHeatmap()"></v-checkbox>
+          <v-checkbox
+            label="Show heatmap"
+            v-model="showHeatmap"
+            @update:model-value="toggleHeatmap()"
+          ></v-checkbox>
+          <Bar :options="{ indexAxis: 'y' }" :data="tagChartData"></Bar>
         </v-col>
       </v-row>
     </v-container>

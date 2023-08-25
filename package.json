@@ -29,11 +29,13 @@
     "@mdi/font": "^7.2.96",
     "@tauri-apps/api": "^1.4.0",
     "@videojs-player/vue": "^1.0.0",
+    "chart.js": "^4.4.0",
     "ee-ts": "^1.0.2",
     "pinia": "^2.1.4",
     "roboto-fontface": "^0.10.0",
     "video.js": "^8.3.0",
     "vue": "^3.3.4",
+    "vue-chartjs": "^5.2.0",
     "vue-router": "^4.2.4",
     "vuetify": "^3.3.7",
     "webfontloader": "^1.6.28"
