@@ -18,6 +18,13 @@ const photoPath = computed(() => {
   }
   return props.photo.path;
 });
+
+const displayName = computed(() => {
+  if (props.photo.group !== undefined) {
+    return props.photo.group;
+  }
+  return props.photo.name;
+});
 </script>
 
 <template>
@@ -37,12 +44,13 @@ const photoPath = computed(() => {
         cover
         :src="photoPath"
       >
-        <v-card-title class="photo-name">{{ props.photo.name }}</v-card-title>
+        <v-card-title class="photo-name">{{ displayName }}</v-card-title>
         <v-icon v-if="props.selected">mdi-check</v-icon>
         <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
         <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
         <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
         <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
+        <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
       </v-img>
     </v-card>
   </div>

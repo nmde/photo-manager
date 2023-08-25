@@ -6,12 +6,12 @@ import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Command } from '@tauri-apps/api/shell';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
 import { PhotoDataFile } from '../types/photo-data';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setPhotoData, addTags, setThumbnail, setVideo } = useFileStore();
+const { addFile, setWorkingDir, setPhotoData, setThumbnail, setVideo, addGroup } =
+  useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -49,10 +49,14 @@ async function openFolder() {
         if (!files.find((f) => f.name === name)) {
           deleted.value.push(name);
         } else {
-          setPhotoData(name, data as Photo);
+          setPhotoData(name, data);
         }
       });
-      addTags(...photoData.tags);
+      if (photoData.groups) {
+        Object.entries(photoData.groups).forEach(([name, items]) => {
+          addGroup(name, items);
+        });
+      }
     }
     if (raws.length > 0 || videos.length > 0) {
       thumbnailDialog.value = true;

@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { Chart as ChartJS, BarElement, CategoryScale, LinearScale } from 'chart.js'
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale } from 'chart.js';
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, computed } from 'vue';
 import { Bar } from 'vue-chartjs';
 import { Map, Position } from '../classes/Map';
 import { Photo, createPhoto } from '../classes/Photo';
+import PhotoDetail from '../components/PhotoDetail.vue';
 import PhotoGrid from '../components/PhotoGrid.vue';
+import PhotoGroup from '../components/PhotoGroup.vue';
 import { useFileStore } from '../stores/fileStore';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement);
 
-const fileStore = useFileStore();
-const { addTags } = fileStore;
-const { locations, tags, files } = storeToRefs(fileStore);
+const { locations, tags, files, tagCounts } = storeToRefs(useFileStore());
 
 const mapEl = ref(null);
 const filterBy = ref(0); // 0 - tags, 1 - location
@@ -68,24 +68,6 @@ function view(photos: Photo[]) {
   photoView.value = true;
 }
 
-/**
- * Adds new tags to the master list.
- */
-function updateTags() {
-  selected.value.tags.forEach((tag) => {
-    if (tags.value.indexOf(tag) < 0) {
-      addTags(tag);
-    }
-  });
-}
-
-const photoPath = computed(() => {
-  if (selected.value.thumbnail) {
-    return selected.value.thumbnail;
-  }
-  return selected.value.path;
-});
-
 const map = new Map();
 onMounted(async () => {
   await map.initialize(mapEl.value as unknown as HTMLElement);
@@ -110,25 +92,36 @@ function toggleHeatmap() {
 }
 
 const tagChartData = computed(() => {
-  const map: Record<string, number> = {};
-  Object.values(files.value).forEach((file) => {
-    file.tags.forEach((tag) => {
-      if (!map[tag]) {
-        map[tag] = 0;
+  let sorted: string[] = [];
+  console.log(tagCounts.value);
+  Object.entries(tagCounts.value).forEach(([tag, value]) => {
+    if (sorted.length === 0) {
+      sorted.push(tag);
+    } else {
+      let i = 0;
+      while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
+        i += 1;
       }
-      map[tag] += 1;
-    });
+      sorted.splice(i, 0, tag);
+    }
   });
   return {
-    labels: Object.keys(map),
+    labels: sorted,
     datasets: [
       {
         axis: 'y',
         labebl: 'Tag Counts',
-        data: Object.values(map),
+        data: sorted.map((tag) => tagCounts.value[tag]),
       },
     ],
   };
+});
+
+const displayName = computed(() => {
+  if (selected.value.group !== undefined) {
+    return selected.value.group;
+  }
+  return selected.value.name;
 });
 </script>
 
@@ -177,21 +170,10 @@ const tagChartData = computed(() => {
     </v-container>
     <v-dialog v-model="photoView">
       <v-card>
-        <v-card-title>{{ selected.name }}</v-card-title>
+        <v-card-title>{{ displayName }}</v-card-title>
         <v-card-text>
-          <v-img max-height="600" :src="photoPath"></v-img>
-          Title: {{ selected.title }} <br />
-          Description: {{ selected.description }} <br />
-          <v-combobox
-            label="Photo Tags"
-            :items="tags"
-            multiple
-            chips
-            v-model="selected.tags"
-            @update:model-value="updateTags"
-          ></v-combobox>
-          <v-rating v-model="selected.rating"></v-rating>
-          <v-checkbox label="Mark as duplicate" v-model="selected.isDuplicate"></v-checkbox>
+          <photo-detail :photo="selected" v-if="selected.group === undefined"></photo-detail>
+          <photo-group :group="selected.group" v-if="selected.group !== undefined"></photo-group>
         </v-card-text>
       </v-card>
     </v-dialog>

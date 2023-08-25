@@ -15,6 +15,7 @@ export interface Photo {
     thumbnail?: string;
     rating?: number;
     video?: boolean;
+    group?: string;
 };
 
 export function createPhoto(name: string, path: string): Photo {

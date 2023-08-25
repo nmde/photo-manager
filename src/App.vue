@@ -6,7 +6,7 @@ import { ref } from 'vue';
 import { useFileStore } from './stores/fileStore';
 import { PhotoDataFile } from './types/photo-data';
 
-const { workingDir, files, tags } = storeToRefs(useFileStore());
+const { workingDir, files, tags, groups } = storeToRefs(useFileStore());
 
 const saving = ref(false);
 const saved = ref(false);
@@ -19,8 +19,8 @@ async function save() {
   const photoManagerFile = await join(workingDir.value, 'photo-data.json');
   const photoData: PhotoDataFile = {
     files: files.value,
-    tags: tags.value,
     locations: {},
+    groups: groups.value,
   };
   await writeTextFile(photoManagerFile, JSON.stringify(photoData));
   saving.value = false;

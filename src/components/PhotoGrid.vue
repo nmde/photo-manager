@@ -30,7 +30,10 @@ type GridRow = Photo[];
 const filteredPhotos = computed(() => {
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  props.photos.forEach((file) => {
+  const photos = props.photos;
+  const groups: string[] = [];
+  while (photos.length > 0) {
+    const file = photos[0];
     let visible = true;
     if (hideTagged.value === true && file.tags.length > 0) {
       visible = false;
@@ -42,13 +45,24 @@ const filteredPhotos = computed(() => {
       visible = false;
     }
     if (visible) {
-      row.push(file);
-      if (row.length === props.itemsPerRow) {
-        rows.push(row);
-        row = [];
+      let grouped = false;
+      if (typeof file.group === 'string') {
+        if (groups.indexOf(file.group) >= 0) {
+          grouped = true;
+        } else {
+          groups.push(file.group);
+        }
+      }
+      if (!grouped) {
+        row.push(file);
+        if (row.length === props.itemsPerRow) {
+          rows.push(row);
+          row = [];
+        }
       }
     }
-  });
+    photos.shift();
+  }
   rows.push(row);
   return rows;
 });
