@@ -34,6 +34,7 @@ function next() {
   <v-btn icon @click="prev">
     <v-icon>mdi-arrow-left</v-icon>
   </v-btn>
+  {{ current + 1 }} / {{ groupItems.length }}
   <v-btn icon @click="next">
     <v-icon>mdi-arrow-right</v-icon>
   </v-btn>

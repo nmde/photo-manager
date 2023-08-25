@@ -56,6 +56,9 @@ export const useFileStore = defineStore('files', () => {
    */
   function setPhotoData(name: string, data: Photo) {
     files.value[name] = data;
+    if (data.group) {
+      setGroup(name, data.group);
+    }
     updateTags(name, data.tags);
     data.tags.forEach((tag) => {
       if (!tagCounts.value[tag]) {
@@ -131,11 +134,26 @@ export const useFileStore = defineStore('files', () => {
     files.value[photo].rating = rating;
   }
 
+  /**
+   * Sets a photo's isDuplicate marker.
+   * @param photo - The photo to set for.
+   * @param isDuplicate - The duplicate marker.
+   */
   function setDuplicate(photo: string, isDuplicate: boolean) {
     files.value[photo].isDuplicate = isDuplicate;
   }
 
+  /**
+   * Sets a photo's group.
+   * @param photo - The photo to set.
+   * @param group - The group to set.
+   */
   function setGroup(photo: string, group: string) {
+    const fgroup = files.value[photo].group;
+    if (fgroup && groups.value[fgroup]) {
+      // Remove from previous group
+      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
+    }
     files.value[photo].group = group;
     if (!groups.value[group]) {
       groups.value[group] = [];
@@ -143,16 +161,36 @@ export const useFileStore = defineStore('files', () => {
     if (groups.value[group].indexOf(photo) < 0) {
       groups.value[group].push(photo);
     }
+    const collectedTags: string[] = [];
+    groups.value[group].forEach((photo) => {
+      files.value[photo].tags.forEach((tag) => {
+        if (collectedTags.indexOf(tag) < 0) {
+          collectedTags.push(tag);
+        }
+      });
+    });
+    updateTags(photo, collectedTags);
   }
 
+  /**
+   * Removes a photo from its group.
+   * @param photo - The photo to remove from its group.
+   */
   function removeGroup(photo: string) {
+    const fgroup = files.value[photo].group;
+    if (fgroup) {
+      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
+    }
     delete files.value[photo].group;
   }
 
   /**
  * Adds new tags to the master list.
+ * @param photo - The photo to apply tags to.
+ * @param t - The tags to apply.
+ * @param propagate - If other photos in the group should be updated.
  */
- function updateTags(photo: string, t: string[]) {
+ function updateTags(photo: string, t: string[], propagate = true) {
   t.forEach((tag) => {
     if (!tagCounts.value[tag]) {
       tagCounts.value[tag] = 0;
@@ -174,6 +212,14 @@ export const useFileStore = defineStore('files', () => {
     }
   });
   files.value[photo].tags = t;
+  const fgroup = files.value[photo].group;
+  if (fgroup && propagate) {
+    groups.value[fgroup].forEach((p) => {
+      if (p !== photo) {
+        updateTags(p, t, false);
+      }
+    });
+  }
 }
 
   return {
