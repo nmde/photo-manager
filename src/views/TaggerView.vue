@@ -10,12 +10,13 @@ import { useFileStore } from '../stores/fileStore';
 import { onMounted } from 'vue';
 
 const fileStore = useFileStore();
-const { addTags, setLocation, moveTagsToFront } = fileStore;
+const { setLocation, updateTags } = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
 const mapEl = ref(null);
 const photoView = ref(false);
+const photoTags = ref<string[]>([]);
 
 const photos = computed(() => {
   return Object.values(files.value);
@@ -40,7 +41,7 @@ function createMarker(pos: string) {
     });
     google.maps.event.addListener(markers[pos], 'click', () => {
       selected.value.forEach((photo) => {
-        setLocation(photo.name, loc);
+        setLocation(photo.data.name, loc);
       });
     });
   }
@@ -52,6 +53,7 @@ function createMarker(pos: string) {
  */
 function selectPhoto(photos: Photo[]) {
   selected.value = photos;
+  photoTags.value = photos[0].tags;
   if (selected.value.length === 1 && selected.value[0].location !== undefined) {
     placedMarker = true;
     map.setCenter(selected.value[0].location);
@@ -93,7 +95,7 @@ onMounted(() => {
           const location = e.latLng?.toJSON();
           selected.value.forEach((photo) => {
             if (location) {
-              setLocation(photo.name, location);
+              setLocation(photo.data.name, location);
             }
           });
         }
@@ -105,26 +107,11 @@ onMounted(() => {
     });
 });
 
-/**
- * Adds new tags to the master list.
- */
-function updateTags() {
-  selected.value[0].tags.forEach((tag) => {
-    if (tags.value.indexOf(tag) < 0) {
-      addTags(tag);
-    }
-  });
-  moveTagsToFront(selected.value[0].tags);
-  for (let i = 1; i < selected.value.length; i += 1) {
-    selected.value[i].tags = selected.value[0].tags;
-  }
-}
-
 const photoPath = computed(() => {
-  if (selected.value[0].thumbnail) {
-    return selected.value[0].thumbnail;
+  if (selected.value[0].data.thumbnail) {
+    return selected.value[0].data.thumbnail;
   }
-  return selected.value[0].path;
+  return selected.value[0].data.path;
 });
 </script>
 
@@ -135,7 +122,7 @@ const photoPath = computed(() => {
         <div ref="mapEl" class="map"></div>
       </div>
       <div class="info-panel" v-if="selected.length > 0">
-        <h2 class="info-panel-title">{{ selected[0].name }}</h2>
+        <h2 class="info-panel-title">{{ selected[0].data.name }}</h2>
         <v-img cover :src="photoPath" @click="photoView = true"></v-img>
         <div class="info-panel-body">
           <v-combobox
@@ -143,17 +130,19 @@ const photoPath = computed(() => {
             :items="tags"
             multiple
             chips
-            v-model="selected[0].tags"
-            @update:model-value="updateTags"
+            v-model="photoTags"
+            @update:model-value="
+              selected.forEach((photo) => updateTags(photo.data.name, photoTags))
+            "
           ></v-combobox>
-          <v-rating v-model="selected[0].rating"></v-rating>
-          <v-text-field label="Photo Title" v-model="selected[0].title"></v-text-field>
-          <v-textarea label="Photo Description" v-model="selected[0].description"></v-textarea>
+          <v-rating v-model="selected[0].data.rating"></v-rating>
+          <v-text-field label="Photo Title" v-model="selected[0].data.title"></v-text-field>
+          <v-textarea label="Photo Description" v-model="selected[0].data.description"></v-textarea>
           <v-checkbox
             label="Location is approximate"
-            v-model="selected[0].locationApprox"
+            v-model="selected[0].data.locationApprox"
           ></v-checkbox>
-          <v-checkbox label="Mark as duplicate" v-model="selected[0].isDuplicate"></v-checkbox>
+          <v-checkbox label="Mark as duplicate" v-model="selected[0].data.isDuplicate"></v-checkbox>
         </div>
       </div>
     </div>
@@ -169,12 +158,12 @@ const photoPath = computed(() => {
   </v-main>
   <v-dialog v-model="photoView">
     <v-card>
-      <v-card-title>{{ selected[0].name }}</v-card-title>
+      <v-card-title>{{ selected[0].data.name }}</v-card-title>
       <v-card-text>
         <video-player
-          v-if="selected[0].video"
-          :src="selected[0].path"
-          :poster="selected[0].thumbnail"
+          v-if="selected[0].data.video"
+          :src="selected[0].data.path"
+          :poster="selected[0].data.thumbnail"
           controls
           :width="700"
           :height="400"

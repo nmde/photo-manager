@@ -13,10 +13,10 @@ const props = defineProps<{
 }>();
 
 const photoPath = computed(() => {
-  if (props.photo.thumbnail) {
-    return props.photo.thumbnail;
+  if (props.photo.data.thumbnail) {
+    return props.photo.data.thumbnail;
   }
-  return props.photo.path;
+  return props.photo.data.path;
 });
 
 const showAddGroup = ref(false);
@@ -35,45 +35,54 @@ const group = ref('');
 const photoTags = ref<string[]>([]);
 
 onMounted(() => {
-  if (props.photo.rating) {
-    rating.value = props.photo.rating;
+  if (props.photo.data.rating) {
+    rating.value = props.photo.data.rating;
   }
-  isDuplicate.value = props.photo.isDuplicate;
-  if (props.photo.group) {
-    group.value = props.photo.group;
+  isDuplicate.value = props.photo.data.isDuplicate;
+  if (props.photo.data.group) {
+    group.value = props.photo.data.group;
   }
   photoTags.value = props.photo.tags;
 });
 </script>
 
 <template>
-  <v-img max-height="600" :src="photoPath"></v-img>
-  Title: {{ photo.title }} <br />
-  Description: {{ photo.description }} <br />
+  <video-player
+    v-if="photo.data.video"
+    :src="photo.data.path"
+    :poster="photo.data.thumbnail"
+    controls
+    :width="700"
+    :height="400"
+  ></video-player>
+  <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
+  <br />
+  Title: {{ photo.data.title }} <br />
+  Description: {{ photo.data.description }} <br />
   <v-combobox
     label="Photo Tags"
     :items="tags"
     multiple
     chips
     v-model="photoTags"
-    @update:model-value="updateTags(photo.name, photoTags)"
+    @update:model-value="updateTags(photo.data.name, photoTags)"
   ></v-combobox>
-  <v-rating v-model="rating" @update:model-value="setRating(photo.name, rating)"></v-rating>
+  <v-rating v-model="rating" @update:model-value="setRating(photo.data.name, rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"
     v-model="isDuplicate"
-    @update:model-value="setDuplicate(photo.name, isDuplicate)"
+    @update:model-value="setDuplicate(photo.data.name, isDuplicate)"
   ></v-checkbox>
   <v-select
     label="Group"
     :items="groupNames"
     v-model="group"
-    @update:model-value="setGroup(photo.name, group)"
+    @update:model-value="setGroup(photo.data.name, group)"
   ></v-select>
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
   </v-btn>
-  <v-btn icon @click="removeGroup(photo.name)">
+  <v-btn icon @click="removeGroup(photo.data.name)">
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
   <div v-if="showAddGroup">

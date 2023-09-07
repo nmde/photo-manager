@@ -1,10 +1,14 @@
 import { FileEntry } from '@tauri-apps/api/fs';
+import { join } from '@tauri-apps/api/path';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { locToString } from '../classes/Map';
 import { createPhoto, Photo } from '../classes/Photo';
+import { TauriDatabase } from '@/classes/TauriDatabase';
 
 export const useFileStore = defineStore('files', () => {
+  let database: TauriDatabase | null = null;
+
   const files = ref<Record<string, Photo>>({});
 
   const groups = ref<Record<string, string[]>>({});
@@ -18,7 +22,7 @@ export const useFileStore = defineStore('files', () => {
   const locations = computed(() => {
     const locRecord: Record<string, number> = {};
     Object.values(files.value).forEach((file) => {
-      if (file.location !== undefined) {
+      if (file.data.location !== undefined) {
         const key = locToString(file.location);
         if (!locRecord[key]) {
           locRecord[key] = 0;
@@ -33,9 +37,10 @@ export const useFileStore = defineStore('files', () => {
    * Adds a file to the registry.
    * @param file - The file to add.
    */
-  function addFile(file: FileEntry) {
+  async function addFile(file: FileEntry) {
     if (typeof file.name === 'string') {
       files.value[file.name] = createPhoto(file.name, file.path);
+      await database?.insert(files.value[file.name]);
     } else {
       throw new Error(`Unexpected file: ${file.path}`);
     }
@@ -45,22 +50,24 @@ export const useFileStore = defineStore('files', () => {
    * Sets the working dir name.
    * @param path - The path to the working dir.
    */
-  function setWorkingDir(path: string) {
+  async function setWorkingDir(path: string) {
     workingDir.value = path;
+    database = new TauriDatabase(`sqlite:${await join(path, 'photos.db')}`);
   }
 
   /**
    * Sets the stored photo data for a file.
    * @param name - The name of the file to set.
-   * @param data - The data to set.
+   * @param photo - The data to set.
    */
-  function setPhotoData(name: string, data: Photo) {
-    files.value[name] = data;
-    if (data.group) {
-      setGroup(name, data.group);
+  async function setPhotoData(name: string, photo: Photo) {
+    files.value[name] = photo;
+    await database?.update(photo);
+    if (photo.data.group) {
+      setGroup(name, photo.data.group);
     }
-    updateTags(name, data.tags);
-    data.tags.forEach((tag) => {
+    updateTags(name, photo.tags);
+    photo.tags.forEach((tag) => {
       if (!tagCounts.value[tag]) {
         tagCounts.value[tag] = 0;
       }
@@ -73,8 +80,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param thumbnail - The path to the thumbnail.
    */
-  function setThumbnail(photo: string, thumbnail: string) {
-    files.value[photo].thumbnail = thumbnail;
+  async function setThumbnail(photo: string, thumbnail: string) {
+    files.value[photo].data.thumbnail = thumbnail;
+    await database?.update(files.value[photo]);
   }
 
   const photoCount = computed(() => {
@@ -86,8 +94,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The target photo.
    * @param location - The location.
    */
-  function setLocation(photo: string, location: { lat: number, lng: number }) {
+  async function setLocation(photo: string, location: { lat: number, lng: number }) {
     files.value[photo].location = location;
+    await database?.update(files.value[photo]);
   }
 
   /**
@@ -105,8 +114,9 @@ export const useFileStore = defineStore('files', () => {
    * Marks the photo as a video.
    * @param photo - The vidoe.
    */
-  function setVideo(photo: string) {
-    files.value[photo].video = true;
+  async function setVideo(photo: string) {
+    files.value[photo].data.video = true;
+    await database?.update(files.value[photo]);
   }
 
   /**
@@ -130,8 +140,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param rating - The rating to set.
    */
-  function setRating(photo: string, rating: number) {
-    files.value[photo].rating = rating;
+  async function setRating(photo: string, rating: number) {
+    files.value[photo].data.rating = rating;
+    await database?.update(files.value[photo]);
   }
 
   /**
@@ -139,8 +150,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param isDuplicate - The duplicate marker.
    */
-  function setDuplicate(photo: string, isDuplicate: boolean) {
-    files.value[photo].isDuplicate = isDuplicate;
+  async function setDuplicate(photo: string, isDuplicate: boolean) {
+    files.value[photo].data.isDuplicate = isDuplicate;
+    await database?.update(files.value[photo]);
   }
 
   /**
@@ -148,13 +160,14 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set.
    * @param group - The group to set.
    */
-  function setGroup(photo: string, group: string) {
-    const fgroup = files.value[photo].group;
+  async function setGroup(photo: string, group: string) {
+    const fgroup = files.value[photo].data.group;
     if (fgroup && groups.value[fgroup]) {
       // Remove from previous group
       groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
     }
-    files.value[photo].group = group;
+    files.value[photo].data.group = group;
+    await database?.update(files.value[photo]);
     if (!groups.value[group]) {
       groups.value[group] = [];
     }
@@ -176,12 +189,13 @@ export const useFileStore = defineStore('files', () => {
    * Removes a photo from its group.
    * @param photo - The photo to remove from its group.
    */
-  function removeGroup(photo: string) {
-    const fgroup = files.value[photo].group;
+  async function removeGroup(photo: string) {
+    const fgroup = files.value[photo].data.group;
     if (fgroup) {
       groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
     }
-    delete files.value[photo].group;
+    delete files.value[photo].data.group;
+    await database?.update(files.value[photo]);
   }
 
   /**
@@ -190,7 +204,7 @@ export const useFileStore = defineStore('files', () => {
  * @param t - The tags to apply.
  * @param propagate - If other photos in the group should be updated.
  */
- function updateTags(photo: string, t: string[], propagate = true) {
+ async function updateTags(photo: string, t: string[], propagate = true) {
   t.forEach((tag) => {
     if (!tagCounts.value[tag]) {
       tagCounts.value[tag] = 0;
@@ -198,9 +212,10 @@ export const useFileStore = defineStore('files', () => {
     if (files.value[photo].tags.indexOf(tag) < 0) {
       tagCounts.value[tag] += 1;
     }
-    if (tags.value.indexOf(tag) < 0) {
-      tags.value.push(tag);
+    if (tags.value.indexOf(tag) >= 0) {
+      tags.value.splice(tags.value.indexOf(tag), 1);
     }
+    tags.value.splice(0, 0, tag);
   });
   files.value[photo].tags.forEach((tag) => {
     if (t.indexOf(tag) < 0) {
@@ -212,7 +227,8 @@ export const useFileStore = defineStore('files', () => {
     }
   });
   files.value[photo].tags = t;
-  const fgroup = files.value[photo].group;
+  await database?.update(files.value[photo]);
+  const fgroup = files.value[photo].data.group;
   if (fgroup && propagate) {
     groups.value[fgroup].forEach((p) => {
       if (p !== photo) {

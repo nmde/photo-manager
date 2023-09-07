@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/api/dialog';
-import { readDir, exists, readTextFile, createDir, FileEntry } from '@tauri-apps/api/fs';
+import { readDir, exists, createDir, FileEntry } from '@tauri-apps/api/fs';
 import { join, appDataDir } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Command } from '@tauri-apps/api/shell';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
-import { PhotoDataFile } from '../types/photo-data';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setPhotoData, setThumbnail, setVideo, addGroup } =
-  useFileStore();
+const { addFile, setWorkingDir, setThumbnail, setVideo } = useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -41,23 +39,7 @@ async function openFolder() {
         videos.push(file);
       }
     });
-    setWorkingDir(selected);
-    const photoManagerFile = await join(selected, 'photo-data.json');
-    if (await exists(photoManagerFile)) {
-      const photoData = JSON.parse(await readTextFile(photoManagerFile)) as PhotoDataFile;
-      Object.entries(photoData.files).forEach(([name, data]) => {
-        if (!files.find((f) => f.name === name)) {
-          deleted.value.push(name);
-        } else {
-          setPhotoData(name, data);
-        }
-      });
-      if (photoData.groups) {
-        Object.entries(photoData.groups).forEach(([name, items]) => {
-          addGroup(name, items);
-        });
-      }
-    }
+    await setWorkingDir(selected);
     if (raws.length > 0 || videos.length > 0) {
       thumbnailDialog.value = true;
       thumbnailProgress.value = 0;

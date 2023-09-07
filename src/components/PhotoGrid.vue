@@ -30,10 +30,10 @@ type GridRow = Photo[];
 const filteredPhotos = computed(() => {
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  const photos = props.photos;
+  const tempphotos = [...props.photos];
   const groups: string[] = [];
-  while (photos.length > 0) {
-    const file = photos[0];
+  while (tempphotos.length > 0) {
+    const file = tempphotos[0];
     let visible = true;
     if (hideTagged.value === true && file.tags.length > 0) {
       visible = false;
@@ -41,16 +41,16 @@ const filteredPhotos = computed(() => {
     if (hideLocated.value === true && file.location !== undefined) {
       visible = false;
     }
-    if (hideDuplicate.value === true && file.isDuplicate) {
+    if (hideDuplicate.value === true && file.data.isDuplicate) {
       visible = false;
     }
     if (visible) {
       let grouped = false;
-      if (typeof file.group === 'string') {
-        if (groups.indexOf(file.group) >= 0) {
+      if (typeof file.data.group === 'string') {
+        if (groups.indexOf(file.data.group) >= 0) {
           grouped = true;
         } else {
-          groups.push(file.group);
+          groups.push(file.data.group);
         }
       }
       if (!grouped) {
@@ -61,7 +61,7 @@ const filteredPhotos = computed(() => {
         }
       }
     }
-    photos.shift();
+    tempphotos.shift();
   }
   rows.push(row);
   return rows;
@@ -81,7 +81,7 @@ const visiblePhotoCount = computed(() => {
  */
 function selectPhoto(photo: Photo) {
   if (selectMultiple.value) {
-    const idx = selected.value.findIndex((p) => p.name === photo.name);
+    const idx = selected.value.findIndex((p) => p.data.name === photo.data.name);
     if (idx >= 0) {
       selected.value.splice(idx, 1);
     } else {
@@ -134,7 +134,7 @@ function selectPhoto(photo: Photo) {
         :key="i"
         :photo="photo"
         :size="props.size"
-        :selected="selected.findIndex((p) => p.name === photo.name) >= 0"
+        :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
         @select="selectPhoto(photo)"
       ></photo-icon>
     </template>

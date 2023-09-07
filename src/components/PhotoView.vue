@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>();
 
 const fileStore = useFileStore();
-const { addTags } = fileStore;
+const { updateTags } = fileStore;
 const { tags } = storeToRefs(fileStore);
 
 const title = ref('');
@@ -25,37 +25,36 @@ const selectedTags = ref<string[]>([]);
 /**
  * Adds new tags to the master list.
  */
-function updateTags() {
-  selectedTags.value.forEach((tag) => {
-    if (tags.value.indexOf(tag) < 0) {
-      addTags(tag);
-    }
-  });
-  emit('update:modelValue', {
-    name: props.modelValue.name,
-    title: title.value,
-    description: description.value,
-    path: props.modelValue.path,
-    locationApprox: locationApprox.value,
-    tags: selectedTags.value,
-    isDuplicate: isDuplicate.value,
-  });
+function syncTags() {
+  updateTags(props.modelValue.data.name, selectedTags.value);
+  emit(
+    'update:modelValue',
+    new Photo({
+      name: props.modelValue.data.name,
+      title: title.value,
+      description: description.value,
+      path: props.modelValue.data.path,
+      locationApprox: locationApprox.value,
+      tags: selectedTags.value.join(','),
+      isDuplicate: isDuplicate.value,
+    }),
+  );
 }
 
 watch(props.modelValue, () => {
-  title.value = props.modelValue.title;
-  description.value = props.modelValue.description;
+  title.value = props.modelValue.data.title;
+  description.value = props.modelValue.data.description;
   selectedTags.value = props.modelValue.tags;
-  locationApprox.value = props.modelValue.locationApprox;
-  isDuplicate.value = props.modelValue.isDuplicate;
+  locationApprox.value = props.modelValue.data.locationApprox;
+  isDuplicate.value = props.modelValue.data.isDuplicate;
 });
 </script>
 
 <template>
   <v-card>
-    <v-card-title>{{ props.modelValue.name }}</v-card-title>
+    <v-card-title>{{ props.modelValue.data.name }}</v-card-title>
     <v-card-text>
-      <v-img max-height="600" :src="props.modelValue.path"></v-img>
+      <v-img max-height="600" :src="props.modelValue.data.path"></v-img>
       <v-text-input label="Title" v-model="title"></v-text-input>
       <v-textarea label="Description" v-model="description"></v-textarea>
       <v-combobox
@@ -64,7 +63,7 @@ watch(props.modelValue, () => {
         multiple
         chips
         v-model="selectedTags"
-        @update:model-value="updateTags"
+        @update:model-value="syncTags"
       ></v-combobox>
       <v-checkbox label="Location is approximate" v-model="locationApprox"></v-checkbox>
       <v-checkbox label="Mark as duplicate" v-model="isDuplicate"></v-checkbox>

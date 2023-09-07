@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Chart as ChartJS, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { storeToRefs } from 'pinia';
 import { onMounted, ref, computed } from 'vue';
 import { Bar } from 'vue-chartjs';
@@ -10,7 +10,7 @@ import PhotoGrid from '../components/PhotoGrid.vue';
 import PhotoGroup from '../components/PhotoGroup.vue';
 import { useFileStore } from '../stores/fileStore';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 const { locations, tags, files, tagCounts } = storeToRefs(useFileStore());
 
@@ -93,11 +93,11 @@ function toggleHeatmap() {
 
 const tagChartData = computed(() => {
   let sorted: string[] = [];
-  console.log(tagCounts.value);
+  const cutoff = 3;
   Object.entries(tagCounts.value).forEach(([tag, value]) => {
-    if (sorted.length === 0) {
+    if (sorted.length === 0 && value >= cutoff) {
       sorted.push(tag);
-    } else {
+    } else if (value >= cutoff) {
       let i = 0;
       while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
         i += 1;
@@ -118,10 +118,10 @@ const tagChartData = computed(() => {
 });
 
 const displayName = computed(() => {
-  if (selected.value.group !== undefined) {
-    return selected.value.group;
+  if (selected.value.data.group !== undefined) {
+    return selected.value.data.group;
   }
-  return selected.value.name;
+  return selected.value.data.name;
 });
 </script>
 
@@ -164,7 +164,10 @@ const displayName = computed(() => {
             v-model="showHeatmap"
             @update:model-value="toggleHeatmap()"
           ></v-checkbox>
-          <Bar :options="{ indexAxis: 'y' }" :data="tagChartData"></Bar>
+          <Bar
+            :options="{ indexAxis: 'y', plugins: { tooltip: { enabled: true } } }"
+            :data="tagChartData"
+          ></Bar>
         </v-col>
       </v-row>
     </v-container>
@@ -172,8 +175,11 @@ const displayName = computed(() => {
       <v-card>
         <v-card-title>{{ displayName }}</v-card-title>
         <v-card-text>
-          <photo-detail :photo="selected" v-if="selected.group === undefined"></photo-detail>
-          <photo-group :group="selected.group" v-if="selected.group !== undefined"></photo-group>
+          <photo-detail :photo="selected" v-if="selected.data.group === undefined"></photo-detail>
+          <photo-group
+            :group="selected.data.group"
+            v-if="selected.data.group !== undefined"
+          ></photo-group>
         </v-card-text>
       </v-card>
     </v-dialog>
