@@ -10,7 +10,15 @@ import { useFileStore } from '../stores/fileStore';
 import { onMounted } from 'vue';
 
 const fileStore = useFileStore();
-const { setLocation, updateTags } = fileStore;
+const {
+  setLocation,
+  updateTags,
+  setRating,
+  setTitle,
+  setDescription,
+  setLocationApprox,
+  setDuplicate,
+} = fileStore;
 const { files, tags, locations } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
@@ -47,6 +55,12 @@ function createMarker(pos: string) {
   }
 }
 
+const rating = ref(0);
+const title = ref('');
+const description = ref('');
+const locationApprox = ref(false);
+const isDuplicate = ref(false);
+
 /**
  * Select a photo to edit.
  * @param photos - The photo.
@@ -54,6 +68,11 @@ function createMarker(pos: string) {
 function selectPhoto(photos: Photo[]) {
   selected.value = photos;
   photoTags.value = photos[0].tags;
+  rating.value = photos[0].data.rating || 0;
+  title.value = photos[0].data.title;
+  description.value = photos[0].data.description;
+  locationApprox.value = photos[0].data.locationApprox;
+  isDuplicate.value = photos[0].data.isDuplicate;
   if (selected.value.length === 1 && selected.value[0].location !== undefined) {
     placedMarker = true;
     map.setCenter(selected.value[0].location);
@@ -135,14 +154,36 @@ const photoPath = computed(() => {
               selected.forEach((photo) => updateTags(photo.data.name, photoTags))
             "
           ></v-combobox>
-          <v-rating v-model="selected[0].data.rating"></v-rating>
-          <v-text-field label="Photo Title" v-model="selected[0].data.title"></v-text-field>
-          <v-textarea label="Photo Description" v-model="selected[0].data.description"></v-textarea>
+          <v-rating
+            v-model="rating"
+            @update:model-value="selected.forEach((photo) => setRating(photo.data.name, rating))"
+          ></v-rating>
+          <v-text-field
+            label="Photo Title"
+            v-model="title"
+            @update:model-value="selected.forEach((photo) => setTitle(photo.data.name, title))"
+          ></v-text-field>
+          <v-textarea
+            label="Photo Description"
+            v-model="description"
+            @update:model-value="
+              selected.forEach((photo) => setDescription(photo.data.name, description))
+            "
+          ></v-textarea>
           <v-checkbox
             label="Location is approximate"
-            v-model="selected[0].data.locationApprox"
+            v-model="locationApprox"
+            @update:model-value="
+              selected.forEach((photo) => setLocationApprox(photo.data.name, locationApprox))
+            "
           ></v-checkbox>
-          <v-checkbox label="Mark as duplicate" v-model="selected[0].data.isDuplicate"></v-checkbox>
+          <v-checkbox
+            label="Mark as duplicate"
+            v-model="isDuplicate"
+            @update:model-value="
+              selected.forEach((photo) => setDuplicate(photo.data.name, isDuplicate))
+            "
+          ></v-checkbox>
         </div>
       </div>
     </div>

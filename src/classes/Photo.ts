@@ -1,41 +1,50 @@
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Entity } from './Entity';
+import { Position } from './Map';
 
 export interface PhotoData {
   name: string;
   path: string;
   title: string;
   description: string;
-  location?: string;
+  location: string;
   locationApprox: boolean;
   tags: string;
   isDuplicate: boolean;
-  thumbnail?: string;
-  rating?: number;
-  video?: boolean;
-  group?: string;
+  thumbnail: string;
+  rating: number;
+  video: boolean;
+  photoGroup: string;
 }
 
 export class Photo extends Entity<PhotoData> {
   public constructor(data: PhotoData) {
     super('Photo', data);
+    this.primaryKey = 'name';
   }
 
-  public get location() {
+  public get group() {
+    if (this.data.photoGroup.length === 0) {
+      return undefined;
+    }
+    return this.data.photoGroup;
+  }
+
+  public get location(): Position | undefined {
     if (this.data.location) {
       return JSON.parse(this.data.location);
     }
-    return {
-      lat: 0,
-      lng: 0,
-    };
+    return undefined;
   }
 
-  public set location(location: { lat: number; lng: number }) {
+  public set location(location: Position) {
     this.data.location = JSON.stringify(location);
   }
 
   public get tags() {
+    if (this.data.tags.length === 0) {
+      return [];
+    }
     return this.data.tags.split(',');
   }
 
@@ -53,5 +62,10 @@ export function createPhoto(name: string, path: string): Photo {
     locationApprox: false,
     tags: '',
     isDuplicate: false,
+    rating: 0,
+    location: '',
+    thumbnail: '',
+    video: false,
+    photoGroup: '',
   });
 }

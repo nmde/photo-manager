@@ -30,10 +30,9 @@ function syncTags() {
   emit(
     'update:modelValue',
     new Photo({
-      name: props.modelValue.data.name,
+      ...props.modelValue.data,
       title: title.value,
       description: description.value,
-      path: props.modelValue.data.path,
       locationApprox: locationApprox.value,
       tags: selectedTags.value.join(','),
       isDuplicate: isDuplicate.value,

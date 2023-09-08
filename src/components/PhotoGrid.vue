@@ -46,11 +46,11 @@ const filteredPhotos = computed(() => {
     }
     if (visible) {
       let grouped = false;
-      if (typeof file.data.group === 'string') {
-        if (groups.indexOf(file.data.group) >= 0) {
+      if (typeof file.group === 'string') {
+        if (groups.indexOf(file.group) >= 0) {
           grouped = true;
         } else {
-          groups.push(file.data.group);
+          groups.push(file.group);
         }
       }
       if (!grouped) {

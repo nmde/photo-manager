@@ -20,8 +20,8 @@ const photoPath = computed(() => {
 });
 
 const displayName = computed(() => {
-  if (props.photo.data.group !== undefined) {
-    return props.photo.data.group;
+  if (props.photo.group !== undefined) {
+    return props.photo.group;
   }
   return props.photo.data.name;
 });
@@ -50,7 +50,7 @@ const displayName = computed(() => {
         <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
         <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
         <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
-        <v-icon v-if="props.photo.data.group !== undefined">mdi-group</v-icon>
+        <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
       </v-img>
     </v-card>
   </div>

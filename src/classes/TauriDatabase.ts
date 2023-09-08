@@ -16,7 +16,7 @@ export class TauriDatabase {
    * @param entity - The entity to delete.
    */
   public async delete(entity: Entity) {
-    const query = `DELETE FROM ${entity.tableName} WHERE Id='${entity.id}'`;
+    const query = `DELETE FROM ${entity.tableName} WHERE Id='${entity.Id}'`;
     await this.execute(query);
   }
 
@@ -26,17 +26,27 @@ export class TauriDatabase {
    */
   private async ensureTable(entity: Entity) {
     if (this.ensuredTables.indexOf(entity.tableName) < 0) {
-      let query = `CREATE TABLE IF NOT EXISTS ${entity.tableName} (Id TEXT PRIMARY KEY,`;
+      let query = `CREATE TABLE IF NOT EXISTS ${entity.tableName} (Id TEXT `;
+      if (!entity.primaryKey) {
+        query += `PRIMARY KEY, `;
+      } else {
+        query += ', ';
+      }
       Object.entries(entity.data).forEach(([name, value]) => {
         let str = `${name} `;
-        if (typeof value === 'number') {
+        if (typeof value === 'number' || typeof value === 'boolean') {
           str += 'INTEGER';
         } else if (typeof value === 'string') {
           str += 'TEXT';
         } else {
           throw new Error(`Unhandled data type for ${name}!`);
         }
-        query += `${str}, `;
+        query += str;
+        if (name === entity.primaryKey) {
+          query += ` PRIMARY KEY, `;
+        } else {
+          query += ', ';
+        }
       });
       query = query.substring(0, query.length - 2);
       query += `)`;
@@ -59,13 +69,13 @@ export class TauriDatabase {
    * @param entity - The entity to check for.
    */
   public async exists(entity: Entity) {
-    return (
-      (
-        await this.select(
-          `SELECT * FROM ${entity.tableName} WHERE Id='${entity.id}'`,
-        )
-      ).length > 0
-    );
+    let query = `SELECT * FROM ${entity.tableName} WHERE `;
+    if (!entity.primaryKey) {
+      query += `Id='${entity.Id}'`;
+    } else {
+      query += `${entity.primaryKey}='${entity.data[entity.primaryKey]}'`;
+    }
+    return (await this.select(query)).length > 0;
   }
 
   /**
@@ -77,6 +87,11 @@ export class TauriDatabase {
       return `'${value}'`;
     } else if (typeof value === 'number') {
       return `${value}`;
+    } else if (typeof value === 'boolean') {
+      if (value) {
+        return '1';
+      }
+      return '0';
     } else {
       throw new Error(`Unhandled data type for ${value}!`);
     }
@@ -104,13 +119,11 @@ export class TauriDatabase {
       if (autoUpdate) {
         this.update(entity);
       } else {
-        throw new Error(
-          `Entity already exists: ${entity.tableName}/${entity.id}`,
-        );
+        throw new Error(`Entity already exists: ${entity.tableName}/${entity.Id}`);
       }
     } else {
       let query = `INSERT INTO ${entity.tableName} (Id,`;
-      let values = `'${entity.id}',`;
+      let values = `'${entity.Id}', `;
       Object.keys(entity.data).forEach((name) => {
         query += `${name}, `;
         values += `${this.getCleanValue(entity.data[name])}, `;
@@ -138,13 +151,11 @@ export class TauriDatabase {
   public async selectAll<T extends Entity>(From: Constructor<T>): Promise<T[]> {
     try {
       const dummy = new From();
-      return (await this.select(`SELECT * FROM ${dummy.tableName}`)).map(
-        (result) => {
-          const obj = new From(result);
-          obj.id = result.Id;
-          return obj;
-        },
-      );
+      return (await this.select(`SELECT * FROM ${dummy.tableName}`)).map((result) => {
+        const obj = new From(result);
+        obj.Id = result.Id;
+        return obj;
+      });
     } catch (err) {
       return [];
     }
@@ -161,7 +172,12 @@ export class TauriDatabase {
       query += `${name} = ${this.getCleanValue(entity.data[name])}, `;
     });
     query = query.substring(0, query.length - 2);
-    query += ` WHERE Id='${entity.id}'`;
+    query += ` WHERE `;
+    if (!entity.primaryKey) {
+      query += `Id='${entity.Id}'`;
+    } else {
+      query += `${entity.primaryKey}='${entity.data[entity.primaryKey]}'`;
+    }
     await this.execute(query);
   }
 }

@@ -63,8 +63,8 @@ export const useFileStore = defineStore('files', () => {
   async function setPhotoData(name: string, photo: Photo) {
     files.value[name] = photo;
     await database?.update(photo);
-    if (photo.data.group) {
-      setGroup(name, photo.data.group);
+    if (photo.group) {
+      setGroup(name, photo.group);
     }
     updateTags(name, photo.tags);
     photo.tags.forEach((tag) => {
@@ -94,7 +94,7 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The target photo.
    * @param location - The location.
    */
-  async function setLocation(photo: string, location: { lat: number, lng: number }) {
+  async function setLocation(photo: string, location: { lat: number; lng: number }) {
     files.value[photo].location = location;
     await database?.update(files.value[photo]);
   }
@@ -161,12 +161,12 @@ export const useFileStore = defineStore('files', () => {
    * @param group - The group to set.
    */
   async function setGroup(photo: string, group: string) {
-    const fgroup = files.value[photo].data.group;
+    const fgroup = files.value[photo].group;
     if (fgroup && groups.value[fgroup]) {
       // Remove from previous group
       groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
     }
-    files.value[photo].data.group = group;
+    files.value[photo].data.photoGroup = group;
     await database?.update(files.value[photo]);
     if (!groups.value[group]) {
       groups.value[group] = [];
@@ -190,53 +190,96 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to remove from its group.
    */
   async function removeGroup(photo: string) {
-    const fgroup = files.value[photo].data.group;
+    const fgroup = files.value[photo].group;
     if (fgroup) {
       groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
     }
-    delete files.value[photo].data.group;
+    files.value[photo].data.photoGroup = '';
     await database?.update(files.value[photo]);
   }
 
   /**
- * Adds new tags to the master list.
- * @param photo - The photo to apply tags to.
- * @param t - The tags to apply.
- * @param propagate - If other photos in the group should be updated.
- */
- async function updateTags(photo: string, t: string[], propagate = true) {
-  t.forEach((tag) => {
-    if (!tagCounts.value[tag]) {
-      tagCounts.value[tag] = 0;
-    }
-    if (files.value[photo].tags.indexOf(tag) < 0) {
-      tagCounts.value[tag] += 1;
-    }
-    if (tags.value.indexOf(tag) >= 0) {
-      tags.value.splice(tags.value.indexOf(tag), 1);
-    }
-    tags.value.splice(0, 0, tag);
-  });
-  files.value[photo].tags.forEach((tag) => {
-    if (t.indexOf(tag) < 0) {
-      tagCounts.value[tag] -= 1;
-      if (tagCounts.value[tag] <= 0) {
-        delete tagCounts.value[tag];
+   * Adds new tags to the master list.
+   * @param photo - The photo to apply tags to.
+   * @param t - The tags to apply.
+   * @param propagate - If other photos in the group should be updated.
+   */
+  async function updateTags(photo: string, t: string[], propagate = true) {
+    t.forEach((tag) => {
+      if (!tagCounts.value[tag]) {
+        tagCounts.value[tag] = 0;
+      }
+      if (files.value[photo].tags.indexOf(tag) < 0) {
+        tagCounts.value[tag] += 1;
+      }
+      if (tags.value.indexOf(tag) >= 0) {
         tags.value.splice(tags.value.indexOf(tag), 1);
       }
-    }
-  });
-  files.value[photo].tags = t;
-  await database?.update(files.value[photo]);
-  const fgroup = files.value[photo].data.group;
-  if (fgroup && propagate) {
-    groups.value[fgroup].forEach((p) => {
-      if (p !== photo) {
-        updateTags(p, t, false);
+      tags.value.splice(0, 0, tag);
+    });
+    files.value[photo].tags.forEach((tag) => {
+      if (t.indexOf(tag) < 0) {
+        tagCounts.value[tag] -= 1;
+        if (tagCounts.value[tag] <= 0) {
+          delete tagCounts.value[tag];
+          tags.value.splice(tags.value.indexOf(tag), 1);
+        }
       }
     });
+    files.value[photo].tags = t;
+    await database?.update(files.value[photo]);
+    const fgroup = files.value[photo].group;
+    if (fgroup && propagate) {
+      groups.value[fgroup].forEach((p) => {
+        if (p !== photo) {
+          updateTags(p, t, false);
+        }
+      });
+    }
   }
-}
+
+  /**
+   * Sets a photo's title.
+   * @param photo - The photo.
+   * @param title - The title to set.
+   */
+  async function setTitle(photo: string, title: string) {
+    files.value[photo].data.title = title;
+    await database?.update(files.value[photo]);
+  }
+
+  /**
+   * Sets a photo's description.
+   * @param photo - The photo.
+   * @param description - The description to set.
+   */
+  async function setDescription(photo: string, description: string) {
+    files.value[photo].data.description = description;
+    await database?.update(files.value[photo]);
+  }
+
+  /**
+   * Sets a photo's locationApprox.
+   * @param photo - The photo.
+   * @param locationApprox - The value to set.
+   */
+  async function setLocationApprox(photo: string, locationApprox: boolean) {
+    files.value[photo].data.locationApprox = locationApprox;
+    await database?.update(files.value[photo]);
+  }
+
+  /**
+   * Loads photos from the database.
+   */
+  async function loadPhotos() {
+    if (database) {
+      files.value = {};
+      (await database.selectAll(Photo)).forEach((photo) => {
+        files.value[photo.data.name] = photo;
+      });
+    }
+    return files.value;
+  }
 
   return {
     files,
@@ -260,5 +303,9 @@ export const useFileStore = defineStore('files', () => {
     setGroup,
     removeGroup,
     updateTags,
+    setTitle,
+    setDescription,
+    setLocationApprox,
+    loadPhotos,
   };
 });

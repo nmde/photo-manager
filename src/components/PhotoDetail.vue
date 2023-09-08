@@ -39,8 +39,8 @@ onMounted(() => {
     rating.value = props.photo.data.rating;
   }
   isDuplicate.value = props.photo.data.isDuplicate;
-  if (props.photo.data.group) {
-    group.value = props.photo.data.group;
+  if (props.photo.group) {
+    group.value = props.photo.group;
   }
   photoTags.value = props.photo.tags;
 });

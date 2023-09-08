@@ -9,7 +9,7 @@ import { useRouter } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setThumbnail, setVideo } = useFileStore();
+const { addFile, setWorkingDir, setThumbnail, setVideo, loadPhotos } = useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -17,6 +17,9 @@ const deleted = ref<string[]>([]);
 const thumbnailDialog = ref(false);
 const thumbnailCount = ref(0);
 const thumbnailProgress = ref(0);
+const initializing = ref(false);
+const initializingProgress = ref(0);
+const fileCount = ref(0);
 
 /**
  * Prompts the user to select the folder to manage.
@@ -28,18 +31,25 @@ async function openFolder() {
     multiple: false,
   });
   if (selected && typeof selected === 'string') {
+    initializing.value = true;
+    await setWorkingDir(selected);
+    const existing = await loadPhotos();
     const files = await readDir(selected);
+    fileCount.value = files.length;
     let raws: FileEntry[] = [];
     let videos: FileEntry[] = [];
-    files.forEach((file) => {
-      addFile(file);
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i];
+      if (typeof file.name === 'string' && !existing[file.name]) {
+        await addFile(file);
+      }
+      initializingProgress.value += 1;
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
         raws.push(file);
       } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV)$/.test(file.path.toUpperCase())) {
         videos.push(file);
       }
-    });
-    await setWorkingDir(selected);
+    }
     if (raws.length > 0 || videos.length > 0) {
       thumbnailDialog.value = true;
       thumbnailProgress.value = 0;
@@ -81,9 +91,9 @@ async function openFolder() {
           if (resizeOutput.code !== 0) {
             console.error(resizeOutput.stderr);
           }
+          await setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath));
         }
         thumbnailProgress.value += 1;
-        setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath));
       }
       for (let i = 0; i < videos.length; i += 1) {
         const thumbnailPath = await join(
@@ -105,8 +115,8 @@ async function openFolder() {
           }
         }
         thumbnailProgress.value += 1;
-        setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath));
-        setVideo(videos[i].name as string);
+        await setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath));
+        await setVideo(videos[i].name as string);
       }
       thumbnailDialog.value = false;
       if (deleted.value.length > 0) {
@@ -161,6 +171,18 @@ async function openFolder() {
           Progress: {{ thumbnailProgress }} / {{ thumbnailCount }}
           <v-progress-linear
             :model-value="(thumbnailProgress / thumbnailCount) * 100"
+            color="primary"
+          ></v-progress-linear>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="initializing" persistent>
+      <v-card>
+        <v-card-title>Initializing</v-card-title>
+        <v-card-text>
+          Progress: {{ initializingProgress }} / {{ fileCount }}
+          <v-progress-linear
+            :model-value="(initializingProgress / fileCount) * 100"
             color="primary"
           ></v-progress-linear>
         </v-card-text>
