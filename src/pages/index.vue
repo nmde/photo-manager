@@ -1,9 +1,4 @@
 <script setup lang="ts">
-import { open } from '@tauri-apps/api/dialog';
-import { readDir, exists, createDir, FileEntry } from '@tauri-apps/api/fs';
-import { join, appDataDir } from '@tauri-apps/api/path';
-import { convertFileSrc } from '@tauri-apps/api/tauri';
-import { Command } from '@tauri-apps/api/shell';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
@@ -26,6 +21,11 @@ const fileCount = ref(0);
  */
 async function openFolder() {
   loading.value = true;
+  const { open } = await import('@tauri-apps/api/dialog');
+  const { readDir, exists, createDir } = await import('@tauri-apps/api/fs');
+  const { join, appDataDir } = await import('@tauri-apps/api/path');
+  const { convertFileSrc } = await import('@tauri-apps/api/tauri');
+  const { Command } = await import('@tauri-apps/api/shell');
   const selected = await open({
     directory: true,
     multiple: false,
@@ -36,8 +36,8 @@ async function openFolder() {
     const existing = await loadPhotos();
     const files = await readDir(selected);
     fileCount.value = files.length;
-    let raws: FileEntry[] = [];
-    let videos: FileEntry[] = [];
+    let raws: any[] = [];
+    let videos: any[] = [];
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       if (typeof file.name === 'string' && !existing[file.name]) {
@@ -140,12 +140,10 @@ async function openFolder() {
       <v-row>
         <v-col cols="4"></v-col>
         <v-col cols="12">
-          <v-card>
-            <v-card-text class="main">
-              <h1>Photo Manager</h1>
-              <v-btn color="primary" @click="openFolder" :loading="loading">Open Folder</v-btn>
-            </v-card-text>
-          </v-card>
+          <div class="main">
+            <h1>Photo Manager</h1>
+            <v-btn color="primary" @click="openFolder" :loading="loading">Open Folder</v-btn>
+          </div>
         </v-col>
         <v-col cols="4"></v-col>
       </v-row>

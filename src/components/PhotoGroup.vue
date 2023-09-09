@@ -1,42 +1,41 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { ref, computed } from 'vue';
-import { useFileStore } from '../stores/fileStore';
-import PhotoDetail from './PhotoDetail.vue';
-
-const { groups, files } = storeToRefs(useFileStore());
+import { ref } from 'vue';
+import { Photo } from '~/classes/Photo';
 
 const props = defineProps<{
-    group: string;
+  photos: Photo[];
 }>();
 
 const current = ref(0);
-
-const groupItems = computed(() => {
-    return groups.value[props.group];
-});
-
-function prev() {
-    if (current.value > 0) {
-        current.value -= 1;
-    }
-}
-
-function next() {
-    if (current.value < groupItems.value.length) {
-        current.value += 1;
-    }
-}
-
 </script>
 
 <template>
-  <v-btn icon @click="prev">
+  <v-btn
+    icon
+    flat
+    @click="
+      () => {
+        if (current > 0) {
+          current -= 1;
+        }
+      }
+    "
+  >
     <v-icon>mdi-arrow-left</v-icon>
   </v-btn>
-  {{ current + 1 }} / {{ groupItems.length }}
-  <v-btn icon @click="next">
+  {{ current + 1 }} / {{ props.photos.length }}
+  <v-btn
+    icon
+    flat
+    @click="
+      () => {
+        if (current < props.photos.length - 1) {
+          current += 1;
+        }
+      }
+    "
+  >
     <v-icon>mdi-arrow-right</v-icon>
   </v-btn>
-  <photo-detail :photo="files[groupItems[current]]"></photo-detail>
+  <photo-detail :photo="props.photos[current]"></photo-detail>
 </template>

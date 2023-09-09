@@ -1,11 +1,22 @@
 <script setup lang="ts">
+import { VideoPlayer } from '@videojs-player/vue';
 import { storeToRefs } from 'pinia';
-import { computed, ref, onMounted } from 'vue';
+import 'video.js/dist/video-js.css';
+import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
 
 const fileStore = useFileStore();
-const { addGroup, setRating, setDuplicate, setGroup, removeGroup, updateTags } = fileStore;
+const {
+  addGroup,
+  setRating,
+  setDuplicate,
+  setGroup,
+  removeGroup,
+  updateTags,
+  setTitle,
+  setDescription,
+} = fileStore;
 const { groupNames, tags } = storeToRefs(fileStore);
 
 const props = defineProps<{
@@ -21,29 +32,24 @@ const photoPath = computed(() => {
 
 const showAddGroup = ref(false);
 const newGroupName = ref('');
-
-function createGroup() {
-  if (newGroupName.value.length > 0) {
-    addGroup(newGroupName.value, []);
-    newGroupName.value = '';
-  }
-}
-
 const rating = ref(0);
 const isDuplicate = ref(false);
-const group = ref('');
+const group = ref<string | undefined>();
 const photoTags = ref<string[]>([]);
+const title = ref('');
+const description = ref('');
 
-onMounted(() => {
-  if (props.photo.data.rating) {
+watch(
+  () => props.photo,
+  () => {
     rating.value = props.photo.data.rating;
-  }
-  isDuplicate.value = props.photo.data.isDuplicate;
-  if (props.photo.group) {
+    isDuplicate.value = props.photo.data.isDuplicate;
     group.value = props.photo.group;
-  }
-  photoTags.value = props.photo.tags;
-});
+    photoTags.value = props.photo.tags;
+    title.value = props.photo.data.title;
+    description.value = props.photo.data.description;
+  },
+);
 </script>
 
 <template>
@@ -57,8 +63,16 @@ onMounted(() => {
   ></video-player>
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
   <br />
-  Title: {{ photo.data.title }} <br />
-  Description: {{ photo.data.description }} <br />
+  <v-text-field
+    label="Title"
+    v-model="title"
+    @update:model-value="setTitle(photo.data.name, title)"
+  ></v-text-field>
+  <v-textarea
+    label="Description"
+    v-model="description"
+    @update:model-value="setDescription(photo.data.name, description)"
+  ></v-textarea>
   <v-combobox
     label="Photo Tags"
     :items="tags"
@@ -87,6 +101,17 @@ onMounted(() => {
   </v-btn>
   <div v-if="showAddGroup">
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
-    <v-btn color="primary" @click="createGroup">Create Group</v-btn>
+    <v-btn
+      color="primary"
+      @click="
+        () => {
+          if (newGroupName.length > 0) {
+            addGroup(newGroupName, []);
+            newGroupName = '';
+          }
+        }
+      "
+      >Create Group</v-btn
+    >
   </div>
 </template>

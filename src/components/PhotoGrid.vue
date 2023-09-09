@@ -3,7 +3,6 @@ import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
-import PhotoIcon from './PhotoIcon.vue';
 
 const props = defineProps<{
   photos: Photo[];
@@ -95,33 +94,51 @@ function selectPhoto(photo: Photo) {
 </script>
 
 <template>
-  <v-toolbar>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideTagged"
-      label="Hide tagged"
-    ></v-checkbox>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideLocated"
-      label="Hide located"
-    ></v-checkbox>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideDuplicate"
-      label="Hide duplicates"
-    ></v-checkbox>
+  <div class="controls">
+    <v-menu :close-on-content-click="false">
+      <template v-slot:activator="{ props }">
+        <v-btn icon v-bind="props" flat>
+          <v-icon>mdi-dots-vertical</v-icon>
+        </v-btn>
+      </template>
+      <v-list>
+        <v-list-item>
+          <v-checkbox
+            density="compact"
+            v-model="hideTagged"
+            label="Hide tagged"
+          ></v-checkbox>
+        </v-list-item>
+        <v-list-item>
+          <v-checkbox
+            density="compact"
+            v-model="hideLocated"
+            label="Hide located"
+          ></v-checkbox>
+        </v-list-item>
+        <v-list-item>
+          <v-checkbox
+            density="compact"
+            v-model="hideDuplicate"
+            label="Hide duplicates"
+          ></v-checkbox>
+        </v-list-item>
+      </v-list>
+    </v-menu>
     <v-checkbox
       color="primary"
       class="collection-control"
       density="compact"
       v-model="selectMultiple"
       label="Select Multiple"
+      @update:model-value="() => {
+        if (!selectMultiple) {
+          selected = [];
+          $emit('select', selected);
+        }
+      }"
     ></v-checkbox>
-  </v-toolbar>
+  </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
     :height="props.rows * props.size"
@@ -140,3 +157,13 @@ function selectPhoto(photo: Photo) {
     </template>
   </v-virtual-scroll>
 </template>
+
+<style scoped>
+.controls {
+  display: flex;
+}
+
+.collection-control {
+  margin-top: 4px;
+}
+</style>

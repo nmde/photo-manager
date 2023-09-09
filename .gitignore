@@ -36,3 +36,4 @@ exported fomods/ignore
 graph
 
 .env
+.nuxt

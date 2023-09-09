@@ -1,5 +1,3 @@
-import { FileEntry } from '@tauri-apps/api/fs';
-import { join } from '@tauri-apps/api/path';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { locToString } from '../classes/Map';
@@ -37,7 +35,7 @@ export const useFileStore = defineStore('files', () => {
    * Adds a file to the registry.
    * @param file - The file to add.
    */
-  async function addFile(file: FileEntry) {
+  async function addFile(file: any) {
     if (typeof file.name === 'string') {
       files.value[file.name] = createPhoto(file.name, file.path);
       await database?.insert(files.value[file.name]);
@@ -52,6 +50,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setWorkingDir(path: string) {
     workingDir.value = path;
+    const { join } = await import('@tauri-apps/api/path');
     database = new TauriDatabase(`sqlite:${await join(path, 'photos.db')}`);
   }
 
@@ -160,7 +159,11 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set.
    * @param group - The group to set.
    */
-  async function setGroup(photo: string, group: string) {
+  async function setGroup(photo: string, group?: string) {
+    if (group === undefined) {
+      files.value[photo].data.photoGroup = '';
+      return;
+    }
     const fgroup = files.value[photo].group;
     if (fgroup && groups.value[fgroup]) {
       // Remove from previous group
