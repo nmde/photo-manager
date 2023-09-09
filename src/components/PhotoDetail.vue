@@ -7,17 +7,17 @@ import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
 
 const fileStore = useFileStore();
-const {
-  addGroup,
-  setRating,
-  setDuplicate,
-  setGroup,
-  removeGroup,
-  updateTags,
-  setTitle,
-  setDescription,
-} = fileStore;
+const { addGroup, removeGroup } = fileStore;
 const { groupNames, tags } = storeToRefs(fileStore);
+
+const emit = defineEmits<{
+  (e: 'update:title', title: string): void;
+  (e: 'update:description', description: string): void;
+  (e: 'update:tags', tags: string[]): void;
+  (e: 'update:rating', rating: number): void;
+  (e: 'update:isDuplicate', isDuplicate: boolean): void;
+  (e: 'update:group', group?: string): void;
+}>();
 
 const props = defineProps<{
   photo: Photo;
@@ -39,17 +39,18 @@ const photoTags = ref<string[]>([]);
 const title = ref('');
 const description = ref('');
 
-watch(
-  () => props.photo,
-  () => {
-    rating.value = props.photo.data.rating;
-    isDuplicate.value = props.photo.data.isDuplicate;
-    group.value = props.photo.group;
-    photoTags.value = props.photo.tags;
-    title.value = props.photo.data.title;
-    description.value = props.photo.data.description;
-  },
-);
+function initialize() {
+  rating.value = props.photo.data.rating;
+  isDuplicate.value = props.photo.data.isDuplicate;
+  group.value = props.photo.group;
+  photoTags.value = props.photo.tags;
+  title.value = props.photo.data.title;
+  description.value = props.photo.data.description;
+}
+
+watch(() => props.photo, initialize);
+
+onMounted(initialize);
 </script>
 
 <template>
@@ -66,12 +67,12 @@ watch(
   <v-text-field
     label="Title"
     v-model="title"
-    @update:model-value="setTitle(photo.data.name, title)"
+    @update:model-value="emit('update:title', title)"
   ></v-text-field>
   <v-textarea
     label="Description"
     v-model="description"
-    @update:model-value="setDescription(photo.data.name, description)"
+    @update:model-value="emit('update:description', description)"
   ></v-textarea>
   <v-combobox
     label="Photo Tags"
@@ -79,19 +80,19 @@ watch(
     multiple
     chips
     v-model="photoTags"
-    @update:model-value="updateTags(photo.data.name, photoTags)"
+    @update:model-value="emit('update:tags', photoTags)"
   ></v-combobox>
-  <v-rating v-model="rating" @update:model-value="setRating(photo.data.name, rating)"></v-rating>
+  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"
     v-model="isDuplicate"
-    @update:model-value="setDuplicate(photo.data.name, isDuplicate)"
+    @update:model-value="emit('update:isDuplicate', isDuplicate)"
   ></v-checkbox>
   <v-select
     label="Group"
     :items="groupNames"
     v-model="group"
-    @update:model-value="setGroup(photo.data.name, group)"
+    @update:model-value="emit('update:group', group)"
   ></v-select>
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
@@ -106,7 +107,7 @@ watch(
       @click="
         () => {
           if (newGroupName.length > 0) {
-            addGroup(newGroupName, []);
+            addGroup(newGroupName);
             newGroupName = '';
           }
         }

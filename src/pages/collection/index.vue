@@ -1,192 +1,131 @@
 <script setup lang="ts">
-import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
+import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
-import { onMounted, ref, computed } from 'vue';
-import { Bar } from 'vue-chartjs';
-import { Map, Position } from '../classes/Map';
-import { Photo, createPhoto } from '../classes/Photo';
-import PhotoDetail from '../components/PhotoDetail.vue';
-import PhotoGrid from '../components/PhotoGrid.vue';
-import PhotoGroup from '../components/PhotoGroup.vue';
-import { useFileStore } from '../stores/fileStore';
+import { computed, ref } from 'vue';
+import { stringToLoc, locToString } from '../../classes/Map';
+import { Photo } from '../../classes/Photo';
+import { useFileStore } from '../../stores/fileStore';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
+import { onMounted } from 'vue';
 
-const { locations, tags, files, tagCounts } = storeToRefs(useFileStore());
+const fileStore = useFileStore();
+const { setLocation } = fileStore;
+const { files, locations } = storeToRefs(fileStore);
 
+const selected = ref<Photo[]>([]);
 const mapEl = ref(null);
-const filterBy = ref(0); // 0 - tags, 1 - location
-const filterPos = ref<Position>({ lat: 0, lng: 0 });
-const enabledTags = ref<string[]>([]);
-const disabledTags = ref<string[]>([]);
-const showHeatmap = ref(false);
 
-const filteredPhotos = computed(() => {
-  const filtered: Photo[] = [];
-  if (filterBy.value === 0) {
-    Object.values(files.value).forEach((file) => {
-      let satisfiesTags = true;
-      enabledTags.value.forEach((tag) => {
-        if (file.tags.indexOf(tag) < 0) {
-          satisfiesTags = false;
-        }
-      });
-      disabledTags.value.forEach((tag) => {
-        if (file.tags.indexOf(tag) >= 0) {
-          satisfiesTags = false;
-        }
-      });
-      if (satisfiesTags) {
-        filtered.push(file);
-      }
-    });
-  } else if (filterBy.value === 1) {
-    Object.values(files.value).forEach((file) => {
-      if (file.location) {
-        if (
-          file.location.lat === filterPos.value.lat &&
-          file.location.lng === filterPos.value.lng
-        ) {
-          filtered.push(file);
-        }
-      }
-    });
-  }
-  return filtered;
+const photos = computed(() => {
+  return Object.values(files.value);
 });
 
-const photoView = ref(false);
-const selected = ref<Photo>(createPhoto('', ''));
+let map: google.maps.Map;
+let placedMarker = false;
+let GoogleAdvancedMarkerElement: typeof google.maps.marker.AdvancedMarkerElement;
+const markers: Record<string, google.maps.marker.AdvancedMarkerElement> = {};
 
 /**
- * Opens the single photo view.
- * @param photos - The photo to open for.
+ * Creates a marker on the map.
+ * @param pos - The position to create the marker at.
  */
-function view(photos: Photo[]) {
-  // TODO: open a gallery for multiple photos
-  selected.value = photos[0];
-  photoView.value = true;
+function createMarker(pos: string) {
+  if (!markers[pos]) {
+    const loc = stringToLoc(pos);
+    markers[pos] = new GoogleAdvancedMarkerElement({
+      map: map,
+      position: loc,
+      gmpDraggable: true,
+    });
+    google.maps.event.addListener(markers[pos], 'click', () => {
+      selected.value.forEach((photo) => {
+        setLocation(photo.data.name, loc);
+      });
+    });
+  }
 }
 
-const map = new Map();
-onMounted(async () => {
-  await map.initialize(mapEl.value as unknown as HTMLElement);
-  Object.entries(locations.value).forEach(([loc, count]) => {
-    map.createMarker(loc, count);
-  });
-  map.createHeatmap();
-  map.on('markerClicked', (pos) => {
-    filterBy.value = 1;
-    filterPos.value = pos;
-  });
-});
-
-function toggleHeatmap() {
-  if (showHeatmap.value) {
-    map.showHeatmap();
-    map.hideAllMarkers();
+/**
+ * Select a photo to edit.
+ * @param photos - The photo.
+ */
+function selectPhoto(photos: Photo[]) {
+  selected.value = photos;
+  if (selected.value.length === 1 && selected.value[0].location !== undefined) {
+    placedMarker = true;
+    map.setCenter(selected.value[0].location);
   } else {
-    map.hideHeatmap();
-    map.showAllMarkers();
+    // TODO
+    placedMarker = false;
   }
 }
 
-const tagChartData = computed(() => {
-  let sorted: string[] = [];
-  const cutoff = 3;
-  Object.entries(tagCounts.value).forEach(([tag, value]) => {
-    if (sorted.length === 0 && value >= cutoff) {
-      sorted.push(tag);
-    } else if (value >= cutoff) {
-      let i = 0;
-      while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
-        i += 1;
-      }
-      sorted.splice(i, 0, tag);
-    }
-  });
-  return {
-    labels: sorted,
-    datasets: [
-      {
-        axis: 'y',
-        labebl: 'Tag Counts',
-        data: sorted.map((tag) => tagCounts.value[tag]),
-      },
-    ],
-  };
-});
+onMounted(() => {
+  new Loader({
+    apiKey: env.GOOGLE_MAPS_KEY,
+    version: 'weekly',
+  })
+    .load()
+    .then(async () => {
+      const { Map } = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
+      const { AdvancedMarkerElement } = (await google.maps.importLibrary(
+        'marker',
+      )) as google.maps.MarkerLibrary;
+      GoogleAdvancedMarkerElement = AdvancedMarkerElement;
 
-const displayName = computed(() => {
-  if (selected.value.data.group !== undefined) {
-    return selected.value.data.group;
-  }
-  return selected.value.data.name;
+      map = new Map(mapEl.value as unknown as HTMLElement, {
+        zoom: 6,
+        mapId: 'DEMO_MAP_ID',
+      });
+
+      navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
+        map.setCenter({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      });
+
+      map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
+        if (!placedMarker && selected.value.length > 0) {
+          createMarker(locToString(e.latLng?.toJSON()));
+          placedMarker = true;
+          const location = e.latLng?.toJSON();
+          selected.value.forEach((photo) => {
+            if (location) {
+              setLocation(photo.data.name, location);
+            }
+          });
+        }
+      });
+
+      Object.entries(locations.value).forEach(([loc]) => {
+        createMarker(loc);
+      });
+    });
 });
 </script>
 
 <template>
   <v-main>
-    <v-container fluid>
-      <v-row>
-        <v-col cols="6">
-          <v-combobox
-            label="Tags to include"
-            :items="tags"
-            multiple
-            chips
-            clearable
-            v-model="enabledTags"
-            @update:model-value="filterBy = 0"
-          >
-          </v-combobox>
-          <v-combobox
-            label="Tags to exclude"
-            :items="tags"
-            multiple
-            chips
-            v-model="disabledTags"
-            clearable
-            @update:model-value="filterBy = 0"
-          ></v-combobox>
-          <photo-grid
-            :photos="filteredPhotos"
-            :items-per-row="3"
-            :rows="3"
-            :size="230"
-            @select="view"
-          ></photo-grid>
-        </v-col>
-        <v-col cols="6">
-          <div class="map" ref="mapEl"></div>
-          <v-checkbox
-            label="Show heatmap"
-            v-model="showHeatmap"
-            @update:model-value="toggleHeatmap()"
-          ></v-checkbox>
-          <Bar
-            :options="{ indexAxis: 'y', plugins: { tooltip: { enabled: true } } }"
-            :data="tagChartData"
-          ></Bar>
-        </v-col>
-      </v-row>
-    </v-container>
-    <v-dialog v-model="photoView">
-      <v-card>
-        <v-card-title>{{ displayName }}</v-card-title>
-        <v-card-text>
-          <photo-detail :photo="selected" v-if="selected.data.group === undefined"></photo-detail>
-          <photo-group
-            :group="selected.data.group"
-            v-if="selected.data.group !== undefined"
-          ></photo-group>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+    <div class="map-container">
+      <div ref="mapEl" class="map"></div>
+    </div>
+    <div class="collection">
+      <photo-grid
+        :photos="photos"
+        :items-per-row="7"
+        @select="selectPhoto"
+        :size="200"
+        :rows="1"
+      ></photo-grid>
+    </div>
   </v-main>
 </template>
 
 <style scoped>
+.map-container {
+  flex: 2;
+}
+
 .map {
   height: 450px;
 }

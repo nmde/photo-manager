@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { locToString } from '../classes/Map';
+import { Group } from '../classes/Group';
 import { createPhoto, Photo } from '../classes/Photo';
 import { TauriDatabase } from '@/classes/TauriDatabase';
 
@@ -9,7 +10,7 @@ export const useFileStore = defineStore('files', () => {
 
   const files = ref<Record<string, Photo>>({});
 
-  const groups = ref<Record<string, string[]>>({});
+  const groups = ref<Group[]>([]);
 
   const workingDir = ref('');
 
@@ -38,7 +39,6 @@ export const useFileStore = defineStore('files', () => {
   async function addFile(file: any) {
     if (typeof file.name === 'string') {
       files.value[file.name] = createPhoto(file.name, file.path);
-      await database?.insert(files.value[file.name]);
     } else {
       throw new Error(`Unexpected file: ${file.path}`);
     }
@@ -61,7 +61,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setPhotoData(name: string, photo: Photo) {
     files.value[name] = photo;
-    await database?.update(photo);
+    await database?.insert(photo);
     if (photo.group) {
       setGroup(name, photo.group);
     }
@@ -78,10 +78,14 @@ export const useFileStore = defineStore('files', () => {
    * Sets a photo's thumbnail property.
    * @param photo - The photo to set for.
    * @param thumbnail - The path to the thumbnail.
+   * @param save - If the database should be updated.
    */
-  async function setThumbnail(photo: string, thumbnail: string) {
+  async function setThumbnail(photo: string, thumbnail: string, save = true) {
     files.value[photo].data.thumbnail = thumbnail;
-    await database?.update(files.value[photo]);
+    console.log(save);
+    if (save) {
+      await database?.insert(files.value[photo]);
+    }
   }
 
   const photoCount = computed(() => {
@@ -95,7 +99,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setLocation(photo: string, location: { lat: number; lng: number }) {
     files.value[photo].location = location;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -113,25 +117,28 @@ export const useFileStore = defineStore('files', () => {
    * Marks the photo as a video.
    * @param photo - The vidoe.
    */
-  async function setVideo(photo: string) {
+  async function setVideo(photo: string, save = true) {
     files.value[photo].data.video = true;
-    await database?.update(files.value[photo]);
+    if (save) {
+      await database?.insert(files.value[photo]);
+    }
   }
 
   /**
    * Adds a group.
    * @param name - The name of the group.
-   * @param items - Items to initialize the group with.
    */
-  function addGroup(name: string, items: string[]) {
-    groups.value[name] = items;
+  async function addGroup(name: string) {
+    const g = new Group({ name });
+    groups.value.push(g);
+    await database?.insert(g);
   }
 
   /**
    * Gets a list of group names.
    */
   const groupNames = computed(() => {
-    return Object.keys(groups.value);
+    return groups.value.map((g) => g.data.name);
   });
 
   /**
@@ -141,7 +148,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setRating(photo: string, rating: number) {
     files.value[photo].data.rating = rating;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -151,7 +158,15 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setDuplicate(photo: string, isDuplicate: boolean) {
     files.value[photo].data.isDuplicate = isDuplicate;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
+  }
+
+  /**
+   * Gets all photos in a group.
+   * @param group - The group to get photos from.
+   */
+  function getByGroup(group: string) {
+    return Object.values(files.value).filter((p) => p.data.photoGroup === group);
   }
 
   /**
@@ -164,22 +179,11 @@ export const useFileStore = defineStore('files', () => {
       files.value[photo].data.photoGroup = '';
       return;
     }
-    const fgroup = files.value[photo].group;
-    if (fgroup && groups.value[fgroup]) {
-      // Remove from previous group
-      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
-    }
     files.value[photo].data.photoGroup = group;
-    await database?.update(files.value[photo]);
-    if (!groups.value[group]) {
-      groups.value[group] = [];
-    }
-    if (groups.value[group].indexOf(photo) < 0) {
-      groups.value[group].push(photo);
-    }
+    await database?.insert(files.value[photo]);
     const collectedTags: string[] = [];
-    groups.value[group].forEach((photo) => {
-      files.value[photo].tags.forEach((tag) => {
+    getByGroup(group).forEach((photo) => {
+      files.value[photo.data.name].tags.forEach((tag) => {
         if (collectedTags.indexOf(tag) < 0) {
           collectedTags.push(tag);
         }
@@ -193,12 +197,8 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to remove from its group.
    */
   async function removeGroup(photo: string) {
-    const fgroup = files.value[photo].group;
-    if (fgroup) {
-      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
-    }
     files.value[photo].data.photoGroup = '';
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -230,12 +230,12 @@ export const useFileStore = defineStore('files', () => {
       }
     });
     files.value[photo].tags = t;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
     const fgroup = files.value[photo].group;
     if (fgroup && propagate) {
-      groups.value[fgroup].forEach((p) => {
-        if (p !== photo) {
-          updateTags(p, t, false);
+      getByGroup(fgroup).forEach((p) => {
+        if (p.data.name !== photo) {
+          updateTags(p.data.name, t, false);
         }
       });
     }
@@ -248,7 +248,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setTitle(photo: string, title: string) {
     files.value[photo].data.title = title;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -258,7 +258,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setDescription(photo: string, description: string) {
     files.value[photo].data.description = description;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -268,7 +268,7 @@ export const useFileStore = defineStore('files', () => {
    */
   async function setLocationApprox(photo: string, locationApprox: boolean) {
     files.value[photo].data.locationApprox = locationApprox;
-    await database?.update(files.value[photo]);
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -279,9 +279,27 @@ export const useFileStore = defineStore('files', () => {
       files.value = {};
       (await database.selectAll(Photo)).forEach((photo) => {
         files.value[photo.data.name] = photo;
+        photo.tags.forEach((tag) => {
+          if (tags.value.indexOf(tag) < 0) {
+            tags.value.push(tag);
+          }
+        });
+      });
+      groups.value = [];
+      (await database.selectAll(Group)).forEach((group) => {
+        groups.value.push(group);
       });
     }
     return files.value;
+  }
+
+  /**
+   * Removes database entries for deleted photos.
+   * @param photo - The name of the photo to remove.
+   */
+  async function removeDeleted(photo: string) {
+    await database?.execute(`DELETE FROM Photo WHERE Name='${photo}'`);
+    delete files.value[photo];
   }
 
   return {
@@ -303,6 +321,7 @@ export const useFileStore = defineStore('files', () => {
     groupNames,
     setRating,
     setDuplicate,
+    getByGroup,
     setGroup,
     removeGroup,
     updateTags,
@@ -310,5 +329,6 @@ export const useFileStore = defineStore('files', () => {
     setDescription,
     setLocationApprox,
     loadPhotos,
+    removeDeleted,
   };
 });

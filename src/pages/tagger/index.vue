@@ -5,6 +5,7 @@ import { Photo } from '../../classes/Photo';
 import { useFileStore } from '../../stores/fileStore';
 
 const fileStore = useFileStore();
+const { getByGroup } = fileStore;
 const { files, tags } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
@@ -31,7 +32,15 @@ const photos = computed(() => {
  * @param photos - The photos.
  */
 function selectPhoto(photos: Photo[]) {
-  selected.value = photos;
+  let s: Photo[] = [];
+  photos.forEach((p) => {
+    if (p.group) {
+      s = s.concat(getByGroup(p.group));
+    } else {
+      s.push(p);
+    }
+  });
+  selected.value = s;
 }
 </script>
 

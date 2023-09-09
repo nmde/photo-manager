@@ -59,7 +59,7 @@ export class TauriDatabase {
    * Shortcut for safely executing a SQL query.
    * @param query - The query to execute.
    */
-  private async execute(query: string) {
+  public async execute(query: string) {
     console.log(query);
     return await (await this.getConnection()).execute(query);
   }

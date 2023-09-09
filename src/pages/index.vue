@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setThumbnail, setVideo, loadPhotos } = useFileStore();
+const { addFile, setWorkingDir, setThumbnail, setVideo, loadPhotos, removeDeleted } = useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -22,7 +22,7 @@ const fileCount = ref(0);
 async function openFolder() {
   loading.value = true;
   const { open } = await import('@tauri-apps/api/dialog');
-  const { readDir, exists, createDir } = await import('@tauri-apps/api/fs');
+  const { readDir, exists, createDir, removeFile } = await import('@tauri-apps/api/fs');
   const { join, appDataDir } = await import('@tauri-apps/api/path');
   const { convertFileSrc } = await import('@tauri-apps/api/tauri');
   const { Command } = await import('@tauri-apps/api/shell');
@@ -33,15 +33,18 @@ async function openFolder() {
   if (selected && typeof selected === 'string') {
     initializing.value = true;
     await setWorkingDir(selected);
-    const existing = await loadPhotos();
+    const existing = { ...(await loadPhotos()) };
     const files = await readDir(selected);
     fileCount.value = files.length;
     let raws: any[] = [];
     let videos: any[] = [];
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
-      if (typeof file.name === 'string' && !existing[file.name]) {
-        await addFile(file);
+      if (typeof file.name === 'string') {
+        if (!existing[file.name]) {
+          await addFile(file);
+        }
+        delete existing[file.name];
       }
       initializingProgress.value += 1;
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
@@ -50,25 +53,36 @@ async function openFolder() {
         videos.push(file);
       }
     }
+    const dir = await appDataDir();
+    if (!(await exists(dir))) {
+      await createDir(dir);
+    }
+    const thumbnailDir = await join(dir, 'thumbnails');
+    if (!(await exists(thumbnailDir))) {
+      await createDir(thumbnailDir);
+    }
+    const projectThumbnailDir = await join(
+      thumbnailDir,
+      selected.replace(/[/\\]/g, '-').replace(':', ''),
+    );
+    if (!(await exists(projectThumbnailDir))) {
+      await createDir(projectThumbnailDir);
+    }
+    deleted.value = Object.keys(existing);
+    for (let i = 0; i < deleted.value.length; i += 1) {
+      await removeDeleted(deleted.value[i]);
+      const thumbnailPath = await join(
+        projectThumbnailDir,
+        `${deleted.value[i].replace(/\..*$/, '')}.jpg`,
+      );
+      if (await exists(thumbnailPath)) {
+        await removeFile(thumbnailPath);
+      }
+    }
     if (raws.length > 0 || videos.length > 0) {
       thumbnailDialog.value = true;
       thumbnailProgress.value = 0;
       thumbnailCount.value = raws.length + videos.length;
-      const dir = await appDataDir();
-      if (!(await exists(dir))) {
-        await createDir(dir);
-      }
-      const thumbnailDir = await join(dir, 'thumbnails');
-      if (!(await exists(thumbnailDir))) {
-        await createDir(thumbnailDir);
-      }
-      const projectThumbnailDir = await join(
-        thumbnailDir,
-        selected.replace(/[/\\]/g, '-').replace(':', ''),
-      );
-      if (!(await exists(projectThumbnailDir))) {
-        await createDir(projectThumbnailDir);
-      }
       for (let i = 0; i < raws.length; i += 1) {
         const thumbnailPath = await join(
           projectThumbnailDir,
@@ -91,7 +105,7 @@ async function openFolder() {
           if (resizeOutput.code !== 0) {
             console.error(resizeOutput.stderr);
           }
-          await setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath));
+          await setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath), false);
         }
         thumbnailProgress.value += 1;
       }
@@ -115,8 +129,8 @@ async function openFolder() {
           }
         }
         thumbnailProgress.value += 1;
-        await setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath));
-        await setVideo(videos[i].name as string);
+        await setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath), false);
+        await setVideo(videos[i].name as string, false);
       }
       thumbnailDialog.value = false;
       if (deleted.value.length > 0) {
