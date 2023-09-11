@@ -78,14 +78,9 @@ export const useFileStore = defineStore('files', () => {
    * Sets a photo's thumbnail property.
    * @param photo - The photo to set for.
    * @param thumbnail - The path to the thumbnail.
-   * @param save - If the database should be updated.
    */
-  async function setThumbnail(photo: string, thumbnail: string, save = true) {
+  function setThumbnail(photo: string, thumbnail: string) {
     files.value[photo].data.thumbnail = thumbnail;
-    console.log(save);
-    if (save) {
-      await database?.insert(files.value[photo]);
-    }
   }
 
   const photoCount = computed(() => {
@@ -117,11 +112,9 @@ export const useFileStore = defineStore('files', () => {
    * Marks the photo as a video.
    * @param photo - The vidoe.
    */
-  async function setVideo(photo: string, save = true) {
+  async function setVideo(photo: string) {
     files.value[photo].data.video = true;
-    if (save) {
-      await database?.insert(files.value[photo]);
-    }
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -138,7 +131,7 @@ export const useFileStore = defineStore('files', () => {
    * Gets a list of group names.
    */
   const groupNames = computed(() => {
-    return groups.value.map((g) => g.data.name);
+    return groups.value.map((g) => g.data.name).reverse();
   });
 
   /**
@@ -205,9 +198,8 @@ export const useFileStore = defineStore('files', () => {
    * Adds new tags to the master list.
    * @param photo - The photo to apply tags to.
    * @param t - The tags to apply.
-   * @param propagate - If other photos in the group should be updated.
    */
-  async function updateTags(photo: string, t: string[], propagate = true) {
+  async function updateTags(photo: string, t: string[]) {
     t.forEach((tag) => {
       if (!tagCounts.value[tag]) {
         tagCounts.value[tag] = 0;
@@ -231,14 +223,6 @@ export const useFileStore = defineStore('files', () => {
     });
     files.value[photo].tags = t;
     await database?.insert(files.value[photo]);
-    const fgroup = files.value[photo].group;
-    if (fgroup && propagate) {
-      getByGroup(fgroup).forEach((p) => {
-        if (p.data.name !== photo) {
-          updateTags(p.data.name, t, false);
-        }
-      });
-    }
   }
 
   /**
@@ -302,6 +286,10 @@ export const useFileStore = defineStore('files', () => {
     delete files.value[photo];
   }
 
+  function setFiles(data: Record<string, Photo>) {
+    files.value = data;
+  }
+
   return {
     files,
     groups,
@@ -330,5 +318,6 @@ export const useFileStore = defineStore('files', () => {
     setLocationApprox,
     loadPhotos,
     removeDeleted,
+    setFiles,
   };
 });

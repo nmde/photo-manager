@@ -2,9 +2,11 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useFileStore } from '../stores/fileStore';
+import { Photo, createPhoto } from '~/classes/Photo';
 
 const router = useRouter();
-const { addFile, setWorkingDir, setThumbnail, setVideo, loadPhotos, removeDeleted } = useFileStore();
+const { setWorkingDir, loadPhotos, removeDeleted, setFiles } =
+  useFileStore();
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -33,18 +35,20 @@ async function openFolder() {
   if (selected && typeof selected === 'string') {
     initializing.value = true;
     await setWorkingDir(selected);
+    const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
-    const files = await readDir(selected);
-    fileCount.value = files.length;
+    const current = await readDir(selected);
+    fileCount.value = current.length;
     let raws: any[] = [];
     let videos: any[] = [];
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
+    current.forEach(async (file) => {
       if (typeof file.name === 'string') {
-        if (!existing[file.name]) {
-          await addFile(file);
+        if (existing[file.name]) {
+          files[file.name] = existing[file.name];
+          delete existing[file.name];
+        } else {
+          files[file.name] = createPhoto(file.name, file.path);
         }
-        delete existing[file.name];
       }
       initializingProgress.value += 1;
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
@@ -52,7 +56,7 @@ async function openFolder() {
       } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV)$/.test(file.path.toUpperCase())) {
         videos.push(file);
       }
-    }
+    });
     const dir = await appDataDir();
     if (!(await exists(dir))) {
       await createDir(dir);
@@ -68,6 +72,7 @@ async function openFolder() {
     if (!(await exists(projectThumbnailDir))) {
       await createDir(projectThumbnailDir);
     }
+    const thumbnails = (await readDir(projectThumbnailDir)).map((p) => p.name);
     deleted.value = Object.keys(existing);
     for (let i = 0; i < deleted.value.length; i += 1) {
       await removeDeleted(deleted.value[i]);
@@ -83,16 +88,11 @@ async function openFolder() {
       thumbnailDialog.value = true;
       thumbnailProgress.value = 0;
       thumbnailCount.value = raws.length + videos.length;
-      for (let i = 0; i < raws.length; i += 1) {
-        const thumbnailPath = await join(
-          projectThumbnailDir,
-          `${(raws[i].name as string).replace(/\..*$/, '')}.jpg`,
-        );
-        if (!(await exists(thumbnailPath))) {
-          const convertOutput = await new Command('magick', [
-            raws[i].path,
-            thumbnailPath,
-          ]).execute();
+      for (const raw of raws) {
+        const thumbnailFile = `${(raw.name as string).replace(/\..*$/, '')}.jpg`;
+        const thumbnailPath = await join(projectThumbnailDir, thumbnailFile);
+        if (thumbnails.indexOf(thumbnailFile) < 0) {
+          const convertOutput = await new Command('magick', [raw.path, thumbnailPath]).execute();
           if (convertOutput.code !== 0) {
             console.error(convertOutput.stderr);
           }
@@ -105,19 +105,17 @@ async function openFolder() {
           if (resizeOutput.code !== 0) {
             console.error(resizeOutput.stderr);
           }
-          await setThumbnail(raws[i].name as string, convertFileSrc(thumbnailPath), false);
         }
+        files[raw.name].data.thumbnail = convertFileSrc(thumbnailPath);
         thumbnailProgress.value += 1;
       }
-      for (let i = 0; i < videos.length; i += 1) {
-        const thumbnailPath = await join(
-          projectThumbnailDir,
-          `${(videos[i].name as string).replace(/\..*$/, '')}.png`,
-        );
-        if (!(await exists(thumbnailPath))) {
+      for (const video of videos) {
+        const thumbnailFile = `${(video.name as string).replace(/\..*$/, '')}.png`;
+        const thumbnailPath = await join(projectThumbnailDir, thumbnailFile);
+        if (thumbnails.indexOf(thumbnailFile) < 0) {
           const convertOutput = await new Command('ffmpeg', [
             '-i',
-            videos[i].path,
+            video.path,
             '-ss',
             '00:00:01.00',
             '-vframes',
@@ -129,9 +127,10 @@ async function openFolder() {
           }
         }
         thumbnailProgress.value += 1;
-        await setThumbnail(videos[i].name as string, convertFileSrc(thumbnailPath), false);
-        await setVideo(videos[i].name as string, false);
+        files[video.name].data.video = true;
+        files[video.name].data.thumbnail = convertFileSrc(thumbnailPath);
       }
+      setFiles(files);
       thumbnailDialog.value = false;
       if (deleted.value.length > 0) {
         deletedDialog.value = true;

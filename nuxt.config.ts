@@ -22,4 +22,9 @@ export default defineNuxtConfig({
   pinia: {
     autoImports: ['defineStore'],
   },
+  runtimeConfig: {
+    public: {
+      GOOGLE_MAPS_KEY: process.env.GOOGLE_MAPS_KEY,
+    }
+  }
 });

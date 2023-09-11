@@ -26,22 +26,6 @@ const photos = computed(() => {
   });
   return filtered;
 });
-
-/**
- * Selects a photo or photos to edit.
- * @param photos - The photos.
- */
-function selectPhoto(photos: Photo[]) {
-  let s: Photo[] = [];
-  photos.forEach((p) => {
-    if (p.group) {
-      s = s.concat(getByGroup(p.group));
-    } else {
-      s.push(p);
-    }
-  });
-  selected.value = s;
-}
 </script>
 
 <template>
@@ -61,7 +45,7 @@ function selectPhoto(photos: Photo[]) {
           <photo-grid
             :photos="photos"
             :items-per-row="4"
-            @select="selectPhoto"
+            @select="(s) => selected = s"
             :size="175"
             :rows="4"
           ></photo-grid>

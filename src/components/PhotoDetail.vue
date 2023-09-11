@@ -24,7 +24,7 @@ const props = defineProps<{
 }>();
 
 const photoPath = computed(() => {
-  if (props.photo.data.thumbnail) {
+  if (props.photo.data.thumbnail.length > 0) {
     return props.photo.data.thumbnail;
   }
   return props.photo.data.path;
@@ -38,6 +38,7 @@ const group = ref<string | undefined>();
 const photoTags = ref<string[]>([]);
 const title = ref('');
 const description = ref('');
+const newGroupError = ref(false);
 
 function initialize() {
   rating.value = props.photo.data.rating;
@@ -64,6 +65,20 @@ onMounted(initialize);
   ></video-player>
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
   <br />
+  <v-combobox
+    label="Photo Tags"
+    :items="tags"
+    multiple
+    chips
+    v-model="photoTags"
+    @update:model-value="emit('update:tags', photoTags)"
+  ></v-combobox>
+  <v-select
+    label="Group"
+    :items="groupNames"
+    v-model="group"
+    @update:model-value="emit('update:group', group)"
+  ></v-select>
   <v-text-field
     label="Title"
     v-model="title"
@@ -74,26 +89,12 @@ onMounted(initialize);
     v-model="description"
     @update:model-value="emit('update:description', description)"
   ></v-textarea>
-  <v-combobox
-    label="Photo Tags"
-    :items="tags"
-    multiple
-    chips
-    v-model="photoTags"
-    @update:model-value="emit('update:tags', photoTags)"
-  ></v-combobox>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"
     v-model="isDuplicate"
     @update:model-value="emit('update:isDuplicate', isDuplicate)"
   ></v-checkbox>
-  <v-select
-    label="Group"
-    :items="groupNames"
-    v-model="group"
-    @update:model-value="emit('update:group', group)"
-  ></v-select>
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
   </v-btn>
@@ -104,11 +105,15 @@ onMounted(initialize);
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
     <v-btn
       color="primary"
+      :error="newGroupError"
       @click="
         () => {
-          if (newGroupName.length > 0) {
+          if (groupNames.indexOf(newGroupName) >= 0) {
+            newGroupError = true;
+          } else if (newGroupName.length > 0) {
             addGroup(newGroupName);
             newGroupName = '';
+            newGroupError = false;
           }
         }
       "

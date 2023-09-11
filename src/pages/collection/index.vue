@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Loader } from '@googlemaps/js-api-loader';
 import { storeToRefs } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { stringToLoc, locToString } from '../../classes/Map';
 import { Photo } from '../../classes/Photo';
 import { useFileStore } from '../../stores/fileStore';
 
-import { onMounted } from 'vue';
+const config = useRuntimeConfig();
 
 const fileStore = useFileStore();
 const { setLocation } = fileStore;
@@ -61,7 +61,7 @@ function selectPhoto(photos: Photo[]) {
 
 onMounted(() => {
   new Loader({
-    apiKey: env.GOOGLE_MAPS_KEY,
+    apiKey: config.public.GOOGLE_MAPS_KEY as string,
     version: 'weekly',
   })
     .load()

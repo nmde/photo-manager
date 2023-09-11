@@ -15,7 +15,9 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const { photoCount } = storeToRefs(useFileStore());
+const store = useFileStore();
+const { getByGroup } = store;
+const { photoCount } = storeToRefs(store);
 
 const hideTagged = ref(false);
 const hideLocated = ref(false);
@@ -79,15 +81,21 @@ const visiblePhotoCount = computed(() => {
  * @param photo - The photo being selected.
  */
 function selectPhoto(photo: Photo) {
+  let s: Photo[] = [photo];
+  if (photo.group) {
+    s = getByGroup(photo.group);
+  }
   if (selectMultiple.value) {
-    const idx = selected.value.findIndex((p) => p.data.name === photo.data.name);
-    if (idx >= 0) {
-      selected.value.splice(idx, 1);
-    } else {
-      selected.value.push(photo);
-    }
+    s.forEach((x) => {
+      const idx = selected.value.findIndex((p) => p.data.name === x.data.name);
+      if (idx >= 0) {
+        selected.value.splice(idx, 1);
+      } else {
+        selected.value.push(x);
+      }
+    });
   } else {
-    selected.value = [photo];
+    selected.value = s;
   }
   emit('select', selected.value);
 }
@@ -103,18 +111,10 @@ function selectPhoto(photo: Photo) {
       </template>
       <v-list>
         <v-list-item>
-          <v-checkbox
-            density="compact"
-            v-model="hideTagged"
-            label="Hide tagged"
-          ></v-checkbox>
+          <v-checkbox density="compact" v-model="hideTagged" label="Hide tagged"></v-checkbox>
         </v-list-item>
         <v-list-item>
-          <v-checkbox
-            density="compact"
-            v-model="hideLocated"
-            label="Hide located"
-          ></v-checkbox>
+          <v-checkbox density="compact" v-model="hideLocated" label="Hide located"></v-checkbox>
         </v-list-item>
         <v-list-item>
           <v-checkbox
@@ -131,12 +131,14 @@ function selectPhoto(photo: Photo) {
       density="compact"
       v-model="selectMultiple"
       label="Select Multiple"
-      @update:model-value="() => {
-        if (!selectMultiple) {
-          selected = [];
-          $emit('select', selected);
+      @update:model-value="
+        () => {
+          if (!selectMultiple) {
+            selected = [];
+            $emit('select', selected);
+          }
         }
-      }"
+      "
     ></v-checkbox>
   </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
