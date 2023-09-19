@@ -18,6 +18,10 @@ const initializing = ref(false);
 const initializingProgress = ref(0);
 const fileCount = ref(0);
 
+function clean(path: string) {
+  return path.replace(/[/\\]/g, '-').replace(':', '');
+}
+
 /**
  * Prompts the user to select the folder to manage.
  */
@@ -37,18 +41,27 @@ async function openFolder() {
     await setWorkingDir(selected);
     const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
-    const current = await readDir(selected);
-    fileCount.value = current.length;
+    const fullFileList: any[] = [];
     let raws: any[] = [];
     let videos: any[] = [];
-    current.forEach(async (file) => {
-      if (typeof file.name === 'string') {
-        if (existing[file.name]) {
-          files[file.name] = existing[file.name];
-          delete existing[file.name];
+    const expandDir = async (dir: string) => {
+      const d = await readDir(dir);
+      for (const file of d) {
+        if (file.children !== undefined) {
+          await expandDir(file.path);
         } else {
-          files[file.name] = createPhoto(file.name, file.path);
+          fullFileList.push(file);
         }
+      }
+    }
+    await expandDir(selected);
+    fileCount.value = fullFileList.length;
+    fullFileList.forEach(async (file) => {
+      if (existing[file.path]) {
+        files[file.path] = existing[file.path];
+        delete existing[file.path];
+      } else {
+        files[file.path] = createPhoto(file.path, file.path);
       }
       initializingProgress.value += 1;
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
@@ -89,7 +102,7 @@ async function openFolder() {
       thumbnailProgress.value = 0;
       thumbnailCount.value = raws.length + videos.length;
       for (const raw of raws) {
-        const thumbnailFile = `${(raw.name as string).replace(/\..*$/, '')}.jpg`;
+        const thumbnailFile = `${clean(raw.path as string).replace(/\..*$/, '')}.jpg`;
         const thumbnailPath = await join(projectThumbnailDir, thumbnailFile);
         if (thumbnails.indexOf(thumbnailFile) < 0) {
           const convertOutput = await new Command('magick', [raw.path, thumbnailPath]).execute();
@@ -106,11 +119,11 @@ async function openFolder() {
             console.error(resizeOutput.stderr);
           }
         }
-        files[raw.name].data.thumbnail = convertFileSrc(thumbnailPath);
+        files[raw.path].data.thumbnail = convertFileSrc(thumbnailPath);
         thumbnailProgress.value += 1;
       }
       for (const video of videos) {
-        const thumbnailFile = `${(video.name as string).replace(/\..*$/, '')}.png`;
+        const thumbnailFile = `${clean(video.path as string).replace(/\..*$/, '')}.png`;
         const thumbnailPath = await join(projectThumbnailDir, thumbnailFile);
         if (thumbnails.indexOf(thumbnailFile) < 0) {
           const convertOutput = await new Command('ffmpeg', [
@@ -127,8 +140,8 @@ async function openFolder() {
           }
         }
         thumbnailProgress.value += 1;
-        files[video.name].data.video = true;
-        files[video.name].data.thumbnail = convertFileSrc(thumbnailPath);
+        files[video.path].data.video = true;
+        files[video.path].data.thumbnail = convertFileSrc(thumbnailPath);
       }
       setFiles(files);
       thumbnailDialog.value = false;
