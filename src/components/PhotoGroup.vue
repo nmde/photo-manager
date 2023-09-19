@@ -1,42 +1,69 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { ref, computed } from 'vue';
-import { useFileStore } from '../stores/fileStore';
-import PhotoDetail from './PhotoDetail.vue';
-
-const { groups, files } = storeToRefs(useFileStore());
+import { ref } from 'vue';
+import { Photo } from '~/classes/Photo';
+import { useFileStore } from '~/stores/fileStore';
 
 const props = defineProps<{
-    group: string;
+  photos: Photo[];
 }>();
+
+const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup } = useFileStore();
 
 const current = ref(0);
 
-const groupItems = computed(() => {
-    return groups.value[props.group];
-});
-
-function prev() {
-    if (current.value > 0) {
-        current.value -= 1;
-    }
-}
-
-function next() {
-    if (current.value < groupItems.value.length) {
-        current.value += 1;
-    }
-}
-
+watch(
+  () => props.photos,
+  () => (current.value = 0),
+);
 </script>
 
 <template>
-  <v-btn icon @click="prev">
-    <v-icon>mdi-arrow-left</v-icon>
-  </v-btn>
-  {{ current + 1 }} / {{ groupItems.length }}
-  <v-btn icon @click="next">
-    <v-icon>mdi-arrow-right</v-icon>
-  </v-btn>
-  <photo-detail :photo="files[groupItems[current]]"></photo-detail>
+  <div v-if="props.photos.length > 1">
+    <v-btn
+      icon
+      flat
+      @click="
+        () => {
+          if (current > 0) {
+            current -= 1;
+          }
+        }
+      "
+    >
+      <v-icon>mdi-arrow-left</v-icon>
+    </v-btn>
+    {{ current + 1 }} / {{ props.photos.length }}
+    <v-btn
+      icon
+      flat
+      @click="
+        () => {
+          if (current < props.photos.length - 1) {
+            current += 1;
+          }
+        }
+      "
+    >
+      <v-icon>mdi-arrow-right</v-icon>
+    </v-btn>
+  </div>
+  <photo-detail
+    :photo="props.photos[current]"
+    @update:title="(title) => setTitle(props.photos[current].data.name, title)"
+    @update:description="
+      (description) => setDescription(props.photos[current].data.name, description)
+    "
+    @update:tags="
+      (tags) => {
+        props.photos.forEach((photo) => {
+          updateTags(photo.data.name, tags);
+        });
+      }
+    "
+    @update:rating="(rating) => setRating(props.photos[current].data.name, rating)"
+    @update:is-duplicate="
+      (isDuplicate) => setDuplicate(props.photos[current].data.name, isDuplicate)
+    "
+    @update:group="(group) => setGroup(props.photos[current].data.name, group)"
+  ></photo-detail>
 </template>

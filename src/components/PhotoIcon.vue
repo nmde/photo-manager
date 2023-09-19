@@ -9,21 +9,21 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'select'): void;
+  (e: 'select'): void;
 }>();
 
 const photoPath = computed(() => {
-  if (props.photo.thumbnail) {
-    return props.photo.thumbnail;
+  if (props.photo.data.thumbnail) {
+    return props.photo.data.thumbnail;
   }
-  return props.photo.path;
+  return props.photo.data.path;
 });
 
 const displayName = computed(() => {
   if (props.photo.group !== undefined) {
     return props.photo.group;
   }
-  return props.photo.name;
+  return props.photo.data.name;
 });
 </script>
 
@@ -48,8 +48,8 @@ const displayName = computed(() => {
         <v-icon v-if="props.selected">mdi-check</v-icon>
         <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
         <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
-        <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
-        <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
+        <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
+        <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
         <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
       </v-img>
     </v-card>

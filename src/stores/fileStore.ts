@@ -1,13 +1,16 @@
-import { FileEntry } from '@tauri-apps/api/fs';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { locToString } from '../classes/Map';
+import { Group } from '../classes/Group';
 import { createPhoto, Photo } from '../classes/Photo';
+import { TauriDatabase } from '@/classes/TauriDatabase';
 
 export const useFileStore = defineStore('files', () => {
+  let database: TauriDatabase | null = null;
+
   const files = ref<Record<string, Photo>>({});
 
-  const groups = ref<Record<string, string[]>>({});
+  const groups = ref<Group[]>([]);
 
   const workingDir = ref('');
 
@@ -18,7 +21,7 @@ export const useFileStore = defineStore('files', () => {
   const locations = computed(() => {
     const locRecord: Record<string, number> = {};
     Object.values(files.value).forEach((file) => {
-      if (file.location !== undefined) {
+      if (file.data.location !== undefined) {
         const key = locToString(file.location);
         if (!locRecord[key]) {
           locRecord[key] = 0;
@@ -33,7 +36,7 @@ export const useFileStore = defineStore('files', () => {
    * Adds a file to the registry.
    * @param file - The file to add.
    */
-  function addFile(file: FileEntry) {
+  async function addFile(file: any) {
     if (typeof file.name === 'string') {
       files.value[file.name] = createPhoto(file.name, file.path);
     } else {
@@ -45,22 +48,25 @@ export const useFileStore = defineStore('files', () => {
    * Sets the working dir name.
    * @param path - The path to the working dir.
    */
-  function setWorkingDir(path: string) {
+  async function setWorkingDir(path: string) {
     workingDir.value = path;
+    const { join } = await import('@tauri-apps/api/path');
+    database = new TauriDatabase(`sqlite:${await join(path, 'photos.db')}`);
   }
 
   /**
    * Sets the stored photo data for a file.
    * @param name - The name of the file to set.
-   * @param data - The data to set.
+   * @param photo - The data to set.
    */
-  function setPhotoData(name: string, data: Photo) {
-    files.value[name] = data;
-    if (data.group) {
-      setGroup(name, data.group);
+  async function setPhotoData(name: string, photo: Photo) {
+    files.value[name] = photo;
+    await database?.insert(photo);
+    if (photo.group) {
+      setGroup(name, photo.group);
     }
-    updateTags(name, data.tags);
-    data.tags.forEach((tag) => {
+    updateTags(name, photo.tags);
+    photo.tags.forEach((tag) => {
       if (!tagCounts.value[tag]) {
         tagCounts.value[tag] = 0;
       }
@@ -74,7 +80,7 @@ export const useFileStore = defineStore('files', () => {
    * @param thumbnail - The path to the thumbnail.
    */
   function setThumbnail(photo: string, thumbnail: string) {
-    files.value[photo].thumbnail = thumbnail;
+    files.value[photo].data.thumbnail = thumbnail;
   }
 
   const photoCount = computed(() => {
@@ -86,8 +92,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The target photo.
    * @param location - The location.
    */
-  function setLocation(photo: string, location: { lat: number, lng: number }) {
+  async function setLocation(photo: string, location: { lat: number; lng: number }) {
     files.value[photo].location = location;
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -105,24 +112,26 @@ export const useFileStore = defineStore('files', () => {
    * Marks the photo as a video.
    * @param photo - The vidoe.
    */
-  function setVideo(photo: string) {
-    files.value[photo].video = true;
+  async function setVideo(photo: string) {
+    files.value[photo].data.video = true;
+    await database?.insert(files.value[photo]);
   }
 
   /**
    * Adds a group.
    * @param name - The name of the group.
-   * @param items - Items to initialize the group with.
    */
-  function addGroup(name: string, items: string[]) {
-    groups.value[name] = items;
+  async function addGroup(name: string) {
+    const g = new Group({ name });
+    groups.value.push(g);
+    await database?.insert(g);
   }
 
   /**
    * Gets a list of group names.
    */
   const groupNames = computed(() => {
-    return Object.keys(groups.value);
+    return groups.value.map((g) => g.data.name).reverse();
   });
 
   /**
@@ -130,8 +139,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param rating - The rating to set.
    */
-  function setRating(photo: string, rating: number) {
-    files.value[photo].rating = rating;
+  async function setRating(photo: string, rating: number) {
+    files.value[photo].data.rating = rating;
+    await database?.insert(files.value[photo]);
   }
 
   /**
@@ -139,8 +149,17 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param isDuplicate - The duplicate marker.
    */
-  function setDuplicate(photo: string, isDuplicate: boolean) {
-    files.value[photo].isDuplicate = isDuplicate;
+  async function setDuplicate(photo: string, isDuplicate: boolean) {
+    files.value[photo].data.isDuplicate = isDuplicate;
+    await database?.insert(files.value[photo]);
+  }
+
+  /**
+   * Gets all photos in a group.
+   * @param group - The group to get photos from.
+   */
+  function getByGroup(group: string) {
+    return Object.values(files.value).filter((p) => p.data.photoGroup === group);
   }
 
   /**
@@ -148,22 +167,16 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set.
    * @param group - The group to set.
    */
-  function setGroup(photo: string, group: string) {
-    const fgroup = files.value[photo].group;
-    if (fgroup && groups.value[fgroup]) {
-      // Remove from previous group
-      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
+  async function setGroup(photo: string, group?: string) {
+    if (group === undefined) {
+      files.value[photo].data.photoGroup = '';
+      return;
     }
-    files.value[photo].group = group;
-    if (!groups.value[group]) {
-      groups.value[group] = [];
-    }
-    if (groups.value[group].indexOf(photo) < 0) {
-      groups.value[group].push(photo);
-    }
+    files.value[photo].data.photoGroup = group;
+    await database?.insert(files.value[photo]);
     const collectedTags: string[] = [];
-    groups.value[group].forEach((photo) => {
-      files.value[photo].tags.forEach((tag) => {
+    getByGroup(group).forEach((photo) => {
+      files.value[photo.data.name].tags.forEach((tag) => {
         if (collectedTags.indexOf(tag) < 0) {
           collectedTags.push(tag);
         }
@@ -176,51 +189,106 @@ export const useFileStore = defineStore('files', () => {
    * Removes a photo from its group.
    * @param photo - The photo to remove from its group.
    */
-  function removeGroup(photo: string) {
-    const fgroup = files.value[photo].group;
-    if (fgroup) {
-      groups.value[fgroup].splice(groups.value[fgroup].indexOf(photo), 1);
-    }
-    delete files.value[photo].group;
+  async function removeGroup(photo: string) {
+    files.value[photo].data.photoGroup = '';
+    await database?.insert(files.value[photo]);
   }
 
   /**
- * Adds new tags to the master list.
- * @param photo - The photo to apply tags to.
- * @param t - The tags to apply.
- * @param propagate - If other photos in the group should be updated.
- */
- function updateTags(photo: string, t: string[], propagate = true) {
-  t.forEach((tag) => {
-    if (!tagCounts.value[tag]) {
-      tagCounts.value[tag] = 0;
-    }
-    if (files.value[photo].tags.indexOf(tag) < 0) {
-      tagCounts.value[tag] += 1;
-    }
-    if (tags.value.indexOf(tag) < 0) {
-      tags.value.push(tag);
-    }
-  });
-  files.value[photo].tags.forEach((tag) => {
-    if (t.indexOf(tag) < 0) {
-      tagCounts.value[tag] -= 1;
-      if (tagCounts.value[tag] <= 0) {
-        delete tagCounts.value[tag];
+   * Adds new tags to the master list.
+   * @param photo - The photo to apply tags to.
+   * @param t - The tags to apply.
+   */
+  async function updateTags(photo: string, t: string[]) {
+    t.forEach((tag) => {
+      if (!tagCounts.value[tag]) {
+        tagCounts.value[tag] = 0;
+      }
+      if (files.value[photo].tags.indexOf(tag) < 0) {
+        tagCounts.value[tag] += 1;
+      }
+      if (tags.value.indexOf(tag) >= 0) {
         tags.value.splice(tags.value.indexOf(tag), 1);
       }
-    }
-  });
-  files.value[photo].tags = t;
-  const fgroup = files.value[photo].group;
-  if (fgroup && propagate) {
-    groups.value[fgroup].forEach((p) => {
-      if (p !== photo) {
-        updateTags(p, t, false);
+      tags.value.splice(0, 0, tag);
+    });
+    files.value[photo].tags.forEach((tag) => {
+      if (t.indexOf(tag) < 0) {
+        tagCounts.value[tag] -= 1;
+        if (tagCounts.value[tag] <= 0) {
+          delete tagCounts.value[tag];
+          tags.value.splice(tags.value.indexOf(tag), 1);
+        }
       }
     });
+    files.value[photo].tags = t;
+    await database?.insert(files.value[photo]);
   }
-}
+
+  /**
+   * Sets a photo's title.
+   * @param photo - The photo.
+   * @param title - The title to set.
+   */
+  async function setTitle(photo: string, title: string) {
+    files.value[photo].data.title = title;
+    await database?.insert(files.value[photo]);
+  }
+
+  /**
+   * Sets a photo's description.
+   * @param photo - The photo.
+   * @param description - The description to set.
+   */
+  async function setDescription(photo: string, description: string) {
+    files.value[photo].data.description = description;
+    await database?.insert(files.value[photo]);
+  }
+
+  /**
+   * Sets a photo's locationApprox.
+   * @param photo - The photo.
+   * @param locationApprox - The value to set.
+   */
+  async function setLocationApprox(photo: string, locationApprox: boolean) {
+    files.value[photo].data.locationApprox = locationApprox;
+    await database?.insert(files.value[photo]);
+  }
+
+  /**
+   * Loads photos from the database.
+   */
+  async function loadPhotos() {
+    if (database) {
+      files.value = {};
+      (await database.selectAll(Photo)).forEach((photo) => {
+        files.value[photo.data.name] = photo;
+        photo.tags.forEach((tag) => {
+          if (tags.value.indexOf(tag) < 0) {
+            tags.value.push(tag);
+          }
+        });
+      });
+      groups.value = [];
+      (await database.selectAll(Group)).forEach((group) => {
+        groups.value.push(group);
+      });
+    }
+    return files.value;
+  }
+
+  /**
+   * Removes database entries for deleted photos.
+   * @param photo - The name of the photo to remove.
+   */
+  async function removeDeleted(photo: string) {
+    await database?.execute(`DELETE FROM Photo WHERE Name='${photo}'`);
+    delete files.value[photo];
+  }
+
+  function setFiles(data: Record<string, Photo>) {
+    files.value = data;
+  }
 
   return {
     files,
@@ -241,8 +309,15 @@ export const useFileStore = defineStore('files', () => {
     groupNames,
     setRating,
     setDuplicate,
+    getByGroup,
     setGroup,
     removeGroup,
     updateTags,
+    setTitle,
+    setDescription,
+    setLocationApprox,
+    loadPhotos,
+    removeDeleted,
+    setFiles,
   };
 });

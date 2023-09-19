@@ -3,7 +3,6 @@ import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { useFileStore } from '../stores/fileStore';
-import PhotoIcon from './PhotoIcon.vue';
 
 const props = defineProps<{
   photos: Photo[];
@@ -16,7 +15,9 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const { photoCount } = storeToRefs(useFileStore());
+const store = useFileStore();
+const { getByGroup } = store;
+const { photoCount } = storeToRefs(store);
 
 const hideTagged = ref(false);
 const hideLocated = ref(false);
@@ -30,10 +31,10 @@ type GridRow = Photo[];
 const filteredPhotos = computed(() => {
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  const photos = props.photos;
+  const tempphotos = [...props.photos];
   const groups: string[] = [];
-  while (photos.length > 0) {
-    const file = photos[0];
+  while (tempphotos.length > 0) {
+    const file = tempphotos[0];
     let visible = true;
     if (hideTagged.value === true && file.tags.length > 0) {
       visible = false;
@@ -41,7 +42,7 @@ const filteredPhotos = computed(() => {
     if (hideLocated.value === true && file.location !== undefined) {
       visible = false;
     }
-    if (hideDuplicate.value === true && file.isDuplicate) {
+    if (hideDuplicate.value === true && file.data.isDuplicate) {
       visible = false;
     }
     if (visible) {
@@ -61,7 +62,7 @@ const filteredPhotos = computed(() => {
         }
       }
     }
-    photos.shift();
+    tempphotos.shift();
   }
   rows.push(row);
   return rows;
@@ -80,48 +81,66 @@ const visiblePhotoCount = computed(() => {
  * @param photo - The photo being selected.
  */
 function selectPhoto(photo: Photo) {
+  let s: Photo[] = [photo];
+  if (photo.group) {
+    s = getByGroup(photo.group);
+  }
   if (selectMultiple.value) {
-    const idx = selected.value.findIndex((p) => p.name === photo.name);
-    if (idx >= 0) {
-      selected.value.splice(idx, 1);
-    } else {
-      selected.value.push(photo);
-    }
+    s.forEach((x) => {
+      const idx = selected.value.findIndex((p) => p.data.name === x.data.name);
+      if (idx >= 0) {
+        selected.value.splice(idx, 1);
+      } else {
+        selected.value.push(x);
+      }
+    });
   } else {
-    selected.value = [photo];
+    selected.value = s;
   }
   emit('select', selected.value);
 }
 </script>
 
 <template>
-  <v-toolbar>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideTagged"
-      label="Hide tagged"
-    ></v-checkbox>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideLocated"
-      label="Hide located"
-    ></v-checkbox>
-    <v-checkbox
-      class="collection-control"
-      density="compact"
-      v-model="hideDuplicate"
-      label="Hide duplicates"
-    ></v-checkbox>
+  <div class="controls">
+    <v-menu :close-on-content-click="false">
+      <template v-slot:activator="{ props }">
+        <v-btn icon v-bind="props" flat>
+          <v-icon>mdi-dots-vertical</v-icon>
+        </v-btn>
+      </template>
+      <v-list>
+        <v-list-item>
+          <v-checkbox density="compact" v-model="hideTagged" label="Hide tagged"></v-checkbox>
+        </v-list-item>
+        <v-list-item>
+          <v-checkbox density="compact" v-model="hideLocated" label="Hide located"></v-checkbox>
+        </v-list-item>
+        <v-list-item>
+          <v-checkbox
+            density="compact"
+            v-model="hideDuplicate"
+            label="Hide duplicates"
+          ></v-checkbox>
+        </v-list-item>
+      </v-list>
+    </v-menu>
     <v-checkbox
       color="primary"
       class="collection-control"
       density="compact"
       v-model="selectMultiple"
       label="Select Multiple"
+      @update:model-value="
+        () => {
+          if (!selectMultiple) {
+            selected = [];
+            $emit('select', selected);
+          }
+        }
+      "
     ></v-checkbox>
-  </v-toolbar>
+  </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
     :height="props.rows * props.size"
@@ -134,9 +153,19 @@ function selectPhoto(photo: Photo) {
         :key="i"
         :photo="photo"
         :size="props.size"
-        :selected="selected.findIndex((p) => p.name === photo.name) >= 0"
+        :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
         @select="selectPhoto(photo)"
       ></photo-icon>
     </template>
   </v-virtual-scroll>
 </template>
+
+<style scoped>
+.controls {
+  display: flex;
+}
+
+.collection-control {
+  margin-top: 4px;
+}
+</style>
