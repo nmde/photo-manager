@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (e: 'update:rating', rating: number): void;
   (e: 'update:isDuplicate', isDuplicate: boolean): void;
   (e: 'update:group', group?: string): void;
+  (e: 'update:date', date: string): void;
 }>();
 
 const props = defineProps<{
@@ -39,6 +40,7 @@ const photoTags = ref<string[]>([]);
 const title = ref('');
 const description = ref('');
 const newGroupError = ref(false);
+const date = ref('');
 
 function initialize() {
   rating.value = props.photo.data.rating;
@@ -89,6 +91,11 @@ onMounted(initialize);
     v-model="description"
     @update:model-value="emit('update:description', description)"
   ></v-textarea>
+  <v-text-field
+    label="Date"
+    v-model="date"
+    @update:model-value="emit('update:date', date)"
+  ></v-text-field>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"

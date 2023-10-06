@@ -267,6 +267,10 @@ export const useFileStore = defineStore('files', () => {
           if (tags.value.indexOf(tag) < 0) {
             tags.value.push(tag);
           }
+          if (!tagCounts.value[tag]) {
+            tagCounts.value[tag] = 0;
+          }
+          tagCounts.value[tag] += 1;
         });
       });
       groups.value = [];
@@ -288,6 +292,16 @@ export const useFileStore = defineStore('files', () => {
 
   function setFiles(data: Record<string, Photo>) {
     files.value = data;
+  }
+
+  /**
+   * Sets a photo's date.
+   * @param photo - The target photo.
+   * @param date - The date to set.
+   */
+  async function setDate(photo: string, date: string) {
+    files.value[photo].data.date = date;
+    await database?.insert(files.value[photo]);
   }
 
   return {
@@ -319,5 +333,6 @@ export const useFileStore = defineStore('files', () => {
     loadPhotos,
     removeDeleted,
     setFiles,
+    setDate,
   };
 });

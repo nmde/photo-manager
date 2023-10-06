@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
+import { Bar } from 'vue-chartjs';
 import { Photo } from '../../classes/Photo';
 import { useFileStore } from '../../stores/fileStore';
 
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
+
 const fileStore = useFileStore();
-const { getByGroup } = fileStore;
-const { files, tags } = storeToRefs(fileStore);
+const { files, tags, tagCounts } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
 const enabledTags = ref<string[]>([]);
@@ -25,6 +28,31 @@ const photos = computed(() => {
     }
   });
   return filtered;
+});
+
+const tagChartData = computed(() => {
+  let sorted: string[] = [];
+  Object.entries(tagCounts.value).forEach(([tag, value]) => {
+    if (sorted.length === 0) {
+      sorted.push(tag);
+    } else {
+      let i = 0;
+      while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
+        i += 1;
+      }
+      sorted.splice(i, 0, tag);
+    }
+  });
+  return {
+    labels: sorted,
+    datasets: [
+      {
+        axis: 'y',
+        label: 'Count',
+        data: sorted.map((tag) => tagCounts.value[tag]),
+      },
+    ],
+  };
 });
 </script>
 
@@ -45,13 +73,19 @@ const photos = computed(() => {
           <photo-grid
             :photos="photos"
             :items-per-row="4"
-            @select="(s) => selected = s"
+            @select="(s) => (selected = s)"
             :size="175"
             :rows="4"
           ></photo-grid>
         </v-col>
         <v-col cols="6">
           <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>
+          <Bar
+            :options="{
+              indexAxis: 'y',
+            }"
+            :data="tagChartData"
+          ></Bar>
         </v-col>
       </v-row>
     </v-container>

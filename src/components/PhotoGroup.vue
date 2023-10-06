@@ -7,7 +7,7 @@ const props = defineProps<{
   photos: Photo[];
 }>();
 
-const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup } = useFileStore();
+const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup, setDate } = useFileStore();
 
 const current = ref(0);
 
@@ -64,6 +64,18 @@ watch(
     @update:is-duplicate="
       (isDuplicate) => setDuplicate(props.photos[current].data.name, isDuplicate)
     "
-    @update:group="(group) => setGroup(props.photos[current].data.name, group)"
+    @update:group="
+      (group) => {
+        props.photos.forEach((photo) => {
+          setGroup(photo.data.name, group);
+        });
+      }
+    "
+    @update:date="
+      (date) =>
+        props.photos.forEach((photo) => {
+          setDate(photo.data.name, date);
+        })
+    "
   ></photo-detail>
 </template>

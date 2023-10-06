@@ -15,6 +15,7 @@ export interface PhotoData {
   rating: number;
   video: boolean;
   photoGroup: string;
+  date: string;
 }
 
 export class Photo extends Entity<PhotoData> {
@@ -67,5 +68,6 @@ export function createPhoto(name: string, path: string): Photo {
     thumbnail: '',
     video: false,
     photoGroup: '',
+    date: '',
   });
 }
