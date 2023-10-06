@@ -17,10 +17,10 @@ const enabledTags = ref<string[]>([]);
 const photos = computed(() => {
   const filtered: Photo[] = [];
   Object.values(files.value).forEach((file) => {
-    let satisfiesTags = true;
+    let satisfiesTags = enabledTags.value.length === 0;
     enabledTags.value.forEach((tag) => {
-      if (file.tags.indexOf(tag) < 0) {
-        satisfiesTags = false;
+      if (file.tags.indexOf(tag) >= 0) {
+        satisfiesTags = true;
       }
     });
     if (satisfiesTags) {
