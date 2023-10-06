@@ -49,6 +49,7 @@ function initialize() {
   photoTags.value = props.photo.tags;
   title.value = props.photo.data.title;
   description.value = props.photo.data.description;
+  date.value = props.photo.data.date;
 }
 
 watch(() => props.photo, initialize);
