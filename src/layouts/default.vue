@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia';
 import { useFileStore } from '../stores/fileStore';
 
-const { workingDir } = storeToRefs(useFileStore());
+const { workingDir, saving, saveError } = storeToRefs(useFileStore());
 </script>
 
 <template>
@@ -19,7 +19,10 @@ const { workingDir } = storeToRefs(useFileStore());
         <v-btn>Map</v-btn>
       </NuxtLink>
       <v-spacer></v-spacer>
+      <span v-if="saving">Saving...</span>
+      <span v-else>Saved</span>
     </v-toolbar>
     <slot></slot>
+    <v-snackbar v-model="saveError">Changes could not be saved!</v-snackbar>
   </v-app>
 </template>

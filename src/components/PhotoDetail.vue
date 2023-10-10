@@ -76,6 +76,14 @@ onMounted(initialize);
     v-model="photoTags"
     @update:model-value="emit('update:tags', photoTags)"
   ></v-combobox>
+  <v-btn @click="() => {
+    photoTags = tags;
+    emit('update:tags', tags);
+  }">Set All Tags</v-btn>
+  <v-btn @click="() => {
+    photoTags = [];
+    emit('update:tags', []);
+  }">Clear Tags</v-btn>
   <v-select
     label="Group"
     :items="groupNames"

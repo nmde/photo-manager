@@ -8,6 +8,10 @@ import { TauriDatabase } from '@/classes/TauriDatabase';
 export const useFileStore = defineStore('files', () => {
   let database: TauriDatabase | null = null;
 
+  const saving = ref(false);
+
+  const saveError = ref(false);
+
   const files = ref<Record<string, Photo>>({});
 
   const groups = ref<Group[]>([]);
@@ -52,6 +56,15 @@ export const useFileStore = defineStore('files', () => {
     workingDir.value = path;
     const { join } = await import('@tauri-apps/api/path');
     database = new TauriDatabase(`sqlite:${await join(path, 'photos.db')}`);
+    database.on('startQuery', () => {
+      saving.value = true;
+    });
+    database.on('endQuery', () => {
+      saving.value = false;
+    });
+    database.on('queryError', () => {
+      saveError.value = true;
+    });
   }
 
   /**
@@ -305,6 +318,8 @@ export const useFileStore = defineStore('files', () => {
   }
 
   return {
+    saving,
+    saveError,
     files,
     groups,
     workingDir,

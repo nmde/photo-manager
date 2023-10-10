@@ -32,17 +32,20 @@ const photos = computed(() => {
 
 const tagChartData = computed(() => {
   let sorted: string[] = [];
-  Object.entries(tagCounts.value).forEach(([tag, value]) => {
-    if (sorted.length === 0) {
-      sorted.push(tag);
-    } else {
-      let i = 0;
-      while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
-        i += 1;
+  const cutoff = 2;
+  Object.entries(tagCounts.value)
+    .filter((count) => count[1] >= cutoff)
+    .forEach(([tag, value]) => {
+      if (sorted.length === 0) {
+        sorted.push(tag);
+      } else {
+        let i = 0;
+        while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
+          i += 1;
+        }
+        sorted.splice(i, 0, tag);
       }
-      sorted.splice(i, 0, tag);
-    }
-  });
+    });
   return {
     labels: sorted,
     datasets: [

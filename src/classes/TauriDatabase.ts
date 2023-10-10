@@ -1,15 +1,22 @@
+import { EventEmitter } from 'ee-ts';
 import Database from 'tauri-plugin-sql-api';
 import { Entity } from './Entity';
 import { Constructor } from '../types/Constructor';
 
-export class TauriDatabase {
+export class TauriDatabase extends EventEmitter<{
+  endQuery: () => void;
+  startQuery: () => void;
+  queryError: (error: string) => void;
+}> {
   private connected = false;
 
   private database!: Database;
 
   private ensuredTables: string[] = [];
 
-  public constructor(public path: string) {}
+  public constructor(public path: string) {
+    super();
+  }
 
   /**
    * Deletes the given entity from the database.
@@ -61,7 +68,16 @@ export class TauriDatabase {
    */
   public async execute(query: string) {
     console.log(query);
-    return await (await this.getConnection()).execute(query);
+    this.emit('startQuery');
+    try {
+      const result = await (await this.getConnection()).execute(query);
+      this.emit('endQuery');
+      return result;
+    } catch (err) {
+      this.emit('queryError', (err as Error).message);
+      this.emit('endQuery');
+      return null;
+    }
   }
 
   /**
