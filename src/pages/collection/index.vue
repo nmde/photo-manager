@@ -97,9 +97,11 @@ onMounted(() => {
         }
       });
 
-      Object.entries(locations.value).forEach(([loc]) => {
-        createMarker(loc);
-      });
+      Object.entries(locations.value)
+        .filter((loc) => loc[0].length > 1)
+        .forEach(([loc]) => {
+          createMarker(loc);
+        });
     });
 });
 </script>

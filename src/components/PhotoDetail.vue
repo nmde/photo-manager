@@ -69,7 +69,7 @@ onMounted(initialize);
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
   <br />
   <v-combobox
-    label="Photo Tags"
+    :label="`Photo Tags (${photoTags.length})`"
     :items="tags"
     multiple
     chips

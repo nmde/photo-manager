@@ -19,7 +19,9 @@ const { workingDir, saving, saveError } = storeToRefs(useFileStore());
         <v-btn>Map</v-btn>
       </NuxtLink>
       <v-spacer></v-spacer>
-      <span v-if="saving">Saving...</span>
+      <span v-if="saving">
+        <v-progress-circular indeterminate></v-progress-circular>
+      </span>
       <span v-else>Saved</span>
     </v-toolbar>
     <slot></slot>

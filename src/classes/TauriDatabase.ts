@@ -74,6 +74,7 @@ export class TauriDatabase extends EventEmitter<{
       this.emit('endQuery');
       return result;
     } catch (err) {
+      console.error(err);
       this.emit('queryError', (err as Error).message);
       this.emit('endQuery');
       return null;
