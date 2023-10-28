@@ -6,6 +6,14 @@ import { Bar } from 'vue-chartjs';
 import { Photo } from '../../classes/Photo';
 import { useFileStore } from '../../stores/fileStore';
 
+/**
+ * TODO:
+ * - Delete a tag
+ * - View redundant tags
+ * - Tag network
+ * - Tag influence on rating
+ */
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 const fileStore = useFileStore();
@@ -13,14 +21,25 @@ const { files, tags, tagCounts } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
 const enabledTags = ref<string[]>([]);
+const disabledTags = ref<string[]>([]);
+const searchDialog = ref(false);
+const includeMode = ref('AND');
 
 const photos = computed(() => {
   const filtered: Photo[] = [];
+  console.log(disabledTags.value);
   Object.values(files.value).forEach((file) => {
-    let satisfiesTags = enabledTags.value.length === 0;
+    let satisfiesTags = includeMode.value === 'AND' || enabledTags.value.length === 0;
     enabledTags.value.forEach((tag) => {
-      if (file.tags.indexOf(tag) >= 0) {
+      if (includeMode.value === 'OR' && file.tags.indexOf(tag) >= 0) {
         satisfiesTags = true;
+      } else if (includeMode.value === 'AND' && file.tags.indexOf(tag) < 0) {
+        satisfiesTags = false;
+      }
+    });
+    disabledTags.value.forEach((tag) => {
+      if (file.tags.indexOf(tag) >= 0) {
+        satisfiesTags = false;
       }
     });
     if (satisfiesTags) {
@@ -64,15 +83,18 @@ const tagChartData = computed(() => {
     <v-container fluid>
       <v-row>
         <v-col cols="6">
-          <v-combobox
-            label="Tags to include"
-            :items="tags"
-            multiple
-            chips
-            clearable
-            v-model="enabledTags"
-          >
-          </v-combobox>
+          <div class="flex">
+            <v-combobox
+              label="Tags to include"
+              :items="tags"
+              multiple
+              chips
+              clearable
+              v-model="enabledTags"
+            >
+            </v-combobox>
+            <v-btn @click="searchDialog = true">Advanced</v-btn>
+          </div>
           <photo-grid
             :photos="photos"
             :items-per-row="4"
@@ -92,6 +114,31 @@ const tagChartData = computed(() => {
         </v-col>
       </v-row>
     </v-container>
+    <v-dialog v-model="searchDialog">
+      <v-card>
+        <v-card-text>
+          <v-combobox
+            label="Tags to include"
+            :items="tags"
+            multiple
+            chips
+            clearable
+            v-model="enabledTags"
+          >
+          </v-combobox>
+          <v-select :items="['AND', 'OR']" label="Mode" v-model="includeMode"></v-select>
+          <v-combobox
+            label="Tags to exclude"
+            :items="tags"
+            multiple
+            chips
+            clearable
+            v-model="disabledTags"
+          >
+          </v-combobox>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
