@@ -330,7 +330,7 @@ export const useFileStore = defineStore('files', () => {
     if (t) {
       return t;
     }
-    const advTag = new Tag({ name: tag, color: '', prereqs: '', incompatible: '' });
+    const advTag = new Tag({ name: tag, color: '', prereqs: '', coreqs: '', incompatible: '' });
     advTags.value.push(advTag);
     await database?.insert(advTag);
     return advTag;
@@ -359,6 +359,17 @@ export const useFileStore = defineStore('files', () => {
   }
 
   /**
+   * Sets a tag's prerequisites.
+   * @param tag - The target tag.
+   * @param coreqs - The prereq list.
+   */
+  async function setTagCoreqs(tag: string, coreqs: string[]) {
+    const t = await ensureAdvTag(tag);
+    t.coreqs = coreqs;
+    await database?.insert(t);
+  }
+
+  /**
    * Sets a tag's incompatible.
    * @param tag - The target tag.
    * @param incompatible - The incompatible list.
@@ -379,6 +390,53 @@ export const useFileStore = defineStore('files', () => {
       return at.data.color;
     }
     return 'black';
+  }
+
+  /**
+   * Validates tags for a photo.
+   * @param photo - The photo to validate.
+   */
+  function validateTags(photo: string) {
+    let valid = true;
+    let msg = '';
+    const tags = files.value[photo].tags;
+    tags.forEach((tag) => {
+      const a = advTags.value.find((t) => t.data.name === tag);
+      if (a) {
+        if (a.prereqs.length > 0) {
+          let allPrereqsMet = true;
+          let missingPrereq = '';
+          a.prereqs.forEach((p) => {
+            allPrereqsMet = allPrereqsMet && tags.indexOf(p) >= 0;
+            if (tags.indexOf(p) < 0) {
+              missingPrereq = p;
+            }
+          });
+          if (!allPrereqsMet) {
+            valid = false;
+            msg = `Missing prerequisite: ${missingPrereq}`;
+          }
+        }
+        if (a.coreqs.length > 0) {
+          let allCoreqsMet = true;
+          let missingCoreq = '';
+          a.coreqs.forEach((c) => {
+            allCoreqsMet = allCoreqsMet && tags.indexOf(c) >= 0;
+            if (tags.indexOf(c) < 0) {
+              missingCoreq = c;
+            }
+          });
+          if (!allCoreqsMet) {
+            valid = false;
+            msg = `Missing corequisite: ${missingCoreq}`;
+          }
+        }
+      }
+    });
+    if (!valid) {
+      return msg;
+    }
+    return null;
   }
 
   return {
@@ -417,7 +475,9 @@ export const useFileStore = defineStore('files', () => {
     initialized,
     setTagColor,
     setTagPrereqs,
+    setTagCoreqs,
     setTagIncompatible,
     getTagColor,
+    validateTags,
   };
 });

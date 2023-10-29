@@ -17,33 +17,16 @@ import { Tag } from '../../classes/Tag';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 const fileStore = useFileStore();
-const { setTagColor, setTagPrereqs, setTagIncompatible, getTagColor } = fileStore;
+const { setTagColor, setTagPrereqs, setTagIncompatible, getTagColor, setTagCoreqs } = fileStore;
 const { tagCounts, advTags } = storeToRefs(fileStore);
 
 const cutoff = ref(1);
 const selected = ref('');
 const selectedColor = ref('black');
 const prereqTags = ref<string[]>([]);
+const coreqTags = ref<string[]>([]);
 const incompatibleTags = ref<string[]>([]);
-
-const colors = [
-  '#F44336',
-  '#E91E63',
-  '#9C27B0',
-  '#673AB7',
-  '#3F51B5',
-  '#2196F3',
-  '#03A9F4',
-  '#00BCD4',
-  '#009688',
-  '#4CAF50',
-  '#8BC34A',
-  '#CDDC39',
-  '#FFEB3B',
-  '#FFC107',
-  '#FF9800',
-  '#FF5722',
-];
+const filterColor = ref('');
 
 const tagChartData = computed(() => {
   let sorted: string[] = [];
@@ -54,6 +37,9 @@ const tagChartData = computed(() => {
       let color = getTagColor(tag);
       if (color === 'black') {
         color = 'rgba(201, 203, 207, 0.8)';
+      }
+      if (filterColor.value.length > 0 && color !== filterColor.value) {
+        return;
       }
       if (sorted.length === 0) {
         sorted.push(tag);
@@ -97,9 +83,11 @@ const tagChartData = computed(() => {
                 selectedColor = getTagColor(selected);
                 if (adv) {
                   prereqTags = adv.prereqs;
+                  coreqTags = adv.coreqs;
                   incompatibleTags = adv.incompatible;
                 } else {
                   prereqTags = [];
+                  coreqTags = [];
                   incompatibleTags = [];
                 }
               }
@@ -109,20 +97,14 @@ const tagChartData = computed(() => {
             Editing properties of <span :style="{ color: selectedColor }">{{ selected }}</span>
             <br />
             Set color:
-            <div class="color-opts">
-              <div
-                v-for="color in colors"
-                :key="color"
-                class="color-opt"
-                :style="{ 'background-color': color }"
-                @click="
-                  async () => {
-                    selectedColor = color;
-                    await setTagColor(selected, color);
-                  }
-                "
-              ></div>
-            </div>
+            <color-options
+              @select="
+                async (color) => {
+                  selectedColor = color;
+                  await setTagColor(selected, color);
+                }
+              "
+            ></color-options>
             <br />
             <tag-input
               label="Prerequisite Tags"
@@ -130,6 +112,15 @@ const tagChartData = computed(() => {
               @update="
                 async (tags) => {
                   await setTagPrereqs(selected, tags);
+                }
+              "
+            ></tag-input>
+            <tag-input
+              label="Corequisite Tags"
+              :value="coreqTags"
+              @update="
+                async (tags) => {
+                  await setTagCoreqs(selected, tags);
                 }
               "
             ></tag-input>
@@ -152,20 +143,10 @@ const tagChartData = computed(() => {
             :data="tagChartData"
           ></Bar>
           Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
+          Filter by color:
+          <color-options @select="(color) => (filterColor = color)"></color-options>
         </v-col>
       </v-row>
     </v-container>
   </v-main>
 </template>
-
-<style scoped>
-.color-opts {
-  display: flex;
-  height: 50px;
-}
-
-.color-opt {
-  cursor: pointer;
-  width: 100px;
-}
-</style>

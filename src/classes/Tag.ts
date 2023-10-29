@@ -4,6 +4,7 @@ export type TagData = {
   name: string;
   color: string;
   prereqs: string;
+  coreqs: string;
   incompatible: string;
 };
 
@@ -25,6 +26,17 @@ export class Tag extends Entity<TagData> {
 
   public set prereqs(tags: string[]) {
     this.data.prereqs = tags.join(',');
+  }
+
+  public get coreqs() {
+    if (this.data.coreqs === null || this.data.coreqs.length === 0) {
+      return [];
+    }
+    return this.data.coreqs.split(',');
+  }
+
+  public set coreqs(tags: string[]) {
+    this.data.coreqs = tags.join(',');
   }
 
   public get incompatible() {

@@ -43,7 +43,7 @@ export class TauriDatabase extends EventEmitter<{
         let str = `${name} `;
         if (typeof value === 'number' || typeof value === 'boolean') {
           str += 'INTEGER';
-        } else if (typeof value === 'string') {
+        } else if (typeof value === 'string' || value === null) {
           str += 'TEXT';
         } else {
           throw new Error(`Unhandled data type for ${name}!`);
@@ -100,7 +100,7 @@ export class TauriDatabase extends EventEmitter<{
    * @param value - The value to clean.
    */
   private getCleanValue(value: any) {
-    if (typeof value === 'string') {
+    if (typeof value === 'string' || value === null) {
       return `'${value}'`;
     } else if (typeof value === 'number') {
       return `${value}`;

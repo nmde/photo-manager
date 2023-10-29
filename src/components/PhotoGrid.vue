@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useFileStore();
-const { getByGroup } = store;
+const { getByGroup, validateTags } = store;
 const { photoCount } = storeToRefs(store);
 
 const hideLocated = ref(false);
@@ -147,6 +147,7 @@ function selectPhoto(photo: Photo) {
         :photo="photo"
         :size="props.size"
         :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
+        :invalid="validateTags(photo.data.name) !== null"
         @select="selectPhoto(photo)"
       ></photo-icon>
     </template>

@@ -62,7 +62,7 @@ const photos = computed(() => {
             :photos="photos"
             :items-per-row="4"
             @select="(s) => (selected = s)"
-            :size="175"
+            :size="170"
             :rows="4"
           ></photo-grid>
         </v-col>

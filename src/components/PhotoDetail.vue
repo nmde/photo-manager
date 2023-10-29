@@ -71,6 +71,8 @@ onMounted(initialize);
   <tag-input
     :label="`Photo Tags (${photoTags.length})`"
     :value="photoTags"
+    filtered
+    :validate="photo.data.name"
     @update="
       (tags) => {
         photoTags = tags;
