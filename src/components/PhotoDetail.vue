@@ -68,22 +68,34 @@ onMounted(initialize);
   ></video-player>
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
   <br />
-  <v-combobox
+  <tag-input
     :label="`Photo Tags (${photoTags.length})`"
-    :items="tags"
-    multiple
-    chips
-    v-model="photoTags"
-    @update:model-value="emit('update:tags', photoTags)"
-  ></v-combobox>
-  <v-btn @click="() => {
-    photoTags = tags;
-    emit('update:tags', tags);
-  }">Set All Tags</v-btn>
-  <v-btn @click="() => {
-    photoTags = [];
-    emit('update:tags', []);
-  }">Clear Tags</v-btn>
+    :value="photoTags"
+    @update="
+      (tags) => {
+        photoTags = tags;
+        emit('update:tags', photoTags);
+      }
+    "
+  ></tag-input>
+  <v-btn
+    @click="
+      () => {
+        photoTags = tags;
+        emit('update:tags', tags);
+      }
+    "
+    >Set All Tags</v-btn
+  >
+  <v-btn
+    @click="
+      () => {
+        photoTags = [];
+        emit('update:tags', []);
+      }
+    "
+    >Clear Tags</v-btn
+  >
   <v-select
     label="Group"
     :items="groupNames"

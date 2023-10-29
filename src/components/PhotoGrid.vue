@@ -19,7 +19,6 @@ const store = useFileStore();
 const { getByGroup } = store;
 const { photoCount } = storeToRefs(store);
 
-const hideTagged = ref(false);
 const hideLocated = ref(false);
 const hideDuplicate = ref(false);
 const selectMultiple = ref(false);
@@ -36,9 +35,6 @@ const filteredPhotos = computed(() => {
   while (tempphotos.length > 0) {
     const file = tempphotos[0];
     let visible = true;
-    if (hideTagged.value === true && file.tags.length > 0) {
-      visible = false;
-    }
     if (hideLocated.value === true && file.location !== undefined) {
       visible = false;
     }
@@ -110,9 +106,6 @@ function selectPhoto(photo: Photo) {
         </v-btn>
       </template>
       <v-list>
-        <v-list-item>
-          <v-checkbox density="compact" v-model="hideTagged" label="Hide tagged"></v-checkbox>
-        </v-list-item>
         <v-list-item>
           <v-checkbox density="compact" v-model="hideLocated" label="Hide located"></v-checkbox>
         </v-list-item>

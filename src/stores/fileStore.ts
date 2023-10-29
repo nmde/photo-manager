@@ -4,9 +4,12 @@ import { locToString } from '../classes/Map';
 import { Group } from '../classes/Group';
 import { createPhoto, Photo } from '../classes/Photo';
 import { TauriDatabase } from '@/classes/TauriDatabase';
+import { Tag } from '~/classes/Tag';
 
 export const useFileStore = defineStore('files', () => {
   let database: TauriDatabase | null = null;
+
+  const initialized = ref(false);
 
   const saving = ref(false);
 
@@ -19,6 +22,8 @@ export const useFileStore = defineStore('files', () => {
   const workingDir = ref('');
 
   const tags = ref<string[]>([]);
+
+  const advTags = ref<Tag[]>([]);
 
   const tagCounts = ref<Record<string, number>>({});
 
@@ -286,10 +291,9 @@ export const useFileStore = defineStore('files', () => {
           tagCounts.value[tag] += 1;
         });
       });
-      groups.value = [];
-      (await database.selectAll(Group)).forEach((group) => {
-        groups.value.push(group);
-      });
+      groups.value = await database.selectAll(Group);
+      advTags.value = await database.selectAll(Tag);
+      initialized.value = true;
     }
     return files.value;
   }
@@ -317,6 +321,66 @@ export const useFileStore = defineStore('files', () => {
     await database?.insert(files.value[photo]);
   }
 
+  /**
+   * Ensures a tag exists in the Tag table.
+   * @param tag - The target tag.
+   */
+  async function ensureAdvTag(tag: string) {
+    const t = advTags.value.find((x) => x.data.name === tag);
+    if (t) {
+      return t;
+    }
+    const advTag = new Tag({ name: tag, color: '', prereqs: '', incompatible: '' });
+    advTags.value.push(advTag);
+    await database?.insert(advTag);
+    return advTag;
+  }
+
+  /**
+   * Sets a tag's color.
+   * @param tag - The target tag.
+   * @param color - The color to set.
+   */
+  async function setTagColor(tag: string, color: string) {
+    const t = await ensureAdvTag(tag);
+    t.data.color = color;
+    await database?.insert(t);
+  }
+
+  /**
+   * Sets a tag's prerequisites.
+   * @param tag - The target tag.
+   * @param prereqs - The prereq list.
+   */
+  async function setTagPrereqs(tag: string, prereqs: string[]) {
+    const t = await ensureAdvTag(tag);
+    t.prereqs = prereqs;
+    await database?.insert(t);
+  }
+
+  /**
+   * Sets a tag's incompatible.
+   * @param tag - The target tag.
+   * @param incompatible - The incompatible list.
+   */
+  async function setTagIncompatible(tag: string, incompatible: string[]) {
+    const t = await ensureAdvTag(tag);
+    t.incompatible = incompatible;
+    await database?.insert(t);
+  }
+
+  /**
+   * Helper method for getting a tag's color;
+   * @param tag - The tag to get.
+   */
+  function getTagColor(tag: string) {
+    const at = advTags.value.find((t) => t.data.name === tag);
+    if (at) {
+      return at.data.color;
+    }
+    return 'black';
+  }
+
   return {
     saving,
     saveError,
@@ -324,6 +388,7 @@ export const useFileStore = defineStore('files', () => {
     groups,
     workingDir,
     tags,
+    advTags,
     tagCounts,
     locations,
     addFile,
@@ -349,5 +414,10 @@ export const useFileStore = defineStore('files', () => {
     removeDeleted,
     setFiles,
     setDate,
+    initialized,
+    setTagColor,
+    setTagPrereqs,
+    setTagIncompatible,
+    getTagColor,
   };
 });
