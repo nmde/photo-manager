@@ -35,7 +35,7 @@ const tagChartData = computed(() => {
     .filter((count) => count[1] >= cutoff.value)
     .forEach(([tag, value]) => {
       let color = getTagColor(tag);
-      if (color === 'black') {
+      if (color === 'black' || color.length === 0) {
         color = 'rgba(201, 203, 207, 0.8)';
       }
       if (filterColor.value.length > 0 && color !== filterColor.value) {
@@ -78,9 +78,10 @@ const tagChartData = computed(() => {
             single
             @update="
               (tags) => {
-                selected = tags;
+                selected = tags as unknown as string;
                 const adv = (advTags as Tag[]).find((t) => t.data.name === selected);
                 selectedColor = getTagColor(selected);
+                console.log(adv);
                 if (adv) {
                   prereqTags = adv.prereqs;
                   coreqTags = adv.coreqs;
@@ -93,7 +94,7 @@ const tagChartData = computed(() => {
               }
             "
           ></tag-input>
-          <div v-if="selected.length > 0">
+          <div v-if="selected">
             Editing properties of <span :style="{ color: selectedColor }">{{ selected }}</span>
             <br />
             Set color:

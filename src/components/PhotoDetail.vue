@@ -73,9 +73,13 @@ onMounted(initialize);
     :value="photoTags"
     filtered
     :validate="photo.data.name"
-    @update="
+    @change="
       (tags) => {
         photoTags = tags;
+      }
+    "
+    @update="
+      (tags) => {
         emit('update:tags', photoTags);
       }
     "

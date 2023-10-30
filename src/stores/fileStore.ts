@@ -5,6 +5,8 @@ import { Group } from '../classes/Group';
 import { createPhoto, Photo } from '../classes/Photo';
 import { TauriDatabase } from '@/classes/TauriDatabase';
 import { Tag } from '~/classes/Tag';
+import { Graph } from '~/classes/Graph';
+import { GraphNode } from '~/classes/GraphNode';
 
 export const useFileStore = defineStore('files', () => {
   let database: TauriDatabase | null = null;
@@ -116,17 +118,6 @@ export const useFileStore = defineStore('files', () => {
   }
 
   /**
-   * Moves tags to the front of the list.
-   * @param tags - The tags to move to the front.
-   */
-  function moveTagsToFront(targets: string[]) {
-    targets.forEach((tag) => {
-      tags.value.splice(tags.value.indexOf(tag), 1);
-    });
-    tags.value.unshift(...targets);
-  }
-
-  /**
    * Marks the photo as a video.
    * @param photo - The vidoe.
    */
@@ -225,10 +216,6 @@ export const useFileStore = defineStore('files', () => {
       if (files.value[photo].tags.indexOf(tag) < 0) {
         tagCounts.value[tag] += 1;
       }
-      if (tags.value.indexOf(tag) >= 0) {
-        tags.value.splice(tags.value.indexOf(tag), 1);
-      }
-      tags.value.splice(0, 0, tag);
     });
     files.value[photo].tags.forEach((tag) => {
       if (t.indexOf(tag) < 0) {
@@ -279,11 +266,22 @@ export const useFileStore = defineStore('files', () => {
   async function loadPhotos() {
     if (database) {
       files.value = {};
+      const tagGraph = new Graph();
+      advTags.value = await database.selectAll(Tag);
       (await database.selectAll(Photo)).forEach((photo) => {
         files.value[photo.data.name] = photo;
         photo.tags.forEach((tag) => {
-          if (tags.value.indexOf(tag) < 0) {
-            tags.value.push(tag);
+          if (!tagGraph.get(tag)) {
+            tagGraph.nodes.push(new GraphNode(tag));
+            const adv = advTags.value.find((t) => t.data.name === tag);
+            if (adv && adv.prereqs.length > 0) {
+              adv.prereqs.forEach((p) => {
+                if (!tagGraph.get(p)) {
+                  tagGraph.nodes.push(new GraphNode(p));
+                }
+                tagGraph.get(p)?.links.push(tag);
+              });
+            }
           }
           if (!tagCounts.value[tag]) {
             tagCounts.value[tag] = 0;
@@ -292,7 +290,7 @@ export const useFileStore = defineStore('files', () => {
         });
       });
       groups.value = await database.selectAll(Group);
-      advTags.value = await database.selectAll(Tag);
+      tags.value = tagGraph.sort();
       initialized.value = true;
     }
     return files.value;
@@ -366,6 +364,7 @@ export const useFileStore = defineStore('files', () => {
   async function setTagCoreqs(tag: string, coreqs: string[]) {
     const t = await ensureAdvTag(tag);
     t.coreqs = coreqs;
+    console.log(advTags.value.find((x) => x.data.name === tag));
     await database?.insert(t);
   }
 
@@ -406,12 +405,15 @@ export const useFileStore = defineStore('files', () => {
         if (a.prereqs.length > 0) {
           let allPrereqsMet = true;
           let missingPrereq = '';
-          a.prereqs.forEach((p) => {
+          let i = 0;
+          while (allPrereqsMet && i < a.prereqs.length) {
+            const p = a.prereqs[i];
             allPrereqsMet = allPrereqsMet && tags.indexOf(p) >= 0;
             if (tags.indexOf(p) < 0) {
-              missingPrereq = p;
+              missingPrereq = `${p} (required by ${a.data.name})`;
             }
-          });
+            i += 1;
+          }
           if (!allPrereqsMet) {
             valid = false;
             msg = `Missing prerequisite: ${missingPrereq}`;
@@ -420,12 +422,15 @@ export const useFileStore = defineStore('files', () => {
         if (a.coreqs.length > 0) {
           let allCoreqsMet = true;
           let missingCoreq = '';
-          a.coreqs.forEach((c) => {
+          let i = 0;
+          while (allCoreqsMet && i < a.coreqs.length) {
+            const c = a.coreqs[i];
             allCoreqsMet = allCoreqsMet && tags.indexOf(c) >= 0;
             if (tags.indexOf(c) < 0) {
-              missingCoreq = c;
+              missingCoreq = `${c} (required by ${a.data.name})`;
             }
-          });
+            i += 1;
+          }
           if (!allCoreqsMet) {
             valid = false;
             msg = `Missing corequisite: ${missingCoreq}`;
@@ -455,7 +460,6 @@ export const useFileStore = defineStore('files', () => {
     setThumbnail,
     photoCount,
     setLocation,
-    moveTagsToFront,
     setVideo,
     addGroup,
     groupNames,

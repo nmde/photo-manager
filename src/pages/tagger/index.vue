@@ -5,6 +5,7 @@ import { Photo } from '../../classes/Photo';
 import { useFileStore } from '../../stores/fileStore';
 
 const fileStore = useFileStore();
+const { validateTags } = fileStore;
 const { files } = storeToRefs(fileStore);
 
 const selected = ref<Photo[]>([]);
@@ -14,6 +15,10 @@ const searchDialog = ref(false);
 const includeMode = ref('AND');
 const hideTagged = ref(false);
 const onlyTagged = ref(false);
+const onlyError = ref(false);
+const hideDuplicates = ref(true);
+const onlyLocated = ref(false);
+const hideLocated = ref(false);
 
 const photos = computed(() => {
   const filtered: Photo[] = [];
@@ -35,6 +40,18 @@ const photos = computed(() => {
       satisfiesTags = false;
     }
     if (onlyTagged.value === true && file.tags.length === 0) {
+      satisfiesTags = false;
+    }
+    if (hideLocated.value === true && file.location !== undefined) {
+      satisfiesTags = false;
+    }
+    if (onlyLocated.value === true && file.location === undefined) {
+      satisfiesTags = false;
+    }
+    if (onlyError.value === true && validateTags(file.data.name) === null) {
+      satisfiesTags = false;
+    }
+    if (hideDuplicates.value === true && file.data.isDuplicate) {
       satisfiesTags = false;
     }
     if (satisfiesTags) {
@@ -107,6 +124,30 @@ const photos = computed(() => {
               }
             "
           ></v-checkbox>
+          <v-checkbox
+            v-model="onlyLocated"
+            label="Show Only Located"
+            @update:model-value="
+              () => {
+                if (onlyLocated) {
+                  hideLocated = false;
+                }
+              }
+            "
+          ></v-checkbox>
+          <v-checkbox
+            v-model="hideLocated"
+            label="Hide Located"
+            @update:model-value="
+              () => {
+                if (hideLocated) {
+                  onlyLocated = false;
+                }
+              }
+            "
+          ></v-checkbox>
+          <v-checkbox v-model="onlyError" label="Show Only Photos With Errors"></v-checkbox>
+          <v-checkbox v-model="hideDuplicates" label="Hide Duplicates"></v-checkbox>
         </v-card-text>
       </v-card>
     </v-dialog>
