@@ -273,15 +273,21 @@ export const useFileStore = defineStore('files', () => {
         photo.tags.forEach((tag) => {
           if (!tagGraph.get(tag)) {
             tagGraph.nodes.push(new GraphNode(tag));
-            const adv = advTags.value.find((t) => t.data.name === tag);
-            if (adv && adv.prereqs.length > 0) {
-              adv.prereqs.forEach((p) => {
-                if (!tagGraph.get(p)) {
-                  tagGraph.nodes.push(new GraphNode(p));
+          }
+          const adv = advTags.value.find((t) => t.data.name === tag);
+          if (adv && adv.prereqs.length > 0) {
+            adv.prereqs.forEach((p) => {
+              if (!tagGraph.get(p)) {
+                const gn = new GraphNode(p);
+                gn.links.push(tag);
+                tagGraph.nodes.push(gn);
+              } else {
+                const gn = tagGraph.get(p) as GraphNode;
+                if (gn.links.indexOf(tag) < 0) {
+                  tagGraph.get(p)?.links.push(tag);
                 }
-                tagGraph.get(p)?.links.push(tag);
-              });
-            }
+              }
+            });
           }
           if (!tagCounts.value[tag]) {
             tagCounts.value[tag] = 0;
@@ -290,6 +296,8 @@ export const useFileStore = defineStore('files', () => {
         });
       });
       groups.value = await database.selectAll(Group);
+      console.log(JSON.stringify(tagGraph.get('teeth')));
+      console.log(JSON.stringify(tagGraph.get('sharp teeth')));
       tags.value = tagGraph.sort();
       initialized.value = true;
     }
@@ -393,6 +401,7 @@ export const useFileStore = defineStore('files', () => {
 
   /**
    * Validates tags for a photo.
+   * TODO - cache the validation status so it doesn't call this function a billion times
    * @param photo - The photo to validate.
    */
   function validateTags(photo: string) {
@@ -444,6 +453,76 @@ export const useFileStore = defineStore('files', () => {
     return null;
   }
 
+  // Global filter options
+  const filters = ref<{
+    disabledTags: string[];
+    enabledTags: string[];
+    filterMode: 'AND' | 'OR';
+    hideDuplicates: boolean;
+    hideLocated: boolean;
+    hideTagged: boolean;
+    onlyError: boolean;
+    onlyLocated: boolean;
+    onlyTagged: boolean;
+  }>({
+    disabledTags: [],
+    enabledTags: [],
+    filterMode: 'AND',
+    hideDuplicates: true,
+    hideLocated: false,
+    hideTagged: false,
+    onlyError: false,
+    onlyLocated: false,
+    onlyTagged: false,
+  });
+
+  // A list of photos, with the filter options applied
+  const filteredPhotos = computed(() => {
+    const filtered: Photo[] = [];
+    const {
+      filterMode,
+      disabledTags,
+      enabledTags,
+      hideDuplicates,
+      hideLocated,
+      hideTagged,
+      onlyError,
+      onlyLocated,
+      onlyTagged,
+    } = filters.value;
+    Object.values(files.value).forEach((file) => {
+      let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+      if (
+        (hideTagged && file.tags.length > 0) ||
+        (onlyTagged && file.tags.length === 0) ||
+        (hideLocated && file.location !== undefined) ||
+        (onlyLocated && file.location === undefined) ||
+        (onlyError && validateTags(file.data.name) === null) ||
+        (hideDuplicates && file.data.isDuplicate)
+      ) {
+        satisfiesTags = false;
+      }
+      if (satisfiesTags) {
+        enabledTags.forEach((tag) => {
+          if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
+            satisfiesTags = true;
+          } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
+            satisfiesTags = false;
+          }
+        });
+        disabledTags.forEach((tag) => {
+          if (file.tags.indexOf(tag) >= 0) {
+            satisfiesTags = false;
+          }
+        });
+      }
+      if (satisfiesTags) {
+        filtered.push(file);
+      }
+    });
+    return filtered;
+  });
+
   return {
     saving,
     saveError,
@@ -483,5 +562,7 @@ export const useFileStore = defineStore('files', () => {
     setTagIncompatible,
     getTagColor,
     validateTags,
+    filters,
+    filteredPhotos,
   };
 });

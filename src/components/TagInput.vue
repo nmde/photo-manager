@@ -22,7 +22,6 @@ const emit = defineEmits<{
 const selected = ref<string[]>([]);
 const valid = ref(true);
 const validationMsg = ref('');
-const focused = ref(false);
 
 const filteredTags = computed(() => {
   if (!props.filtered) {
@@ -85,6 +84,7 @@ function initialize() {
 watch(() => props.value, initialize);
 </script>
 
+// The global sorted tag list is not updating when new tags are added, links are created
 <template>
   <v-combobox
     :label="props.label"
@@ -96,18 +96,13 @@ watch(() => props.value, initialize);
     @update:model-value="
       () => {
         emit('change', selected);
-        if (valid) {
-          validateTagsWrapper();
-        }
+        validateTagsWrapper();
       }
     "
     @update:focused="
       () => {
-        if (focused) {
-          emit('update', selected);
-        }
-
-        focused = !focused;
+        emit('update', selected);
+        validateTagsWrapper();
       }
     "
     :error="!valid"

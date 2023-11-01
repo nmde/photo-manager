@@ -17,12 +17,11 @@ const emit = defineEmits<{
 
 const store = useFileStore();
 const { getByGroup, validateTags } = store;
-const { photoCount } = storeToRefs(store);
+const { photoCount, filters } = storeToRefs(store);
 
-const hideLocated = ref(false);
-const hideDuplicate = ref(false);
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
+const searchDialog = ref(false);
 
 type GridRow = Photo[];
 
@@ -34,28 +33,19 @@ const filteredPhotos = computed(() => {
   const groups: string[] = [];
   while (tempphotos.length > 0) {
     const file = tempphotos[0];
-    let visible = true;
-    if (hideLocated.value === true && file.location !== undefined) {
-      visible = false;
-    }
-    if (hideDuplicate.value === true && file.data.isDuplicate) {
-      visible = false;
-    }
-    if (visible) {
-      let grouped = false;
-      if (typeof file.group === 'string') {
-        if (groups.indexOf(file.group) >= 0) {
-          grouped = true;
-        } else {
-          groups.push(file.group);
-        }
+    let grouped = false;
+    if (typeof file.group === 'string') {
+      if (groups.indexOf(file.group) >= 0) {
+        grouped = true;
+      } else {
+        groups.push(file.group);
       }
-      if (!grouped) {
-        row.push(file);
-        if (row.length === props.itemsPerRow) {
-          rows.push(row);
-          row = [];
-        }
+    }
+    if (!grouped) {
+      row.push(file);
+      if (row.length === props.itemsPerRow) {
+        rows.push(row);
+        row = [];
       }
     }
     tempphotos.shift();
@@ -99,25 +89,9 @@ function selectPhoto(photo: Photo) {
 
 <template>
   <div class="controls">
-    <v-menu :close-on-content-click="false">
-      <template v-slot:activator="{ props }">
-        <v-btn icon v-bind="props" flat>
-          <v-icon>mdi-dots-vertical</v-icon>
-        </v-btn>
-      </template>
-      <v-list>
-        <v-list-item>
-          <v-checkbox density="compact" v-model="hideLocated" label="Hide located"></v-checkbox>
-        </v-list-item>
-        <v-list-item>
-          <v-checkbox
-            density="compact"
-            v-model="hideDuplicate"
-            label="Hide duplicates"
-          ></v-checkbox>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <v-btn icon @click="searchDialog = true" flat>
+      <v-icon>mdi-filter</v-icon>
+    </v-btn>
     <v-checkbox
       color="primary"
       class="collection-control"
@@ -152,6 +126,69 @@ function selectPhoto(photo: Photo) {
       ></photo-icon>
     </template>
   </v-virtual-scroll>
+  <v-dialog v-model="searchDialog">
+    <v-card>
+      <v-card-text>
+        <tag-input
+          label="Tags to include"
+          :value="filters.enabledTags"
+          @update="(tags) => (filters.enabledTags = tags)"
+        ></tag-input>
+        <v-select :items="['AND', 'OR']" label="Mode" v-model="filters.filterMode"></v-select>
+        <tag-input
+          label="Tags to exclude"
+          :value="filters.disabledTags"
+          @update="(tags) => (filters.disabledTags = tags)"
+        ></tag-input>
+        <v-checkbox
+          v-model="filters.onlyTagged"
+          label="Only Show Tagged"
+          @update:model-value="
+            () => {
+              if (filters.onlyTagged) {
+                filters.hideTagged = false;
+              }
+            }
+          "
+        ></v-checkbox>
+        <v-checkbox
+          v-model="filters.hideTagged"
+          label="Hide Tagged"
+          @update:model-value="
+            () => {
+              if (filters.hideTagged) {
+                filters.onlyTagged = false;
+              }
+            }
+          "
+        ></v-checkbox>
+        <v-checkbox
+          v-model="filters.onlyLocated"
+          label="Show Only Located"
+          @update:model-value="
+            () => {
+              if (filters.onlyLocated) {
+                filters.hideLocated = false;
+              }
+            }
+          "
+        ></v-checkbox>
+        <v-checkbox
+          v-model="filters.hideLocated"
+          label="Hide Located"
+          @update:model-value="
+            () => {
+              if (filters.hideLocated) {
+                filters.onlyLocated = false;
+              }
+            }
+          "
+        ></v-checkbox>
+        <v-checkbox v-model="filters.onlyError" label="Show Only Photos With Errors"></v-checkbox>
+        <v-checkbox v-model="filters.hideDuplicates" label="Hide Duplicates"></v-checkbox>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
