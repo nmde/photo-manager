@@ -24,6 +24,9 @@ const displayName = computed(() => {
   if (props.photo.group !== undefined) {
     return props.photo.group;
   }
+  if (props.photo.data.title.length > 0) {
+    return props.photo.data.title;
+  }
   return props.photo.data.name;
 });
 </script>

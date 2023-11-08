@@ -101,7 +101,7 @@ export class TauriDatabase extends EventEmitter<{
    */
   private getCleanValue(value: any) {
     if (typeof value === 'string' || value === null) {
-      return `'${value}'`;
+      return `'${value.replace(/'/g, '\'\'')}'`;
     } else if (typeof value === 'number') {
       return `${value}`;
     } else if (typeof value === 'boolean') {

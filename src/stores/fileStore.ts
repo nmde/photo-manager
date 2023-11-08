@@ -209,12 +209,17 @@ export const useFileStore = defineStore('files', () => {
    * @param t - The tags to apply.
    */
   async function updateTags(photo: string, t: string[]) {
+    const newTags: string[] = [];
     t.forEach((tag) => {
       if (!tagCounts.value[tag]) {
         tagCounts.value[tag] = 0;
       }
       if (files.value[photo].tags.indexOf(tag) < 0) {
         tagCounts.value[tag] += 1;
+      }
+      if (tags.value.indexOf(tag) < 0) {
+        tags.value.push(tag);
+        newTags.push(tag);
       }
     });
     files.value[photo].tags.forEach((tag) => {
@@ -228,6 +233,8 @@ export const useFileStore = defineStore('files', () => {
     });
     files.value[photo].tags = t;
     await database?.insert(files.value[photo]);
+    sortTags();
+    console.log(newTags);
   }
 
   /**
@@ -261,33 +268,47 @@ export const useFileStore = defineStore('files', () => {
   }
 
   /**
+   * Sets & sorts the tag list.
+   * @param tags - The unsorted tags.
+   */
+  function sortTags() {
+    const tagGraph = new Graph();
+    tags.value.forEach((tag) => {
+      if (!tagGraph.get(tag)) {
+        tagGraph.nodes.push(new GraphNode(tag));
+      }
+      const adv = advTags.value.find((t) => t.data.name === tag);
+      if (adv && adv.prereqs.length > 0) {
+        adv.prereqs.forEach((p) => {
+          if (!tagGraph.get(p)) {
+            const gn = new GraphNode(p);
+            gn.links.push(tag);
+            tagGraph.nodes.push(gn);
+          } else {
+            const gn = tagGraph.get(p) as GraphNode;
+            if (gn.links.indexOf(tag) < 0) {
+              tagGraph.get(p)?.links.push(tag);
+            }
+          }
+        });
+      }
+    });
+    tags.value = tagGraph.sort();
+  }
+
+  /**
    * Loads photos from the database.
    */
   async function loadPhotos() {
     if (database) {
       files.value = {};
-      const tagGraph = new Graph();
       advTags.value = await database.selectAll(Tag);
+      const tagList: string[] = [];
       (await database.selectAll(Photo)).forEach((photo) => {
         files.value[photo.data.name] = photo;
         photo.tags.forEach((tag) => {
-          if (!tagGraph.get(tag)) {
-            tagGraph.nodes.push(new GraphNode(tag));
-          }
-          const adv = advTags.value.find((t) => t.data.name === tag);
-          if (adv && adv.prereqs.length > 0) {
-            adv.prereqs.forEach((p) => {
-              if (!tagGraph.get(p)) {
-                const gn = new GraphNode(p);
-                gn.links.push(tag);
-                tagGraph.nodes.push(gn);
-              } else {
-                const gn = tagGraph.get(p) as GraphNode;
-                if (gn.links.indexOf(tag) < 0) {
-                  tagGraph.get(p)?.links.push(tag);
-                }
-              }
-            });
+          if (tagList.indexOf(tag) < 0) {
+            tagList.push(tag);
           }
           if (!tagCounts.value[tag]) {
             tagCounts.value[tag] = 0;
@@ -296,9 +317,8 @@ export const useFileStore = defineStore('files', () => {
         });
       });
       groups.value = await database.selectAll(Group);
-      console.log(JSON.stringify(tagGraph.get('teeth')));
-      console.log(JSON.stringify(tagGraph.get('sharp teeth')));
-      tags.value = tagGraph.sort();
+      tags.value = tagList;
+      sortTags();
       initialized.value = true;
     }
     return files.value;
@@ -372,7 +392,6 @@ export const useFileStore = defineStore('files', () => {
   async function setTagCoreqs(tag: string, coreqs: string[]) {
     const t = await ensureAdvTag(tag);
     t.coreqs = coreqs;
-    console.log(advTags.value.find((x) => x.data.name === tag));
     await database?.insert(t);
   }
 
