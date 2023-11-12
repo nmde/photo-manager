@@ -27,7 +27,6 @@ const selected = ref<Photo[]>([]);
             :items-per-row="4"
             @select="(s) => (selected = s)"
             :size="170"
-            :rows="4"
           ></photo-grid>
         </v-col>
         <v-col cols="6">
