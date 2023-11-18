@@ -90,7 +90,7 @@ export class TauriDatabase extends EventEmitter<{
     if (!entity.primaryKey) {
       query += `Id='${entity.Id}'`;
     } else {
-      query += `${entity.primaryKey}='${entity.data[entity.primaryKey]}'`;
+      query += `${entity.primaryKey}='${this.getCleanValue(entity.data[entity.primaryKey])}'`;
     }
     return (await this.select(query)).length > 0;
   }
@@ -142,7 +142,7 @@ export class TauriDatabase extends EventEmitter<{
       let query = `INSERT INTO ${entity.tableName} (Id,`;
       let values = `'${entity.Id}', `;
       Object.keys(entity.data).forEach((name) => {
-        query += `${name}, `;
+        query += `${this.getCleanValue(name)}, `;
         values += `${this.getCleanValue(entity.data[name])}, `;
       });
       query = query.substring(0, query.length - 2);

@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useFileStore();
-const { getByGroup, validateTags } = store;
+const { getByGroup, validateTags, updateTags } = store;
 const { photoCount, filters } = storeToRefs(store);
 
 const selectMultiple = ref(false);
@@ -101,6 +101,13 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', adjustRows);
 });
+
+// Tag replace dialog
+const tagReplaceDialog = ref(false);
+const targetTag = ref<string[]>([]);
+const tagAction = ref<'remove' | 'replace'>('remove');
+const replacementTag = ref<string[]>([]);
+const loading = ref(false);
 </script>
 
 <template>
@@ -123,6 +130,25 @@ onUnmounted(() => {
         }
       "
     ></v-checkbox>
+    <v-menu v-if="selected.length > 1">
+      <template v-slot:activator="{ props }">
+        <v-btn v-bind="props" icon>
+          <v-icon>mdi-dots-vertical</v-icon>
+        </v-btn>
+      </template>
+      <v-list>
+        <v-list-item
+          @click="
+            () => {
+              targetTag = [];
+              replacementTag = [];
+              tagReplaceDialog = true;
+            }
+          "
+          >Remove/Replace Tag From Selected</v-list-item
+        >
+      </v-list>
+    </v-menu>
   </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
@@ -203,6 +229,61 @@ onUnmounted(() => {
         <v-checkbox v-model="filters.onlyError" label="Show Only Photos With Errors"></v-checkbox>
         <v-checkbox v-model="filters.hideDuplicates" label="Hide Duplicates"></v-checkbox>
       </v-card-text>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="tagReplaceDialog">
+    <v-card>
+      <v-card-title>Remove and Replace Tags</v-card-title>
+      <v-card-text>
+        Search for a tag to remove (<b>this action will effect {{ selected.length }} photos</b>!)
+        <tag-input
+          label="Tag to find"
+          single
+          :value="targetTag"
+          @update="(tag) => (targetTag = tag)"
+        ></tag-input>
+        <v-radio-group v-model="tagAction">
+          <v-radio label="Remove tag" value="remove"></v-radio>
+          <v-radio label="Replace tag" value="replace"></v-radio>
+        </v-radio-group>
+        <div v-if="tagAction === 'replace'">
+          Replace with:
+          <tag-input
+            label="Tag to replace with"
+            single
+            :value="replacementTag"
+            @update="(tag) => (replacementTag = tag)"
+          ></tag-input>
+          Replacing {{ targetTag[0] }} with {{ replacementTag[0] }}.
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn
+          color="primary"
+          @click="
+            async () => {
+              loading = true;
+              selected.forEach(async (photo) => {
+                if (tagAction === 'remove') {
+                  const updatedTags = [...photo.tags];
+                  updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
+                  await updateTags(photo.data.name, updatedTags);
+                } else {
+                  const updatedTags = [...photo.tags];
+                  updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
+                  updatedTags.push(replacementTag[0]);
+                  await updateTags(photo.data.name, updatedTags);
+                }
+              });
+              loading = false;
+              tagReplaceDialog = false;
+            }
+          "
+          :loading="loading"
+          >Apply Changes</v-btn
+        >
+        <v-btn @click="tagReplaceDialog = false">Cancel</v-btn>
+      </v-card-actions>
     </v-card>
   </v-dialog>
 </template>

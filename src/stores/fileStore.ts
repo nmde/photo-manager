@@ -234,7 +234,7 @@ export const useFileStore = defineStore('files', () => {
     files.value[photo].tags = t;
     await database?.insert(files.value[photo]);
     sortTags();
-    console.log(newTags);
+    // TODO: inform of newly created tags
   }
 
   /**
@@ -463,6 +463,14 @@ export const useFileStore = defineStore('files', () => {
             valid = false;
             msg = `Missing corequisite: ${missingCoreq}`;
           }
+        }
+        let i = 0;
+        while (valid && i < a.incompatible.length) {
+          if (tags.indexOf(a.incompatible[i]) >= 0) {
+            valid = false;
+            msg = `Tag '${tag}' is incompatible!`;
+          }
+          i += 1;
         }
       }
     });
