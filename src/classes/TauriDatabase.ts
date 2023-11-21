@@ -90,7 +90,7 @@ export class TauriDatabase extends EventEmitter<{
     if (!entity.primaryKey) {
       query += `Id='${entity.Id}'`;
     } else {
-      query += `${entity.primaryKey}='${this.getCleanValue(entity.data[entity.primaryKey])}'`;
+      query += `${entity.primaryKey}=${this.getCleanValue(entity.data[entity.primaryKey])}`;
     }
     return (await this.select(query)).length > 0;
   }
