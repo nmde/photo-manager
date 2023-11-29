@@ -19,6 +19,8 @@ export interface PhotoData {
 }
 
 export class Photo extends Entity<PhotoData> {
+  public firstInGroup = false;
+
   public constructor(data: PhotoData) {
     super('Photo', data);
     this.primaryKey = 'name';

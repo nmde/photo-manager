@@ -211,26 +211,30 @@ export const useFileStore = defineStore('files', () => {
   async function updateTags(photo: string, t: string[]) {
     const newTags: string[] = [];
     t.forEach((tag) => {
-      if (!tagCounts.value[tag]) {
-        tagCounts.value[tag] = 0;
-      }
-      if (files.value[photo].tags.indexOf(tag) < 0) {
-        tagCounts.value[tag] += 1;
+      if (files.value[photo].group === undefined || files.value[photo].firstInGroup) {
+        if (!tagCounts.value[tag]) {
+          tagCounts.value[tag] = 0;
+        }
+        if (files.value[photo].tags.indexOf(tag) < 0) {
+          tagCounts.value[tag] += 1;
+        }
       }
       if (tags.value.indexOf(tag) < 0) {
         tags.value.push(tag);
         newTags.push(tag);
       }
     });
-    files.value[photo].tags.forEach((tag) => {
-      if (t.indexOf(tag) < 0) {
-        tagCounts.value[tag] -= 1;
-        if (tagCounts.value[tag] <= 0) {
-          delete tagCounts.value[tag];
-          tags.value.splice(tags.value.indexOf(tag), 1);
+    if (files.value[photo].group === undefined || files.value[photo].firstInGroup) {
+      files.value[photo].tags.forEach((tag) => {
+        if (t.indexOf(tag) < 0) {
+          tagCounts.value[tag] -= 1;
+          if (tagCounts.value[tag] <= 0) {
+            delete tagCounts.value[tag];
+            tags.value.splice(tags.value.indexOf(tag), 1);
+          }
         }
-      }
-    });
+      });
+    }
     files.value[photo].tags = t;
     await database?.insert(files.value[photo]);
     sortTags();
@@ -304,17 +308,26 @@ export const useFileStore = defineStore('files', () => {
       files.value = {};
       advTags.value = await database.selectAll(Tag);
       const tagList: string[] = [];
+      const encounteredGroups: string[] = [];
       (await database.selectAll(Photo)).forEach((photo) => {
         files.value[photo.data.name] = photo;
-        photo.tags.forEach((tag) => {
-          if (tagList.indexOf(tag) < 0) {
-            tagList.push(tag);
-          }
-          if (!tagCounts.value[tag]) {
-            tagCounts.value[tag] = 0;
-          }
-          tagCounts.value[tag] += 1;
-        });
+        let firstInGroup = false;
+        if (photo.group && encounteredGroups.indexOf(photo.group) < 0) {
+          files.value[photo.data.name].firstInGroup = true;
+          firstInGroup = true;
+          encounteredGroups.push(photo.group);
+        }
+        if (photo.group === undefined || firstInGroup) {
+          photo.tags.forEach((tag) => {
+            if (tagList.indexOf(tag) < 0) {
+              tagList.push(tag);
+            }
+            if (!tagCounts.value[tag]) {
+              tagCounts.value[tag] = 0;
+            }
+            tagCounts.value[tag] += 1;
+          });
+        }
       });
       groups.value = await database.selectAll(Group);
       tags.value = tagList;
