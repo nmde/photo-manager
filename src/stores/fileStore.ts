@@ -310,6 +310,7 @@ export const useFileStore = defineStore('files', () => {
       const tagList: string[] = [];
       const encounteredGroups: string[] = [];
       (await database.selectAll(Photo)).forEach((photo) => {
+        console.log(photo);
         files.value[photo.data.name] = photo;
         let firstInGroup = false;
         if (photo.group && encounteredGroups.indexOf(photo.group) < 0) {

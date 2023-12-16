@@ -26,12 +26,18 @@ export class Graph {
 
   public sort() {
     let sorted: string[] = [];
-    while (this.nodes.length > 0) {
+    let i = 0;
+    const max = this.nodes.length;
+    while (this.nodes.length > 0 && i < max) {
       const leaves = this.leaves.map((n) => n.label).sort();
       leaves.forEach((n) => {
         this.removeNode(n);
       });
       sorted = sorted.concat(leaves);
+      i += 1;
+    }
+    if (this.nodes.length > 0) {
+      sorted = sorted.concat(this.nodes.map((n) => n.label).sort());
     }
     return sorted.reverse();
   }

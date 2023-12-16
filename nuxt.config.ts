@@ -1,30 +1,30 @@
 import { defineNuxtConfig } from 'nuxt/config';
-import { aliases, mdi } from 'vuetify/iconsets/mdi';
+import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 
 export default defineNuxtConfig({
-  devtools: { enabled: true },
-  modules: ['@invictus.codes/nuxt-vuetify', '@pinia/nuxt'],
-  srcDir: 'src',
-  vuetify: {
-    vuetifyOptions: {
-      icons: {
-        defaultSet: 'mdi',
-        aliases,
-        sets: {
-          mdi,
-        },
-      },
-    },
-    moduleOptions: {
-      useVuetifyLabs: true,
-    },
+  build: {
+    transpile: ['vuetify'],
   },
+  devtools: { enabled: true },
+  modules: [
+    '@pinia/nuxt',
+    (_options, nuxt) => {
+      nuxt.hooks.hook('vite:extendConfig', (config) => {
+        // @ts-expect-error
+        config.plugins.push(vuetify({ autoImport: true }));
+      });
+    },
+    //...
+  ],
+  srcDir: 'src',
   pinia: {
     autoImports: ['defineStore'],
   },
-  runtimeConfig: {
-    public: {
-      GOOGLE_MAPS_KEY: process.env.GOOGLE_MAPS_KEY,
-    }
-  }
+  vite: {
+    vue: {
+      template: {
+        transformAssetUrls,
+      },
+    },
+  },
 });

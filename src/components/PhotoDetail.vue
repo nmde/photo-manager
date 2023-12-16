@@ -41,6 +41,7 @@ const title = ref('');
 const description = ref('');
 const newGroupError = ref(false);
 const date = ref('');
+const closeUp = ref(false);
 
 function initialize() {
   rating.value = props.photo.data.rating;
@@ -66,7 +67,7 @@ onMounted(initialize);
     :width="700"
     :height="400"
   ></video-player>
-  <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
+  <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true"></v-img>
   <br />
   <tag-input
     :label="`Photo Tags (${photoTags.length})`"
@@ -154,4 +155,24 @@ onMounted(initialize);
       >Create Group</v-btn
     >
   </div>
+  <v-dialog v-model="closeUp">
+    <v-card>
+      <v-card-title>{{ photo.data.title }}</v-card-title>
+      <v-card-text>
+        <video-player
+          v-if="photo.data.video"
+          :src="photo.data.path"
+          :poster="photo.data.thumbnail"
+          controls
+          :width="700"
+          :height="400"
+        ></video-player>
+        <v-img
+          v-if="!photo.data.video"
+          max-height="600"
+          :src="photoPath"
+        ></v-img>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
 </template>
