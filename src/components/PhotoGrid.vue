@@ -102,8 +102,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', adjustRows);
 });
 
-// Tag replace dialog
+// Tag add/replace dialogs
 const tagReplaceDialog = ref(false);
+const tagAddDialog = ref(false);
 const targetTag = ref<string[]>([]);
 const tagAction = ref<'remove' | 'replace'>('remove');
 const replacementTag = ref<string[]>([]);
@@ -137,6 +138,15 @@ const loading = ref(false);
         </v-btn>
       </template>
       <v-list>
+        <v-list-item
+          @click="
+            () => {
+              targetTag = [];
+              tagAddDialog = true;
+            }
+          "
+          >Add Tags To Selected</v-list-item
+        >
         <v-list-item
           @click="
             () => {
@@ -228,6 +238,38 @@ const loading = ref(false);
         ></v-checkbox>
         <v-checkbox v-model="filters.onlyError" label="Show Only Photos With Errors"></v-checkbox>
         <v-checkbox v-model="filters.hideDuplicates" label="Hide Duplicates"></v-checkbox>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="tagAddDialog">
+    <v-card>
+      <v-card-title>Add Tags</v-card-title>
+      <v-card-text>
+        Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
+        <tag-input
+          label="Tag to add"
+          single
+          :value="targetTag"
+          @update="(tag) => (targetTag = tag)"
+        ></tag-input>
+        <v-card-actions>
+          <v-btn
+            color="primary"
+            @click="
+              async () => {
+                loading = true;
+                selected.forEach(async (photo) => {
+                  await updateTags(photo.data.name, photo.tags.concat(targetTag));
+                });
+                loading = false;
+                tagAddDialog = false;
+              }
+            "
+            :loading="loading"
+            >Apply Changes</v-btn
+          >
+          <v-btn @click="tagAddDialog = false">Cancel</v-btn>
+        </v-card-actions>
       </v-card-text>
     </v-card>
   </v-dialog>

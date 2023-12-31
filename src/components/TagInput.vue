@@ -12,6 +12,7 @@ const props = defineProps<{
   single?: boolean;
   filtered?: boolean;
   validate?: string;
+  advanced?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -115,4 +116,6 @@ watch(() => props.value, initialize);
       <v-chip v-bind="props" :color="getTagColor(item.title)"></v-chip>
     </template>
   </v-combobox>
+  <div v-if="advanced">
+  </div>
 </template>

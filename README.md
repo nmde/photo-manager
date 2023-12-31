@@ -16,3 +16,10 @@ Organize photos and videos with an advanced tagging system and geolocation.
   - Click on the map to filter your collection by location
 - Supports RAW photo formats
 - Supports videos, and has an embedded video player
+
+# Installation
+- Install [Rust](https://www.rust-lang.org/learn/get-started)
+- Install [ImageMagick](https://imagemagick.org/script/download.php)
+- Install [ffmpeg](https://ffmpeg.org/download.html)
+- Initialize Nuxt by running `yarn nuxt dev`
+- Launch the program by running `yarn tauri:dev`

@@ -70,6 +70,7 @@ onMounted(initialize);
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true"></v-img>
   <br />
   <tag-input
+    advanced
     :label="`Photo Tags (${photoTags.length})`"
     :value="photoTags"
     filtered
@@ -85,6 +86,7 @@ onMounted(initialize);
       }
     "
   ></tag-input>
+  <!--
   <v-btn
     @click="
       () => {
@@ -103,6 +105,7 @@ onMounted(initialize);
     "
     >Clear Tags</v-btn
   >
+  -->
   <v-select
     label="Group"
     :items="groupNames"
