@@ -8,6 +8,7 @@ const props = defineProps<{
   photos: Photo[];
   itemsPerRow: number;
   size: number;
+  rows: number;
 }>();
 
 const emit = defineEmits<{
@@ -21,14 +22,6 @@ const { photoCount, filters } = storeToRefs(store);
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
 const searchDialog = ref(false);
-const rowCount = ref(0);
-
-/**
- * Adjusts the row count to fill the window height
- */
-function adjustRows() {
-  rowCount.value = Math.ceil(document.documentElement.scrollHeight / props.size);
-}
 
 type GridRow = Photo[];
 
@@ -93,15 +86,6 @@ function selectPhoto(photo: Photo) {
   emit('select', selected.value);
 }
 
-onMounted(() => {
-  adjustRows();
-  window.addEventListener('resize', adjustRows);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', adjustRows);
-});
-
 // Tag add/replace dialogs
 const tagReplaceDialog = ref(false);
 const tagAddDialog = ref(false);
@@ -162,7 +146,7 @@ const loading = ref(false);
   </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
   <v-virtual-scroll
-    :height="rowCount * props.size"
+    :height="props.rows * props.size"
     :item-height="props.size"
     :items="filteredPhotos"
   >
