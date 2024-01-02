@@ -85,6 +85,7 @@ onMounted(initialize);
         emit('update:tags', photoTags);
       }
     "
+    :target="photo.data.name"
   ></tag-input>
   <!--
   <v-btn

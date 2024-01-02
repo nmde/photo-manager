@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { useFileStore } from '../stores/fileStore';
+import type { Photo } from '~/classes/Photo';
 
 const fileStore = useFileStore();
 const { getTagColor, validateTags } = fileStore;
-const { tags, advTags } = storeToRefs(fileStore);
+const { tags, advTags, files } = storeToRefs(fileStore);
 
 const props = defineProps<{
   label: string;
@@ -13,6 +14,7 @@ const props = defineProps<{
   filtered?: boolean;
   validate?: string;
   advanced?: boolean;
+  target?: string;
 }>();
 
 const emit = defineEmits<{
@@ -21,8 +23,13 @@ const emit = defineEmits<{
 }>();
 
 const selected = ref<string[]>([]);
-const valid = ref(true);
-const validationMsg = ref('');
+
+const targetPhoto = computed(() => {
+  if (props.target) {
+    return files.value[props.target] as unknown as Photo;
+  }
+  return undefined;
+});
 
 const filteredTags = computed(() => {
   if (!props.filtered) {
@@ -60,14 +67,8 @@ const filteredTags = computed(() => {
  */
 function validateTagsWrapper() {
   if (props.validate) {
-    const msg = validateTags(props.validate);
-    if (msg) {
-      valid.value = false;
-      validationMsg.value = msg;
-    } else {
-      valid.value = true;
-      validationMsg.value = '';
-    }
+    console.log('validateTagsWrapper');
+    validateTags(props.validate);
   }
 }
 
@@ -106,8 +107,8 @@ watch(() => props.value, initialize);
         validateTagsWrapper();
       }
     "
-    :error="!valid"
-    :error-messages="validationMsg"
+    :error="targetPhoto?.valid === false"
+    :error-messages="targetPhoto?.validationMsg"
   >
     <template v-slot:item="{ item, props }">
       <v-list-item v-bind="props" :style="{ color: getTagColor(item.title) }"></v-list-item>

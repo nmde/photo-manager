@@ -310,7 +310,6 @@ export const useFileStore = defineStore('files', () => {
       const tagList: string[] = [];
       const encounteredGroups: string[] = [];
       (await database.selectAll(Photo)).forEach((photo) => {
-        console.log(photo);
         files.value[photo.data.name] = photo;
         let firstInGroup = false;
         if (photo.group && encounteredGroups.indexOf(photo.group) < 0) {
@@ -349,6 +348,9 @@ export const useFileStore = defineStore('files', () => {
 
   function setFiles(data: Record<string, Photo>) {
     files.value = data;
+    Object.keys(data).forEach((name) => {
+      validateTags(name);
+    });
   }
 
   /**
@@ -488,10 +490,8 @@ export const useFileStore = defineStore('files', () => {
         }
       }
     });
-    if (!valid) {
-      return msg;
-    }
-    return null;
+    files.value[photo].valid = valid;
+    files.value[photo].validationMsg = msg;
   }
 
   // Global filter options
@@ -538,7 +538,7 @@ export const useFileStore = defineStore('files', () => {
         (onlyTagged && file.tags.length === 0) ||
         (hideLocated && file.location !== undefined) ||
         (onlyLocated && file.location === undefined) ||
-        (onlyError && validateTags(file.data.name) === null) ||
+        (onlyError && file.valid) ||
         (hideDuplicates && file.data.isDuplicate)
       ) {
         satisfiesTags = false;

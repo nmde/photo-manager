@@ -37,7 +37,6 @@ async function openFolder() {
     multiple: false,
   });
   if (selected && typeof selected === 'string') {
-    console.log(selected);
     initializing.value = true;
     await setWorkingDir(selected);
     const files: Record<string, Photo> = {};
@@ -56,7 +55,6 @@ async function openFolder() {
       }
     }
     await expandDir(selected);
-    console.log(fullFileList);
     fileCount.value = fullFileList.length;
     fullFileList.forEach(async (file) => {
       if (existing[file.path]) {

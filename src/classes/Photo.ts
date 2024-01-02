@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Entity } from './Entity';
-import { Position } from './Map';
+import { type Position } from './Map';
 
 export interface PhotoData {
   name: string;
@@ -20,6 +20,10 @@ export interface PhotoData {
 
 export class Photo extends Entity<PhotoData> {
   public firstInGroup = false;
+
+  public valid = true;
+
+  public validationMsg = '';
 
   public constructor(data: PhotoData) {
     super('Photo', data);

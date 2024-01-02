@@ -157,7 +157,7 @@ const loading = ref(false);
         :photo="photo"
         :size="props.size"
         :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
-        :invalid="validateTags(photo.data.name) !== null"
+        :invalid="!photo.valid"
         @select="selectPhoto(photo)"
       ></photo-icon>
     </template>
