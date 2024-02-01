@@ -7,6 +7,7 @@ import { TauriDatabase } from '@/classes/TauriDatabase';
 import { Tag } from '~/classes/Tag';
 import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
+import type { FileEntry } from '@tauri-apps/api/fs';
 
 export const useFileStore = defineStore('files', () => {
   let database: TauriDatabase | null = null;
@@ -28,6 +29,10 @@ export const useFileStore = defineStore('files', () => {
   const advTags = ref<Tag[]>([]);
 
   const tagCounts = ref<Record<string, number>>({});
+
+  const generatingThumbnails = ref(false);
+
+  const thumbnailProgress = ref(0);
 
   const locations = computed(() => {
     const locRecord: Record<string, number> = {};
@@ -99,8 +104,9 @@ export const useFileStore = defineStore('files', () => {
    * @param photo - The photo to set for.
    * @param thumbnail - The path to the thumbnail.
    */
-  function setThumbnail(photo: string, thumbnail: string) {
+  async function setThumbnail(photo: string, thumbnail: string) {
     files.value[photo].data.thumbnail = thumbnail;
+    await database?.insert(files.value[photo]);
   }
 
   const photoCount = computed(() => {
@@ -328,6 +334,7 @@ export const useFileStore = defineStore('files', () => {
             tagCounts.value[tag] += 1;
           });
         }
+        validateTags(photo.data.name);
       });
       groups.value = await database.selectAll(Group);
       tags.value = tagList;
@@ -344,13 +351,20 @@ export const useFileStore = defineStore('files', () => {
   async function removeDeleted(photo: string) {
     await database?.execute(`DELETE FROM Photo WHERE Name='${photo}'`);
     delete files.value[photo];
+    /**
+     * TODO: delete thumbnails
+     *       const thumbnailPath = await join(
+        projectThumbnailDir,
+        `${deleted.value[i].replace(/\..*$/, '')}.jpg`,
+      );
+      if (await exists(thumbnailPath)) {
+        await removeFile(thumbnailPath);
+      }
+     */
   }
 
   function setFiles(data: Record<string, Photo>) {
     files.value = data;
-    Object.keys(data).forEach((name) => {
-      validateTags(name);
-    });
   }
 
   /**
@@ -387,6 +401,18 @@ export const useFileStore = defineStore('files', () => {
     const t = await ensureAdvTag(tag);
     t.data.color = color;
     await database?.insert(t);
+  }
+
+  /**
+   * Validates photos when a tag's requirements change.
+   * @param tag - The tag that changed.
+   */
+  function handleTagChange(tag: string) {
+    Object.entries(files.value).forEach(([name, photo]) => {
+      if (photo.tags.indexOf(tag) >= 0) {
+        validateTags(name);
+      }
+    });
   }
 
   /**
@@ -564,6 +590,101 @@ export const useFileStore = defineStore('files', () => {
     return filtered;
   });
 
+  /**
+   * Generates thumbnails in the background.
+   * @param raws - RAW photo files to generate thumbnails for.
+   * @param videos - Video files to generate thumbnails for.
+   */
+  async function generateThumbnails(raws: FileEntry[], videos: FileEntry[]) {
+    const { readDir, exists, createDir, removeFile } = await import('@tauri-apps/api/fs');
+    const { join, appDataDir } = await import('@tauri-apps/api/path');
+    const { convertFileSrc } = await import('@tauri-apps/api/tauri');
+    const { Command } = await import('@tauri-apps/api/shell');
+    generatingThumbnails.value = true;
+    thumbnailProgress.value = 0;
+    const total = raws.length + videos.length;
+    let progress = 0;
+    let lastProgressInt = 0;
+    /**
+     * Helper function to clean a thumbnail file name.
+     * @param path - The path to the thumbnail file. 
+     * @returns The "cleaned" thumbnail name.
+     */
+    const clean = (path: string) => {
+      return path.replace(/[/\\]/g, '-').replace(':', '');
+    }
+    const dir = await appDataDir();
+    if (!(await exists(dir))) {
+      await createDir(dir);
+    }
+    const thumbnailDir = await join(dir, 'thumbnails');
+    if (!(await exists(thumbnailDir))) {
+      await createDir(thumbnailDir);
+    }
+    const projectThumbnailDir = await join(
+      thumbnailDir,
+      workingDir.value.replace(/[/\\]/g, '-').replace(':', ''),
+    );
+    if (!(await exists(projectThumbnailDir))) {
+      await createDir(projectThumbnailDir);
+    }
+    const thumbnails = (await readDir(projectThumbnailDir)).map((p) => p.name);
+    for (const raw of raws) {
+      const thumbnailFile = `${clean(raw.path as string).replace(/\..*$/, '')}.jpg`;
+      const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`; // tauri's join() slowed down this one line by like 10,000%
+      if (thumbnails.indexOf(thumbnailFile) < 0) {
+        const convertOutput = await new Command('magick', [raw.path, thumbnailPath]).execute();
+        if (convertOutput.code !== 0) {
+          console.error(convertOutput.stderr);
+        }
+        const resizeOutput = await new Command('magick', [
+          thumbnailPath,
+          '-resize',
+          '800x800',
+          thumbnailPath,
+        ]).execute();
+        if (resizeOutput.code !== 0) {
+          console.error(resizeOutput.stderr);
+        }
+        await setThumbnail(raw.path, convertFileSrc(thumbnailPath));
+      }
+      files.value[raw.path].awaitingThumbnail = false;
+      progress += 1;
+      const p = Math.round((progress / total) * 100);
+      if (p > lastProgressInt) {
+        thumbnailProgress.value = p;
+        lastProgressInt = p;
+      }
+    }
+    for (const video of videos) {
+      const thumbnailFile = `${clean(video.path as string).replace(/\..*$/, '')}.png`;
+      const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`;
+      if (thumbnails.indexOf(thumbnailFile) < 0) {
+        const convertOutput = await new Command('ffmpeg', [
+          '-i',
+          video.path,
+          '-ss',
+          '00:00:01.00',
+          '-vframes',
+          '1',
+          thumbnailPath,
+        ]).execute();
+        if (convertOutput.code !== 0) {
+          console.error(convertOutput.stderr);
+        }
+        await setThumbnail(video.path, convertFileSrc(thumbnailPath));
+      }
+      files.value[video.path].awaitingThumbnail = false;
+      progress += 1;
+      const p = Math.round((progress / total) * 100);
+      if (p > lastProgressInt) {
+        thumbnailProgress.value = p;
+        lastProgressInt = p;
+      }
+    }
+    generatingThumbnails.value = false;
+  }
+
   return {
     saving,
     saveError,
@@ -574,6 +695,8 @@ export const useFileStore = defineStore('files', () => {
     advTags,
     tagCounts,
     locations,
+    generatingThumbnails,
+    thumbnailProgress,
     addFile,
     setWorkingDir,
     setPhotoData,
@@ -598,6 +721,7 @@ export const useFileStore = defineStore('files', () => {
     setDate,
     initialized,
     setTagColor,
+    handleTagChange,
     setTagPrereqs,
     setTagCoreqs,
     setTagIncompatible,
@@ -605,5 +729,6 @@ export const useFileStore = defineStore('files', () => {
     validateTags,
     filters,
     filteredPhotos,
+    generateThumbnails,
   };
 });

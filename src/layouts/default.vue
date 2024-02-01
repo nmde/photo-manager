@@ -2,7 +2,8 @@
 import { storeToRefs } from 'pinia';
 import { useFileStore } from '../stores/fileStore';
 
-const { workingDir, saving, saveError, initialized } = storeToRefs(useFileStore());
+const { workingDir, saving, saveError, initialized, generatingThumbnails, thumbnailProgress } =
+  storeToRefs(useFileStore());
 </script>
 
 <template>
@@ -28,5 +29,9 @@ const { workingDir, saving, saveError, initialized } = storeToRefs(useFileStore(
       <slot></slot>
     </v-layout>
     <v-snackbar v-model="saveError">Changes could not be saved!</v-snackbar>
+    <v-snackbar v-model="generatingThumbnails" :timeout="-1">
+      Generating Thumbnails... ({{ thumbnailProgress }}%)
+      <v-progress-linear :model-value="thumbnailProgress"></v-progress-linear>
+    </v-snackbar>
   </v-app>
 </template>

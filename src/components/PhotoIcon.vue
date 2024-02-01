@@ -13,8 +13,12 @@ const emit = defineEmits<{
   (e: 'select'): void;
 }>();
 
+const hasThumbnail = computed(() => {
+  return props.photo.data.video || props.photo.data.raw;
+});
+
 const photoPath = computed(() => {
-  if (props.photo.data.thumbnail) {
+  if (hasThumbnail.value) {
     return props.photo.data.thumbnail;
   }
   return props.photo.data.path;
@@ -40,6 +44,11 @@ const displayName = computed(() => {
     }"
   >
     <v-card @click="emit('select')">
+      <v-progress-circular
+        class="thumbnail-loading"
+        indeterminate
+        v-if="hasThumbnail && photo.data.thumbnail.length === 0"
+      ></v-progress-circular>
       <v-img
         class="photo-preview align-end text-white"
         aspect-ratio="1/1"
@@ -77,5 +86,9 @@ const displayName = computed(() => {
 
 .photo:hover .photo-name {
   opacity: 1;
+}
+
+.thumbnail-loading {
+  position: absolute;
 }
 </style>

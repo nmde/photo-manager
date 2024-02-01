@@ -17,7 +17,14 @@ import { Tag } from '../../classes/Tag';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 const fileStore = useFileStore();
-const { setTagColor, setTagPrereqs, setTagIncompatible, getTagColor, setTagCoreqs } = fileStore;
+const {
+  setTagColor,
+  setTagPrereqs,
+  setTagIncompatible,
+  getTagColor,
+  setTagCoreqs,
+  handleTagChange,
+} = fileStore;
 const { tagCounts, advTags } = storeToRefs(fileStore);
 
 const cutoff = ref(1);
@@ -113,6 +120,7 @@ const tagChartData = computed(() => {
               @update="
                 async (tags) => {
                   await setTagPrereqs(selected, tags);
+                  handleTagChange(selected);
                 }
               "
             ></tag-input>
@@ -122,6 +130,7 @@ const tagChartData = computed(() => {
               @update="
                 async (tags) => {
                   await setTagCoreqs(selected, tags);
+                  handleTagChange(selected);
                 }
               "
             ></tag-input>
@@ -131,6 +140,7 @@ const tagChartData = computed(() => {
               @update="
                 async (tags) => {
                   await setTagIncompatible(selected, tags);
+                  handleTagChange(selected);
                 }
               "
             ></tag-input>

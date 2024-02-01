@@ -7,7 +7,7 @@ export class Graph {
     return this.nodes.find((n) => n.label === key);
   }
 
-  private get leaves() {
+  public get leaves() {
     return this.nodes.filter((n) => n.links.length === 0);
   }
 
@@ -35,6 +35,9 @@ export class Graph {
       });
       sorted = sorted.concat(leaves);
       i += 1;
+    }
+    if (i === max || i === max - 1) {
+      console.log(`Possible loop detected!`);
     }
     if (this.nodes.length > 0) {
       sorted = sorted.concat(this.nodes.map((n) => n.label).sort());

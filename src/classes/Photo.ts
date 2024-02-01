@@ -16,9 +16,12 @@ export interface PhotoData {
   video: boolean;
   photoGroup: string;
   date: string;
+  raw: boolean;
 }
 
 export class Photo extends Entity<PhotoData> {
+  public awaitingThumbnail = true;
+
   public firstInGroup = false;
 
   public valid = true;
@@ -75,5 +78,6 @@ export function createPhoto(name: string, path: string): Photo {
     video: false,
     photoGroup: '',
     date: '',
+    raw: false,
   });
 }

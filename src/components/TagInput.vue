@@ -67,7 +67,6 @@ const filteredTags = computed(() => {
  */
 function validateTagsWrapper() {
   if (props.validate) {
-    console.log('validateTagsWrapper');
     validateTags(props.validate);
   }
 }

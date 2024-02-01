@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useFileStore();
-const { getByGroup, validateTags, updateTags } = store;
+const { getByGroup, updateTags, addGroup, setGroup } = store;
 const { photoCount, filters } = storeToRefs(store);
 
 const selectMultiple = ref(false);
@@ -122,6 +122,13 @@ const loading = ref(false);
         </v-btn>
       </template>
       <v-list>
+        <v-list-item @click="async () => {
+          const groupName = selected[0].data.name;
+          await addGroup(groupName);
+          selected.forEach(async (photo) => {
+            await setGroup(photo.data.name, groupName);
+          });
+        }">Quick Group</v-list-item>
         <v-list-item
           @click="
             () => {
