@@ -1,7 +1,7 @@
 import { EventEmitter } from 'ee-ts';
 import Database from 'tauri-plugin-sql-api';
 import { Entity } from './Entity';
-import { Constructor } from '../types/Constructor';
+import { type Constructor } from '../types/Constructor';
 
 export class TauriDatabase extends EventEmitter<{
   endQuery: () => void;
@@ -100,18 +100,22 @@ export class TauriDatabase extends EventEmitter<{
    * @param value - The value to clean.
    */
   private getCleanValue(value: any) {
-    if (typeof value === 'string' || value === null) {
+    if (value === null) {
+      return '\'\'';
+    }
+    if (typeof value === 'string') {
       return `'${value.replace(/'/g, '\'\'')}'`;
-    } else if (typeof value === 'number') {
+    }
+    if (typeof value === 'number') {
       return `${value}`;
-    } else if (typeof value === 'boolean') {
+    }
+    if (typeof value === 'boolean') {
       if (value) {
         return '1';
       }
       return '0';
-    } else {
-      throw new Error(`Unhandled data type for ${value}!`);
     }
+    throw new Error(`Unhandled data type for ${value}!`);
   }
 
   /**
