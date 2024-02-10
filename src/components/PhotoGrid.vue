@@ -125,7 +125,9 @@ const loading = ref(false);
         <v-list-item @click="async () => {
           const groupName = selected[0].data.name;
           await addGroup(groupName);
-          selected.forEach(async (photo) => {
+          const target = [...selected];
+          selected = [];
+          target.forEach(async (photo) => {
             await setGroup(photo.data.name, groupName);
           });
         }">Quick Group</v-list-item>

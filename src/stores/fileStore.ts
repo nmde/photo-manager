@@ -284,6 +284,7 @@ export const useFileStore = defineStore('files', () => {
   function sortTags() {
     const tagGraph = new Graph();
     tags.value.forEach((tag) => {
+      console.log(tag);
       if (!tagGraph.get(tag)) {
         tagGraph.nodes.push(new GraphNode(tag));
       }
@@ -302,7 +303,9 @@ export const useFileStore = defineStore('files', () => {
           }
         });
       }
+      console.log(tag);
     });
+    console.log(tagGraph);
     tags.value = tagGraph.sort();
   }
 
@@ -337,8 +340,11 @@ export const useFileStore = defineStore('files', () => {
         validateTags(photo.data.name);
       });
       groups.value = await database.selectAll(Group);
+      console.log(tagList);
       tags.value = tagList;
+      console.log('Sorting tags');
       sortTags();
+      console.log('Initialized');
       initialized.value = true;
     }
     return files.value;
@@ -646,6 +652,8 @@ export const useFileStore = defineStore('files', () => {
         if (resizeOutput.code !== 0) {
           console.error(resizeOutput.stderr);
         }
+      }
+      if (files.value[raw.path].data.thumbnail.length === 0) {
         await setThumbnail(raw.path, convertFileSrc(thumbnailPath));
       }
       files.value[raw.path].awaitingThumbnail = false;
@@ -672,6 +680,8 @@ export const useFileStore = defineStore('files', () => {
         if (convertOutput.code !== 0) {
           console.error(convertOutput.stderr);
         }
+      }
+      if (files.value[video.path].data.thumbnail.length === 0) {
         await setThumbnail(video.path, convertFileSrc(thumbnailPath));
       }
       files.value[video.path].awaitingThumbnail = false;
