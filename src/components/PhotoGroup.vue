@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Photo } from '~/classes/Photo';
-import { useFileStore } from '~/stores/fileStore';
+import { fileStore } from '~/stores/fileStore';
 
 const props = defineProps<{
   photos: Photo[];
 }>();
 
-const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup, setDate } = useFileStore();
+const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup, setDate } =
+  fileStore;
 
 const current = ref(0);
 

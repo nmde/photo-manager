@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { Bar } from 'vue-chartjs';
-import { useFileStore } from '../../stores/fileStore';
-import { storeToRefs } from 'pinia';
+import { fileStore } from '../../stores/fileStore';
 import { computed, ref } from 'vue';
 import { Tag } from '../../classes/Tag';
 
@@ -16,7 +15,6 @@ import { Tag } from '../../classes/Tag';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-const fileStore = useFileStore();
 const {
   setTagColor,
   setTagPrereqs,
@@ -24,8 +22,9 @@ const {
   getTagColor,
   setTagCoreqs,
   handleTagChange,
+  tagCounts,
+  advTags,
 } = fileStore;
-const { tagCounts, advTags } = storeToRefs(fileStore);
 
 const cutoff = ref(1);
 const selected = ref('');
@@ -53,7 +52,7 @@ const tagChartData = computed(() => {
         backgroundColor.push(color);
       } else {
         let i = 0;
-        while (i < sorted.length && value < tagCounts.value[sorted[i]]) {
+        while (i < sorted.length && value < tagCounts[sorted[i]]) {
           i += 1;
         }
         sorted.splice(i, 0, tag);
@@ -66,7 +65,7 @@ const tagChartData = computed(() => {
       {
         axis: 'y',
         label: 'Count',
-        data: sorted.map((tag) => tagCounts.value[tag]),
+        data: sorted.map((tag) => tagCounts[tag]),
         backgroundColor,
       },
     ],

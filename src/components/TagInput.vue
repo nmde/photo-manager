@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { useFileStore } from '../stores/fileStore';
-import type { Photo } from '~/classes/Photo';
+import { fileStore } from '../stores/fileStore';
 
-const fileStore = useFileStore();
-const { getTagColor, validateTags } = fileStore;
-const { tags, advTags, files } = storeToRefs(fileStore);
+const { getTagColor, validateTags, getFile, tags, advTags } = fileStore;
 
 const props = defineProps<{
   label: string;
@@ -26,23 +22,23 @@ const selected = ref<string[]>([]);
 
 const targetPhoto = computed(() => {
   if (props.target) {
-    return files.value[props.target] as unknown as Photo;
+    return getFile(props.target);
   }
   return undefined;
 });
 
 const filteredTags = computed(() => {
   if (!props.filtered) {
-    return tags.value;
+    return tags;
   }
   const filtered: string[] = [];
-  tags.value.forEach((tag) => {
+  tags.forEach((tag) => {
     if (props.value.indexOf(tag) >= 0) {
       // Always show tags that are already enabled regardless of prereqs
       filtered.push(tag);
       return;
     }
-    const a = advTags.value.find((t) => t.data.name === tag);
+    const a = advTags.find((t) => t.data.name === tag);
     if (a) {
       if (a.prereqs.length > 0) {
         let anyPrereqMet = false;
@@ -116,6 +112,5 @@ watch(() => props.value, initialize);
       <v-chip v-bind="props" :color="getTagColor(item.title)"></v-chip>
     </template>
   </v-combobox>
-  <div v-if="advanced">
-  </div>
+  <div v-if="advanced"></div>
 </template>

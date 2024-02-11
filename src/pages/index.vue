@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useFileStore } from '../stores/fileStore';
+import { fileStore } from '../stores/fileStore';
 import { Photo, createPhoto } from '~/classes/Photo';
+import type { FileEntry } from '@tauri-apps/api/fs';
 
 const router = useRouter();
-const { setWorkingDir, loadPhotos, removeDeleted, setFiles, generateThumbnails } = useFileStore();
+const { setWorkingDir, loadPhotos, removeDeleted, setFiles, generateThumbnails } = fileStore;
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -27,24 +28,26 @@ async function openFolder() {
   });
   if (selected && typeof selected === 'string') {
     initializing.value = true;
+    console.log(fileStore);
     await setWorkingDir(selected);
     const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
     const fullFileList: any[] = [];
     let raws: any[] = [];
     let videos: any[] = [];
-    const expandDir = async (dir: string) => {
-      const d = await readDir(dir);
-      for (const file of d) {
+    const expandDir = (entries: FileEntry[]) => {
+      for (const file of entries) {
         if (file.children !== undefined) {
-          await expandDir(file.path);
+          expandDir(file.children);
         } else {
+          fileCount.value += 1;
           fullFileList.push(file);
         }
       }
     };
-    await expandDir(selected);
-    fileCount.value = fullFileList.length;
+    console.log('Loaded photos');
+    expandDir(await readDir(selected, { recursive: true }));
+    console.log('Read dir');
     fullFileList.forEach(async (file) => {
       if (existing[file.path]) {
         files[file.path] = existing[file.path];

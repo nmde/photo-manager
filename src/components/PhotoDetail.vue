@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { VideoPlayer } from '@videojs-player/vue';
-import { storeToRefs } from 'pinia';
 import 'video.js/dist/video-js.css';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
-import { useFileStore } from '../stores/fileStore';
+import { fileStore } from '../stores/fileStore';
 
-const fileStore = useFileStore();
-const { addGroup, removeGroup } = fileStore;
-const { groupNames, tags } = storeToRefs(fileStore);
+const { groupNames, addGroup, removeGroup } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -171,11 +168,7 @@ onMounted(initialize);
           :width="700"
           :height="400"
         ></video-player>
-        <v-img
-          v-if="!photo.data.video"
-          max-height="600"
-          :src="photoPath"
-        ></v-img>
+        <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
       </v-card-text>
     </v-card>
   </v-dialog>

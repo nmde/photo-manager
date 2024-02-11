@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { useFileStore } from '../stores/fileStore';
+import { fileStore } from '../stores/fileStore';
 
 const { workingDir, saving, saveError, initialized, generatingThumbnails, thumbnailProgress } =
-  storeToRefs(useFileStore());
+  fileStore;
 </script>
 
 <template>

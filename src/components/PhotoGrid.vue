@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
-import { useFileStore } from '../stores/fileStore';
+import { fileStore } from '../stores/fileStore';
 
 const props = defineProps<{
   photos: Photo[];
@@ -15,9 +14,7 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const store = useFileStore();
-const { getByGroup, updateTags, addGroup, setGroup } = store;
-const { photoCount, filters } = storeToRefs(store);
+const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTags } = fileStore;
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
@@ -25,8 +22,11 @@ const searchDialog = ref(false);
 
 type GridRow = Photo[];
 
+const forceRefresh = ref(false);
+
 // Filters the photos based on the options
 const filteredPhotos = computed(() => {
+  let f = forceRefresh.value;
   const rows: GridRow[] = [];
   let row: GridRow = [];
   const tempphotos = [...props.photos];
@@ -52,6 +52,10 @@ const filteredPhotos = computed(() => {
   }
   rows.push(row);
   return rows;
+});
+
+fileStore.on('updatePhoto', () => {
+  forceRefresh.value = !forceRefresh.value;
 });
 
 // The number of visible photos after filter rules are applied
@@ -93,6 +97,27 @@ const targetTag = ref<string[]>([]);
 const tagAction = ref<'remove' | 'replace'>('remove');
 const replacementTag = ref<string[]>([]);
 const loading = ref(false);
+
+// Filter controls
+const enabledTags = ref([]);
+const disabledTags = ref([]);
+const onlyTagged = ref(false);
+const hideTagged = ref(false);
+const onlyLocated = ref(false);
+const hideLocated = ref(false);
+const onlyError = ref(false);
+const hideDuplicates = ref(true);
+
+onMounted(() => {
+  enabledTags.value = fileStore.filters.enabledTags;
+  disabledTags.value = fileStore.filters.disabledTags;
+  onlyTagged.value = fileStore.filters.onlyTagged;
+  hideTagged.value = fileStore.filters.hideTagged;
+  onlyLocated.value = fileStore.filters.onlyLocated;
+  hideLocated.value = fileStore.filters.hideLocated;
+  onlyError.value = fileStore.filters.onlyError;
+  hideDuplicates.value = fileStore.filters.hideDuplicates;
+});
 </script>
 
 <template>
@@ -122,15 +147,20 @@ const loading = ref(false);
         </v-btn>
       </template>
       <v-list>
-        <v-list-item @click="async () => {
-          const groupName = selected[0].data.name;
-          await addGroup(groupName);
-          const target = [...selected];
-          selected = [];
-          target.forEach(async (photo) => {
-            await setGroup(photo.data.name, groupName);
-          });
-        }">Quick Group</v-list-item>
+        <v-list-item
+          @click="
+            async () => {
+              const groupName = selected[0].data.name;
+              await addGroup(groupName);
+              const target = [...selected];
+              selected = [];
+              target.forEach(async (photo) => {
+                await setGroup(photo.data.name, groupName);
+              });
+            }
+          "
+          >Quick Group</v-list-item
+        >
         <v-list-item
           @click="
             () => {
@@ -176,61 +206,77 @@ const loading = ref(false);
       <v-card-text>
         <tag-input
           label="Tags to include"
-          :value="filters.enabledTags"
-          @update="(tags) => (filters.enabledTags = tags)"
+          :value="enabledTags"
+          @update="(tags) => setFilter('enabledTags', tags)"
         ></tag-input>
         <v-select :items="['AND', 'OR']" label="Mode" v-model="filters.filterMode"></v-select>
         <tag-input
           label="Tags to exclude"
-          :value="filters.disabledTags"
-          @update="(tags) => (filters.disabledTags = tags)"
+          :value="disabledTags"
+          @update="(tags) => setFilter('disabledTags', tags)"
         ></tag-input>
         <v-checkbox
-          v-model="filters.onlyTagged"
+          v-model="onlyTagged"
           label="Only Show Tagged"
           @update:model-value="
             () => {
-              if (filters.onlyTagged) {
-                filters.hideTagged = false;
+              if (onlyTagged) {
+                hideTagged = false;
+                setFilter('hideTagged', false);
               }
+              setFilter('onlyTagged', onlyTagged);
             }
           "
         ></v-checkbox>
         <v-checkbox
-          v-model="filters.hideTagged"
+          v-model="hideTagged"
           label="Hide Tagged"
           @update:model-value="
             () => {
-              if (filters.hideTagged) {
-                filters.onlyTagged = false;
+              if (hideTagged) {
+                onlyTagged = false;
+                setFilter('onlyTagged', false);
               }
+              setFilter('hideTagged', hideTagged);
             }
           "
         ></v-checkbox>
         <v-checkbox
-          v-model="filters.onlyLocated"
+          v-model="onlyLocated"
           label="Show Only Located"
           @update:model-value="
             () => {
-              if (filters.onlyLocated) {
-                filters.hideLocated = false;
+              if (onlyLocated) {
+                hideLocated = false;
+                setFilter('hideLocated', false);
               }
+              setFilter('onlyLocated', onlyLocated);
             }
           "
         ></v-checkbox>
         <v-checkbox
-          v-model="filters.hideLocated"
+          v-model="hideLocated"
           label="Hide Located"
           @update:model-value="
             () => {
-              if (filters.hideLocated) {
-                filters.onlyLocated = false;
+              if (hideLocated) {
+                onlyLocated = false;
+                setFilter('onlyLocated', false);
               }
+              setFilter('hideLocated', hideLocated);
             }
           "
         ></v-checkbox>
-        <v-checkbox v-model="filters.onlyError" label="Show Only Photos With Errors"></v-checkbox>
-        <v-checkbox v-model="filters.hideDuplicates" label="Hide Duplicates"></v-checkbox>
+        <v-checkbox
+          v-model="onlyError"
+          label="Show Only Photos With Errors"
+          @update:model-value="() => setFilter('onlyError', onlyError)"
+        ></v-checkbox>
+        <v-checkbox
+          v-model="hideDuplicates"
+          label="Hide Duplicates"
+          @update:model-value="() => setFilter('hideDuplicates', hideDuplicates)"
+        ></v-checkbox>
       </v-card-text>
     </v-card>
   </v-dialog>

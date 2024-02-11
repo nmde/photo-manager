@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { ref, type VNodeRef } from 'vue';
+import { ref } from 'vue';
 import { Photo } from '../../classes/Photo';
-import { useFileStore } from '../../stores/fileStore';
+import { fileStore } from '../../stores/fileStore';
 
-const fileStore = useFileStore();
-const { filteredPhotos, filters } = storeToRefs(fileStore);
+const { filteredPhotos, filters, setFilter, files } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const gridCol = ref<any>();
 const size = ref(0);
 const rows = ref(0);
+const photos = ref<Photo[]>([]);
 
 /**
  * Resizes the grid items when the window size changes
@@ -22,11 +21,20 @@ function resizeGrid() {
 
 onMounted(() => {
   resizeGrid();
+  photos.value = filteredPhotos();
   window.addEventListener('resize', resizeGrid);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', resizeGrid);
+});
+
+fileStore.on('updateFilters', () => {
+  photos.value = filteredPhotos();
+});
+
+fileStore.on('updatePhoto', (photo) => {
+  photos.value = filteredPhotos();
 });
 </script>
 
@@ -39,11 +47,11 @@ onUnmounted(() => {
             <tag-input
               label="Tags to include"
               :value="filters.enabledTags"
-              @update="(tags) => (filters.enabledTags = tags)"
+              @update="(tags) => setFilter('enabledTags', tags)"
             ></tag-input>
           </div>
           <photo-grid
-            :photos="filteredPhotos"
+            :photos="photos"
             :items-per-row="4"
             @select="(s) => (selected = s)"
             :size="size"
