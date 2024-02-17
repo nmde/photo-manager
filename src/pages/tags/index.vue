@@ -37,7 +37,7 @@ const filterColor = ref('');
 const tagChartData = computed(() => {
   let sorted: string[] = [];
   const backgroundColor: string[] = [];
-  Object.entries(tagCounts.value)
+  Object.entries(tagCounts)
     .filter((count) => count[1] >= cutoff.value)
     .forEach(([tag, value]) => {
       let color = getTagColor(tag);

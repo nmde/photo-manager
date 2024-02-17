@@ -19,6 +19,8 @@ const emit = defineEmits<{
 }>();
 
 const selected = ref<string[]>([]);
+const valid = ref<boolean | undefined>(true);
+const validationMsg = ref<string | undefined>(undefined);
 
 const targetPhoto = computed(() => {
   if (props.target) {
@@ -79,6 +81,12 @@ function initialize() {
 }
 
 watch(() => props.value, initialize);
+
+fileStore.on('validationUpdate', () => {
+  console.log(targetPhoto.value);
+  valid.value = targetPhoto.value?.valid;
+  validationMsg.value = targetPhoto.value?.validationMsg;
+});
 </script>
 
 // The global sorted tag list is not updating when new tags are added, links are created
@@ -102,8 +110,8 @@ watch(() => props.value, initialize);
         validateTagsWrapper();
       }
     "
-    :error="targetPhoto?.valid === false"
-    :error-messages="targetPhoto?.validationMsg"
+    :error="!valid"
+    :error-messages="validationMsg"
   >
     <template v-slot:item="{ item, props }">
       <v-list-item v-bind="props" :style="{ color: getTagColor(item.title) }"></v-list-item>

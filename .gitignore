@@ -27,13 +27,6 @@ coverage
 *.sln
 *.sw?
 
-# Local file for manually adding mods
-manual.html
-
-# Local CLI data
-data/cli.json
-exported fomods/ignore
-graph
-
 .env
 .nuxt
+.output

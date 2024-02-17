@@ -28,26 +28,41 @@ async function openFolder() {
   });
   if (selected && typeof selected === 'string') {
     initializing.value = true;
-    console.log(fileStore);
     await setWorkingDir(selected);
     const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
     const fullFileList: any[] = [];
     let raws: any[] = [];
     let videos: any[] = [];
-    const expandDir = (entries: FileEntry[]) => {
+    const expandDir = async (entries: FileEntry[]) => {
       for (const file of entries) {
         if (file.children !== undefined) {
-          expandDir(file.children);
+          console.log(`Reading ${file.path}`);
+          initializingProgress.value += 1;
+          expandDir(await readDir(file.path));
         } else {
-          fileCount.value += 1;
           fullFileList.push(file);
         }
       }
     };
     console.log('Loaded photos');
-    expandDir(await readDir(selected, { recursive: true }));
+    const dir = await readDir(selected);
     console.log('Read dir');
+    fileCount.value = dir.length;
+    await expandDir(dir);
+    /**
+    const expandDir = async (dir: string) => {
+      const d = await readDir(dir);
+      for (const file of d) {
+        if (file.children !== undefined) {
+          await expandDir(file.path);
+        } else {
+          fullFileList.push(file);
+        }
+      }
+    };
+    await expandDir(selected);
+     */
     fullFileList.forEach(async (file) => {
       if (existing[file.path]) {
         files[file.path] = existing[file.path];
@@ -55,7 +70,6 @@ async function openFolder() {
       } else {
         files[file.path] = createPhoto(file.path, file.path);
       }
-      initializingProgress.value += 1;
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
         files[file.path].data.raw = true;
         raws.push(file);

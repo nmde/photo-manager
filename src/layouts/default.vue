@@ -1,8 +1,31 @@
 <script setup lang="ts">
 import { fileStore } from '../stores/fileStore';
 
-const { workingDir, saving, saveError, initialized, generatingThumbnails, thumbnailProgress } =
+const { workingDir } =
   fileStore;
+
+const saving = ref(false);
+const saveError = ref(false);
+const generatingThumbnails = ref(false);
+const thumbnailProgress = ref(0);
+
+fileStore.on('saving', (state) => {
+  saving.value = state;
+});
+
+fileStore.on('saveError', () => {
+  saveError.value = true;
+});
+
+fileStore.on('thumbnailProgress', (progress) => {
+  if (!generatingThumbnails.value) {
+    generatingThumbnails.value = true;
+  }
+  thumbnailProgress.value = progress;
+  if (progress === 100) {
+    generatingThumbnails.value = false;
+  }
+});
 </script>
 
 <template>
@@ -19,7 +42,7 @@ const { workingDir, saving, saveError, initialized, generatingThumbnails, thumbn
         </span>
         <span v-else>Saved</span>
       </v-app-bar>
-      <v-navigation-drawer expand-on-hover rail v-if="initialized">
+      <v-navigation-drawer expand-on-hover rail>
         <v-list density="compact" nav>
           <v-list-item prepend-icon="mdi-image" title="Photos" to="/tagger"></v-list-item>
           <v-list-item prepend-icon="mdi-tag" title="Manage Tags" to="/tags"></v-list-item>

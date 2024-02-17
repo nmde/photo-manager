@@ -10,6 +10,10 @@ import type { FileEntry } from '@tauri-apps/api/fs';
 class FileStore extends EventEmitter<{
   updateFilters(): void;
   updatePhoto(photo: string): void;
+  saving(value: boolean): void;
+  saveError(): void;
+  thumbnailProgress(progress: number): void;
+  validationUpdate(photo: string): void;
 }> {
   public advTags: Tag[] = [];
 
@@ -41,8 +45,6 @@ class FileStore extends EventEmitter<{
 
   public saveError = false;
 
-  public saving = false;
-
   public tagCounts: Record<string, number> = {};
 
   public tags: string[] = [];
@@ -56,18 +58,17 @@ class FileStore extends EventEmitter<{
    * @param path - The path to the working dir.
    */
   public async setWorkingDir(path: string) {
-    console.log(this);
     this.workingDir = path;
     const { join } = await import('@tauri-apps/api/path');
     this.database = new TauriDatabase(`sqlite:${await join(path, 'photos.db')}`);
     this.database.on('startQuery', () => {
-      this.saving = true;
+      this.emit('saving', true);
     });
     this.database.on('endQuery', () => {
-      this.saving = false;
+      this.emit('saving', false);
     });
     this.database.on('queryError', () => {
-      this.saveError = true;
+      this.emit('saveError');
     });
   }
 
@@ -89,6 +90,7 @@ class FileStore extends EventEmitter<{
   public async addGroup(name: string) {
     const g = new Group({ name });
     this.groups.push(g);
+    this.groupNames.push(name);
     await this.database?.insert(g);
   }
 
@@ -277,6 +279,7 @@ class FileStore extends EventEmitter<{
         this.validateTags(photo.data.name);
       });
       this.groups = await this.database.selectAll(Group);
+      this.groupNames = this.groups.map((g) => g.data.name);
       this.tags = tagList;
       this.sortTags();
       this.photoCount = Object.values(this.files).length; // TODO: count groups as 1
@@ -476,6 +479,7 @@ class FileStore extends EventEmitter<{
     this.files[photo].valid = valid;
     this.files[photo].validationMsg = msg;
     this.emit('updatePhoto', photo);
+    this.emit('validationUpdate', photo);
   }
 
   /**
@@ -593,6 +597,7 @@ class FileStore extends EventEmitter<{
       if (p > lastProgressInt) {
         this.thumbnailProgress = p;
         lastProgressInt = p;
+        this.emit('thumbnailProgress', this.thumbnailProgress);
       }
       this.emit('updatePhoto', raw.path);
     }
@@ -622,6 +627,7 @@ class FileStore extends EventEmitter<{
       if (p > lastProgressInt) {
         this.thumbnailProgress = p;
         lastProgressInt = p;
+        this.emit('thumbnailProgress', this.thumbnailProgress);
       }
       this.emit('updatePhoto', video.path);
     }
