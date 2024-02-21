@@ -6,27 +6,10 @@ import { fileStore } from '../../stores/fileStore';
 const { filteredPhotos, filters, setFilter, files } = fileStore;
 
 const selected = ref<Photo[]>([]);
-const gridCol = ref<any>();
-const size = ref(0);
-const rows = ref(0);
 const photos = ref<Photo[]>([]);
 
-/**
- * Resizes the grid items when the window size changes
- */
-function resizeGrid() {
-  size.value = gridCol.value?.$el.getBoundingClientRect().width / 4 - 18;
-  rows.value = window.innerHeight / size.value;
-}
-
 onMounted(() => {
-  resizeGrid();
   photos.value = filteredPhotos();
-  window.addEventListener('resize', resizeGrid);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', resizeGrid);
 });
 
 fileStore.on('updateFilters', () => {
@@ -50,13 +33,7 @@ fileStore.on('updatePhoto', (photo) => {
               @update="(tags) => setFilter('enabledTags', tags)"
             ></tag-input>
           </div>
-          <photo-grid
-            :photos="photos"
-            :items-per-row="4"
-            @select="(s) => (selected = s)"
-            :size="size"
-            :rows="rows"
-          ></photo-grid>
+          <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>
         </v-col>
         <v-col cols="6">
           <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>

@@ -5,9 +5,6 @@ import { fileStore } from '../stores/fileStore';
 
 const props = defineProps<{
   photos: Photo[];
-  itemsPerRow: number;
-  size: number;
-  rows: number;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +16,18 @@ const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTa
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
 const searchDialog = ref(false);
+const itemsPerRow = ref(4);
+const size = ref(0);
+const rows = ref(0);
+const gridCol = ref<any>();
+
+/**
+ * Resizes the grid items when the window size changes
+ */
+function resizeGrid() {
+  size.value = gridCol.value?.$el.getBoundingClientRect().width / itemsPerRow.value - 8;
+  rows.value = window.innerHeight / size.value;
+}
 
 type GridRow = Photo[];
 
@@ -43,7 +52,7 @@ const filteredPhotos = computed(() => {
     }
     if (!grouped) {
       row.push(file);
-      if (row.length === props.itemsPerRow) {
+      if (row.length === itemsPerRow.value) {
         rows.push(row);
         row = [];
       }
@@ -61,7 +70,7 @@ fileStore.on('updatePhoto', () => {
 // The number of visible photos after filter rules are applied
 const visiblePhotoCount = computed(() => {
   return (
-    (filteredPhotos.value.length - 1) * props.itemsPerRow +
+    (filteredPhotos.value.length - 1) * itemsPerRow.value +
     filteredPhotos.value[filteredPhotos.value.length - 1].length
   );
 });
@@ -117,6 +126,12 @@ onMounted(() => {
   hideLocated.value = fileStore.filters.hideLocated;
   onlyError.value = fileStore.filters.onlyError;
   hideDuplicates.value = fileStore.filters.hideDuplicates;
+  resizeGrid();
+  window.addEventListener('resize', resizeGrid);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', resizeGrid);
 });
 </script>
 
@@ -140,6 +155,32 @@ onMounted(() => {
         }
       "
     ></v-checkbox>
+    <v-btn
+      icon
+      flat
+      @click="
+        () => {
+          itemsPerRow += 1;
+          resizeGrid();
+        }
+      "
+    >
+      <v-icon>mdi-minus</v-icon>
+    </v-btn>
+    <v-btn
+      icon
+      flat
+      @click="
+        () => {
+          if (itemsPerRow > 1) {
+            itemsPerRow -= 1;
+          }
+          resizeGrid();
+        }
+      "
+    >
+      <v-icon>mdi-plus</v-icon>
+    </v-btn>
     <v-menu v-if="selected.length > 1">
       <template v-slot:activator="{ props }">
         <v-btn v-bind="props" icon>
@@ -184,17 +225,13 @@ onMounted(() => {
     </v-menu>
   </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
-  <v-virtual-scroll
-    :height="props.rows * props.size"
-    :item-height="props.size"
-    :items="filteredPhotos"
-  >
+  <v-virtual-scroll :height="rows * size" :item-height="size" :items="filteredPhotos" ref="gridCol">
     <template v-slot:default="{ item }">
       <photo-icon
         v-for="(photo, i) in item"
         :key="i"
         :photo="photo"
-        :size="props.size"
+        :size="size"
         :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
         :invalid="!photo.valid"
         @select="selectPhoto(photo)"

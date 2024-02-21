@@ -266,6 +266,7 @@ class FileStore extends EventEmitter<{
           encounteredGroups.push(photo.group);
         }
         if (photo.group === undefined || firstInGroup) {
+          this.photoCount += 1;
           photo.tags.forEach((tag) => {
             if (tagList.indexOf(tag) < 0) {
               tagList.push(tag);
@@ -282,7 +283,6 @@ class FileStore extends EventEmitter<{
       this.groupNames = this.groups.map((g) => g.data.name);
       this.tags = tagList;
       this.sortTags();
-      this.photoCount = Object.values(this.files).length; // TODO: count groups as 1
       this.initialized = true;
     }
     return this.files;
@@ -313,6 +313,7 @@ class FileStore extends EventEmitter<{
    */
   public setFiles(data: Record<string, Photo>) {
     this.files = data;
+    this.photoCount = Object.values(data).length;
   }
 
   /**

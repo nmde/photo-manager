@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { fileStore } from '../stores/fileStore';
 
-const { workingDir } =
-  fileStore;
+const { workingDir } = fileStore;
 
 const saving = ref(false);
 const saveError = ref(false);
 const generatingThumbnails = ref(false);
 const thumbnailProgress = ref(0);
+const drawer = ref(false);
 
 fileStore.on('saving', (state) => {
   saving.value = state;
@@ -32,6 +32,9 @@ fileStore.on('thumbnailProgress', (progress) => {
   <v-app>
     <v-layout>
       <v-app-bar>
+        <v-btn icon @click="drawer = true">
+          <v-icon>mdi-menu</v-icon>
+        </v-btn>
         <v-btn to="/" icon>
           <v-icon>mdi-home</v-icon>
         </v-btn>
@@ -42,7 +45,7 @@ fileStore.on('thumbnailProgress', (progress) => {
         </span>
         <span v-else>Saved</span>
       </v-app-bar>
-      <v-navigation-drawer expand-on-hover rail>
+      <v-navigation-drawer expand-on-hover rail v-model="drawer">
         <v-list density="compact" nav>
           <v-list-item prepend-icon="mdi-image" title="Photos" to="/tagger"></v-list-item>
           <v-list-item prepend-icon="mdi-tag" title="Manage Tags" to="/tags"></v-list-item>

@@ -50,19 +50,6 @@ async function openFolder() {
     console.log('Read dir');
     fileCount.value = dir.length;
     await expandDir(dir);
-    /**
-    const expandDir = async (dir: string) => {
-      const d = await readDir(dir);
-      for (const file of d) {
-        if (file.children !== undefined) {
-          await expandDir(file.path);
-        } else {
-          fullFileList.push(file);
-        }
-      }
-    };
-    await expandDir(selected);
-     */
     fullFileList.forEach(async (file) => {
       if (existing[file.path]) {
         files[file.path] = existing[file.path];
@@ -82,8 +69,8 @@ async function openFolder() {
     for (let i = 0; i < deleted.value.length; i += 1) {
       await removeDeleted(deleted.value[i]);
     }
+    setFiles(files);
     if (raws.length > 0 || videos.length > 0) {
-      setFiles(files);
       generateThumbnails(raws, videos);
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
