@@ -28,6 +28,24 @@ export class TauriDatabase extends EventEmitter<{
   }
 
   /**
+   * Deletes the entity matching the given parameters
+   * @param From - The table to delete from.
+   * @param options - The options to search by.
+   */
+  public async deleteWhere<T extends Entity<any>>(
+    From: Constructor<T>,
+    options: Partial<T['data']>,
+  ) {
+    const dummy = new From();
+    let query = `DELETE FROM ${dummy.tableName} WHERE `;
+    Object.entries(options).forEach(([key, value]) => {
+      query += `${key}=${this.getCleanValue(value)}, `;
+    });
+    query = query.substring(0, query.length - 2);
+    await this.execute(query);
+  }
+
+  /**
    * Ensures a table exists.
    * @param entity - The entity to model the table after.
    */
@@ -101,10 +119,10 @@ export class TauriDatabase extends EventEmitter<{
    */
   private getCleanValue(value: any) {
     if (value === null) {
-      return '\'\'';
+      return "''";
     }
     if (typeof value === 'string') {
-      return `'${value.replace(/'/g, '\'\'')}'`;
+      return `'${value.replace(/'/g, "''")}'`;
     }
     if (typeof value === 'number') {
       return `${value}`;
@@ -157,6 +175,58 @@ export class TauriDatabase extends EventEmitter<{
   }
 
   /**
+   * Inserts multiple entities into the database.
+   * @param entities - The entities to insert.
+   * @param autoUpdate - If the entity already exists, automatically update instead of inserting.
+   * @param skipExisting - If existing entities should silently be skipped.
+   */
+  public async insertAll(entities: Entity<any>[], autoUpdate = true, skipExisting = false) {
+    if (entities.length === 0) {
+      return;
+    }
+    const table = entities[0].tableName;
+    await this.ensureTable(entities[0]);
+    const toInsert = [];
+    const toUpdate = [];
+    for (const entity of entities) {
+      if (entity.tableName !== table) {
+        throw new Error('Cannot insert multiple kinds of entities in the same call.');
+      }
+      if (await this.exists(entity)) {
+        if (autoUpdate) {
+          toUpdate.push(entity);
+        } else if (!skipExisting) {
+          throw new Error(`Entity already exists: ${entity.tableName}/${entity.Id}`);
+        }
+      } else {
+        toInsert.push(entity);
+      }
+    }
+    if (toInsert.length > 0) {
+      let query = `INSERT INTO ${table} (Id,`;
+      Object.keys(toInsert[0].data).forEach((name) => {
+        query += `${this.getCleanValue(name)}, `;
+      });
+      query = query.substring(0, query.length - 2);
+      let values = '';
+      toInsert.forEach((entity) => {
+        values += `('${entity.Id}', `;
+        Object.keys(entity.data).forEach((name) => {
+          values += `${this.getCleanValue(entity.data[name])}, `;
+        });
+        values = values.substring(0, values.length - 2);
+        values += '), ';
+      });
+      values = values.substring(0, values.length - 2);
+      query += `) VALUES ${values}`;
+      await this.execute(query);
+    }
+    if (toUpdate.length > 0) {
+      await this.updateAll(toUpdate);
+    }
+  }
+
+  /**
    * Performs a SELECT query.
    * @param query - The query to run.
    */
@@ -183,6 +253,29 @@ export class TauriDatabase extends EventEmitter<{
   }
 
   /**
+   * Selects entities that match the data provided.
+   * @param entity - The type of entity to select.
+   * @param options - The data to search for.
+   * @returns Entities matching the
+   */
+  public async selectWhere<T extends Entity<any>>(
+    From: Constructor<T>,
+    options: Partial<T['data']>,
+  ): Promise<T[]> {
+    const dummy = new From();
+    let query = `SELECT * FROM ${dummy.tableName} WHERE `;
+    Object.entries(options).forEach(([key, value]) => {
+      query += `${key}=${this.getCleanValue(value)}, `;
+    });
+    query = query.substring(0, query.length - 2);
+    return (await this.select(query)).map((result) => {
+      const obj = new From(result);
+      obj.Id = result.Id;
+      return obj;
+    });
+  }
+
+  /**
    * Updates an entity.
    * @param entity - The entity to update.
    */
@@ -200,5 +293,16 @@ export class TauriDatabase extends EventEmitter<{
       query += `${entity.primaryKey}=${this.getCleanValue(entity.data[entity.primaryKey])}`;
     }
     await this.execute(query);
+  }
+
+  /**
+   * Updates all the given entities.
+   * @param entities - The entities to update.
+   */
+  public async updateAll(entities: Entity<any>[]) {
+    // TODO
+    for (const entity of entities) {
+      await this.update(entity);
+    }
   }
 }
