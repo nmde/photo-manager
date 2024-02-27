@@ -6,10 +6,12 @@ import { Tag } from '~/classes/Tag';
 import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
 import type { FileEntry } from '@tauri-apps/api/fs';
+import { locToString, stringToLoc, type Position } from '~/classes/Map';
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
   updatePhoto(photo: string): void;
+  updateLocations(): void;
   saving(value: boolean): void;
   saveError(): void;
   thumbnailProgress(progress: number): void;
@@ -25,6 +27,10 @@ class FileStore extends EventEmitter<{
     disabledTags: [],
     enabledTags: [],
     filterMode: 'AND',
+    filterPos: {
+      lat: 0,
+      lng: 0,
+    },
     hideDuplicates: true,
     hideLocated: false,
     hideTagged: false,
@@ -40,6 +46,8 @@ class FileStore extends EventEmitter<{
   public groupNames: string[] = [];
 
   public initialized = false;
+
+  public locations: Record<string, number> = {};
 
   public photoCount = 0;
 
@@ -313,6 +321,11 @@ class FileStore extends EventEmitter<{
    */
   public setFiles(data: Record<string, Photo>) {
     this.files = data;
+    Object.values(data).forEach((file) => {
+      if (file.hasLocation) {
+        this.addLocation(file.location as Position);
+      }
+    });
     this.photoCount = Object.values(data).length;
   }
 
@@ -485,8 +498,9 @@ class FileStore extends EventEmitter<{
 
   /**
    * A list of photos, with the filter options applied.
+   * @param filterBy - 0 to filter by tags, 1 to filter by locations
    */
-  public filteredPhotos() {
+  public filteredPhotos(filterBy = 0) {
     const filtered: Photo[] = [];
     const {
       filterMode,
@@ -498,37 +512,51 @@ class FileStore extends EventEmitter<{
       onlyError,
       onlyLocated,
       onlyTagged,
+      filterPos,
     } = this.filters;
-    Object.values(this.files).forEach((file) => {
-      let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
-      if (
-        (hideTagged && file.tags.length > 0) ||
-        (onlyTagged && file.tags.length === 0) ||
-        (hideLocated && file.location !== undefined) ||
-        (onlyLocated && file.location === undefined) ||
-        (onlyError && file.valid) ||
-        (hideDuplicates && file.data.isDuplicate)
-      ) {
-        satisfiesTags = false;
-      }
-      if (satisfiesTags) {
-        enabledTags.forEach((tag) => {
-          if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
-            satisfiesTags = true;
-          } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
-            satisfiesTags = false;
+    if (filterBy === 0) {
+      Object.values(this.files).forEach((file) => {
+        let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+        if (
+          (hideTagged && file.tags.length > 0) ||
+          (onlyTagged && file.tags.length === 0) ||
+          (hideLocated && file.location !== undefined) ||
+          (onlyLocated && file.location === undefined) ||
+          (onlyError && file.valid) ||
+          (hideDuplicates && file.data.isDuplicate)
+        ) {
+          satisfiesTags = false;
+        }
+        if (satisfiesTags) {
+          enabledTags.forEach((tag) => {
+            if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
+              satisfiesTags = true;
+            } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
+              satisfiesTags = false;
+            }
+          });
+          disabledTags.forEach((tag) => {
+            if (file.tags.indexOf(tag) >= 0) {
+              satisfiesTags = false;
+            }
+          });
+        }
+        if (satisfiesTags) {
+          filtered.push(file);
+        }
+      });
+    } else {
+      Object.values(this.files).forEach((file) => {
+        if (file.location) {
+          if (
+            file.location.lat === filterPos.lat &&
+            file.location.lng === filterPos.lng
+          ) {
+            filtered.push(file);
           }
-        });
-        disabledTags.forEach((tag) => {
-          if (file.tags.indexOf(tag) >= 0) {
-            satisfiesTags = false;
-          }
-        });
-      }
-      if (satisfiesTags) {
-        filtered.push(file);
-      }
-    });
+        }
+      });
+    }
     return filtered;
   }
 
@@ -642,6 +670,50 @@ class FileStore extends EventEmitter<{
    */
   public getFile(name: string) {
     return this.files[name];
+  }
+
+  /**
+   * Creates and increments the count for a given location.
+   * @param location - The location to add.
+   */
+  private addLocation(location: Position) {
+    const key = locToString(location);
+    if (!this.locations[key]) {
+      this.locations[key] = 0;
+    }
+    this.locations[key] += 1;
+  }
+
+  /**
+   * Sets a photo's location.
+   * @param photo - The target photo.
+   * @param location - The location to set.
+   */
+  public async setLocation(photo: string, location: Position) {
+    // Remove from previous location
+    if (this.files[photo].hasLocation) {
+      const key = locToString(this.files[photo].location);
+      this.locations[key] -= 1;
+      if (this.locations[key] <= 0) {
+        delete this.locations[key];
+      }
+    }
+    this.files[photo].location = location;
+    this.addLocation(location);
+    await this.database?.update(this.files[photo]);
+    this.emit('updatePhoto', photo);
+    this.emit('updateLocations');
+  }
+
+  /**
+   * Set's a photo's locationApprox value.
+   * @param photo - The target photo.
+   * @param locationApprox - The locationApprox value to set.
+   */
+  public async setLocationApprox(photo: string, locationApprox: boolean) {
+    this.files[photo].data.locationApprox = locationApprox;
+    await this.database?.update(this.files[photo]);
+    this.emit('updatePhoto', photo);
   }
 }
 

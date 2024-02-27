@@ -42,6 +42,7 @@ export function stringToLoc(str: string) {
  */
 export class Map extends EventEmitter<{
   markerClicked: (pos: Position) => void;
+  markerCreated: (pos: Position) => void;
 }> {
   private heatmap!: google.maps.visualization.HeatmapLayer;
 
@@ -96,7 +97,6 @@ export class Map extends EventEmitter<{
         count,
       };
       google.maps.event.addListener(this.markers[pos].el, 'click', () => {
-        console.log(position);
         this.emit('markerClicked', position);
       });
       this.map.setCenter(position);
@@ -129,6 +129,19 @@ export class Map extends EventEmitter<{
           this.map = new this.mapsLibrary.Map(container, {
             zoom: 6,
             mapId: 'DEMO_MAP_ID',
+          });
+
+          navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
+            this.map.setCenter({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          });
+
+          this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
+            const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
+            this.createMarker(locToString(location), 1);
+            this.emit('markerCreated', location);
           });
 
           resolve();

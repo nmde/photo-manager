@@ -40,6 +40,10 @@ export class Photo extends Entity<PhotoData> {
     return this.data.photoGroup;
   }
 
+  public get hasLocation() {
+    return typeof this.data.location === 'string' && this.data.location.length > 0;
+  }
+
   public get location(): Position | undefined {
     if (this.data.location) {
       return JSON.parse(this.data.location);
