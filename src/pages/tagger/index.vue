@@ -22,13 +22,19 @@ onMounted(async () => {
   });
   map.createHeatmap();
   map.on('markerCreated', async (pos) => {
-    for (const photo of selected.value) {
-      await setLocation(photo.data.name, pos);
-    }
+    selected.value.forEach((photo) => {
+      setLocation(photo.data.name, pos);
+    });
   });
-  map.on('markerClicked', (pos) => {
-    filterBy.value = 1;
-    setFilter('filterPos', pos);
+  map.on('markerClicked', async (pos) => {
+    if (selected.value.length > 0) {
+      selected.value.forEach((photo) => {
+        setLocation(photo.data.name, pos);
+      });
+    } else {
+      filterBy.value = 1;
+      setFilter('filterPos', pos);
+    }
   });
 });
 
@@ -60,18 +66,22 @@ fileStore.on('updatePhoto', (photo) => {
             <tag-input
               label="Tags to include"
               :value="filters.enabledTags"
-              @update="(tags) => {
-                filterBy = 0;
-                setFilter('enabledTags', tags);
-              }"
+              @update="
+                (tags) => {
+                  filterBy = 0;
+                  setFilter('enabledTags', tags);
+                }
+              "
             ></tag-input>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>
         </v-col>
         <v-col cols="6">
-          <v-switch label="Map View" v-model="mapView"></v-switch>
-          <photo-group v-if="selected.length > 0 && !mapView" :photos="selected"></photo-group>
-          <div>
+          <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
+            >Clear Selection ({{ selected.length }})</v-btn
+          >
+          <v-checkbox v-model="mapView" label="Show Map"></v-checkbox>
+          <div :class="mapView ? '' : 'hidden'">
             <div class="map-container">
               <div ref="mapEl" class="map"></div>
             </div>
@@ -81,6 +91,7 @@ fileStore.on('updatePhoto', (photo) => {
               @update:model-value="toggleHeatmap()"
             ></v-checkbox>
           </div>
+          <photo-group v-if="selected.length > 0 && !mapView" :photos="selected"></photo-group>
         </v-col>
       </v-row>
     </v-container>
@@ -94,5 +105,9 @@ fileStore.on('updatePhoto', (photo) => {
 
 .map {
   height: 450px;
+}
+
+.hidden {
+  display: none;
 }
 </style>

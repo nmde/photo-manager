@@ -6,7 +6,7 @@ import { Tag } from '~/classes/Tag';
 import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
 import type { FileEntry } from '@tauri-apps/api/fs';
-import { locToString, stringToLoc, type Position } from '~/classes/Map';
+import { locToString, type Position } from '~/classes/Map';
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
@@ -700,7 +700,7 @@ class FileStore extends EventEmitter<{
     }
     this.files[photo].location = location;
     this.addLocation(location);
-    await this.database?.update(this.files[photo]);
+    await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', photo);
     this.emit('updateLocations');
   }
@@ -712,7 +712,7 @@ class FileStore extends EventEmitter<{
    */
   public async setLocationApprox(photo: string, locationApprox: boolean) {
     this.files[photo].data.locationApprox = locationApprox;
-    await this.database?.update(this.files[photo]);
+    await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', photo);
   }
 }
