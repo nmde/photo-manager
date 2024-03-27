@@ -7,6 +7,7 @@ Organize photos and videos with an advanced tagging system and geolocation.
   - Tag photos for easy categorization
   - Color-code tags
   - View which tags are used the most
+  - Rate photos and see which tags have the greatest influence on rating
   - Add prerequisite, corequisite, and incompatible tags for advanced organization
   - Advanced search by tags allows you to include and exclude tags from view, and search using multiple tags
 - Geolocation:
