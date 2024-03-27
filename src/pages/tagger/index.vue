@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Map, type Position } from '../../classes/Map';
+import { Map } from '../../classes/Map';
 import { Photo } from '../../classes/Photo';
 import { fileStore } from '../../stores/fileStore';
 
@@ -52,7 +52,7 @@ fileStore.on('updateFilters', () => {
   photos.value = filteredPhotos(filterBy.value);
 });
 
-fileStore.on('updatePhoto', (photo) => {
+fileStore.on('updatePhoto', () => {
   photos.value = filteredPhotos(filterBy.value);
 });
 </script>
@@ -91,7 +91,7 @@ fileStore.on('updatePhoto', (photo) => {
               @update:model-value="toggleHeatmap()"
             ></v-checkbox>
           </div>
-          <photo-group v-if="selected.length > 0 && !mapView" :photos="selected"></photo-group>
+          <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>
         </v-col>
       </v-row>
     </v-container>

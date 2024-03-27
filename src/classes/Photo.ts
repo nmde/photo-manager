@@ -65,6 +65,21 @@ export class Photo extends Entity<PhotoData> {
   public set tags(value: string[]) {
     this.data.tags = value.join(',');
   }
+
+  public get rating() {
+    if (typeof this.data.rating === 'number') {
+      return this.data.rating;
+    }
+  }
+
+  /**
+   * Checks if this photo has the specified tag.
+   * @param tag - The tag to check for.
+   * @returns If this photo has the specified tag.
+   */
+  public hasTag(tag: string) {
+    return this.tags.indexOf(tag) >= 0;
+  }
 }
 
 export function createPhoto(name: string, path: string): Photo {

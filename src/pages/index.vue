@@ -14,6 +14,7 @@ const deleted = ref<string[]>([]);
 const initializing = ref(false);
 const initializingProgress = ref(0);
 const fileCount = ref(0);
+const reading = ref('');
 
 /**
  * Prompts the user to select the folder to manage.
@@ -37,6 +38,7 @@ async function openFolder() {
     const expandDir = async (entries: FileEntry[]) => {
       for (const file of entries) {
         if (file.children !== undefined) {
+          reading.value = file.path;
           console.log(`Reading ${file.path}`);
           initializingProgress.value += 1;
           expandDir(await readDir(file.path));
@@ -119,7 +121,7 @@ async function openFolder() {
       <v-card>
         <v-card-title>Initializing</v-card-title>
         <v-card-text>
-          Progress: {{ initializingProgress }} / {{ fileCount }}
+          <p v-if="reading.length > 0">Reading {{ reading }}</p>
           <v-progress-linear
             :model-value="(initializingProgress / fileCount) * 100"
             color="primary"

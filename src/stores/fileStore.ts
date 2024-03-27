@@ -566,7 +566,7 @@ class FileStore extends EventEmitter<{
    * @param videos - Video files to generate thumbnails for.
    */
   public async generateThumbnails(raws: FileEntry[], videos: FileEntry[]) {
-    const { readDir, exists, createDir, removeFile } = await import('@tauri-apps/api/fs');
+    const { readDir, exists, createDir } = await import('@tauri-apps/api/fs');
     const { join, appDataDir } = await import('@tauri-apps/api/path');
     const { convertFileSrc } = await import('@tauri-apps/api/tauri');
     const { Command } = await import('@tauri-apps/api/shell');

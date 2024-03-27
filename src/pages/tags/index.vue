@@ -24,6 +24,8 @@ const {
   handleTagChange,
   tagCounts,
   advTags,
+  files,
+  tags,
 } = fileStore;
 
 const cutoff = ref(1);
@@ -33,6 +35,29 @@ const prereqTags = ref<string[]>([]);
 const coreqTags = ref<string[]>([]);
 const incompatibleTags = ref<string[]>([]);
 const filterColor = ref('');
+
+const avgRating = computed(() => {
+  let sum = 0;
+  let count = 0;
+  Object.values(files).forEach((photo) => {
+    if (photo.rating) {
+      console.log(photo.rating);
+      sum += photo.rating;
+      count += 1;
+    }
+  });
+  return sum / count;
+});
+
+const avgTags = computed(() => {
+  let sum = 0;
+  let count = 0;
+  Object.values(files).forEach((photo) => {
+    sum += photo.tags.length;
+    count += 1;
+  });
+  return sum / count;
+});
 
 const tagChartData = computed(() => {
   let sorted: string[] = [];
@@ -67,6 +92,60 @@ const tagChartData = computed(() => {
         label: 'Count',
         data: sorted.map((tag) => tagCounts[tag]),
         backgroundColor,
+      },
+    ],
+  };
+});
+
+const tagRatingData = computed(() => {
+  let sorted: string[] = [];
+  const ratingsMap: Record<string, number[]> = {};
+  tags.forEach((tag) => {
+    let color = getTagColor(tag);
+    if (color === 'black' || color.length === 0) {
+      color = 'rgba(201, 203, 207, 0.8)';
+    }
+    if (filterColor.value.length > 0 && color !== filterColor.value) {
+      return;
+    }
+    sorted.push(tag);
+    ratingsMap[tag] = [0, 0];
+    Object.values(files)
+      .filter((photo) => photo.hasTag(tag))
+      .forEach((photo) => {
+        if (photo.rating) {
+          ratingsMap[tag][0] += 1;
+          ratingsMap[tag][1] += photo.rating;
+        }
+      });
+  });
+  sorted = sorted
+    .filter((tag) => ratingsMap[tag][0] >= cutoff.value)
+    .sort((a, b) => {
+      const aa = ratingsMap[a][1] / ratingsMap[a][0];
+      const ba = ratingsMap[b][1] / ratingsMap[b][0];
+      if (aa > ba) {
+        return -1;
+      }
+      if (aa < ba) {
+        return 1;
+      }
+      return 0;
+    });
+  return {
+    labels: sorted,
+    datasets: [
+      {
+        axis: 'y',
+        label: 'Avg. Rating',
+        data: sorted.map((tag) => ratingsMap[tag][1] / ratingsMap[tag][0]),
+        backgroundColor: sorted.map((tag) => {
+          let color = getTagColor(tag);
+          if (color === 'black' || color.length === 0) {
+            color = 'rgba(201, 203, 207, 0.8)';
+          }
+          return color;
+        }),
       },
     ],
   };
@@ -146,15 +225,24 @@ const tagChartData = computed(() => {
           </div>
         </v-col>
         <v-col cols="6">
+          <!-- TODO: this should be one graph with multiple bars / sorting options -->
           <Bar
             :options="{
               indexAxis: 'y',
             }"
             :data="tagChartData"
           ></Bar>
+          <Bar
+            :options="{
+              indexAxis: 'y',
+            }"
+            :data="tagRatingData"
+          ></Bar>
           Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
           Filter by color:
           <color-options @select="(color) => (filterColor = color)"></color-options>
+          Average tags per photo: {{ avgTags.toPrecision(3) }}<br />
+          Overall average rating: {{ avgRating.toPrecision(3) }}
         </v-col>
       </v-row>
     </v-container>
