@@ -67,9 +67,16 @@ export class Photo extends Entity<PhotoData> {
   }
 
   public get rating() {
-    if (typeof this.data.rating === 'number') {
+    if (this.hasRating) {
       return this.data.rating;
     }
+  }
+
+  /**
+   * If the photo has a rating.
+   */
+  public get hasRating() {
+    return typeof this.data.rating === 'number' && this.data.rating > 0;
   }
 
   /**

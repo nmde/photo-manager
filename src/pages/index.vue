@@ -62,7 +62,7 @@ async function openFolder() {
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
         files[file.path].data.raw = true;
         raws.push(file);
-      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV)$/.test(file.path.toUpperCase())) {
+      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V)$/.test(file.path.toUpperCase())) {
         files[file.path].data.video = true;
         videos.push(file);
       }
