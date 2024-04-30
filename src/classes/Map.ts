@@ -1,4 +1,5 @@
 import { Loader } from '@googlemaps/js-api-loader';
+import { color as d3color } from 'd3-color';
 import { EventEmitter } from 'ee-ts';
 
 export type Position = {
@@ -10,6 +11,10 @@ export type Marker = {
   el: google.maps.marker.AdvancedMarkerElement;
   position: Position;
   count: number;
+};
+
+export const icons = {
+  hospital: 'mdi-hospital',
 };
 
 /**
@@ -84,25 +89,41 @@ export class Map extends EventEmitter<{
   /**
    * Places a marker on the map.
    * @param pos - The position to place the marker at.
+   * @param icon - An icon to use for the marker.
+   * @param color - The color of the marker.
+   * @param title - The title of the marker.
    */
-  public createMarker(pos: string, count: number) {
+  public createMarker(pos: string, icon?: keyof typeof icons, color?: string, title?: string) {
     if (!this.markers[pos]) {
       const position = stringToLoc(pos);
-      this.markers[pos] = {
-        el: new this.markerLibrary.AdvancedMarkerElement({
-          map: this.map,
-          position,
-        }),
+      const marker: google.maps.marker.AdvancedMarkerElementOptions = {
+        map: this.map,
         position,
-        count,
+        title,
+      };
+      if (typeof icon === 'string' && typeof color === 'string') {
+        const i = document.createElement('div');
+        i.innerHTML = `<i class="mdi ${icons[icon]}"></i>`;
+        marker.content = new this.markerLibrary.PinElement({
+          glyph: i,
+          background: color,
+          borderColor: d3color(color)?.darker(0.15).toString(),
+        }).element;
+      }
+      this.markers[pos] = {
+        el: new this.markerLibrary.AdvancedMarkerElement(marker),
+        position,
+        count: 1, // TODO
       };
       google.maps.event.addListener(this.markers[pos].el, 'click', () => {
         this.emit('markerClicked', position);
       });
       this.map.setCenter(position);
+      /**
       if (count > this.maxCount) {
         this.maxCount = count;
       }
+       */
     }
   }
 
@@ -140,7 +161,7 @@ export class Map extends EventEmitter<{
 
           this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
             const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
-            this.createMarker(locToString(location), 1);
+            this.createMarker(locToString(location));
             this.emit('markerCreated', location);
           });
 
@@ -156,6 +177,16 @@ export class Map extends EventEmitter<{
     Object.values(this.markers).forEach((marker) => {
       marker.el.map = null;
     });
+  }
+
+  /**
+   * Deletes all markers.
+   */
+  public clearMarkers() {
+    Object.values(this.markers).forEach((marker) => {
+      marker.el.map = null;
+    });
+    this.markers = {};
   }
 
   /**

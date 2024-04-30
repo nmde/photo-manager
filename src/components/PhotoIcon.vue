@@ -60,7 +60,7 @@ const displayName = computed(() => {
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
         <v-icon v-if="props.selected">mdi-check</v-icon>
         <v-icon v-if="props.invalid" color="error">mdi-alert-octagram</v-icon>
-        <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
+        <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
         <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
         <v-icon v-if="props.photo.hasRating">mdi-star</v-icon>
         <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>

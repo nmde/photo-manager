@@ -49,6 +49,7 @@ fileStore.on('thumbnailProgress', (progress) => {
         <v-list density="compact" nav>
           <v-list-item prepend-icon="mdi-image" title="Photos" to="/tagger"></v-list-item>
           <v-list-item prepend-icon="mdi-tag" title="Manage Tags" to="/tags"></v-list-item>
+          <v-list-item prepend-icon="mdi-map-marker" title="Locations" to="/locations"></v-list-item>
         </v-list>
       </v-navigation-drawer>
       <slot></slot>

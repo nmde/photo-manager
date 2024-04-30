@@ -4,7 +4,7 @@ import { Map } from '../../classes/Map';
 import { Photo } from '../../classes/Photo';
 import { fileStore } from '../../stores/fileStore';
 
-const { filteredPhotos, filters, setFilter, locations, setLocation } = fileStore;
+const { filteredPhotos, filters, setFilter, places } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
@@ -17,10 +17,11 @@ const map = new Map();
 onMounted(async () => {
   photos.value = filteredPhotos(filterBy.value);
   await map.initialize(mapEl.value as unknown as HTMLElement);
-  Object.entries(locations).forEach(([loc, count]) => {
-    map.createMarker(loc, count);
+  Object.values(places).forEach((place) => {
+    map.createMarker(place.pos);
   });
   map.createHeatmap();
+  /**
   map.on('markerCreated', async (pos) => {
     selected.value.forEach((photo) => {
       setLocation(photo.data.name, pos);
@@ -36,6 +37,7 @@ onMounted(async () => {
       setFilter('filterPos', pos);
     }
   });
+  */
 });
 
 function toggleHeatmap() {

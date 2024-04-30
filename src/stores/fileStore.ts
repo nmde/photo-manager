@@ -6,7 +6,9 @@ import { Tag } from '~/classes/Tag';
 import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
 import type { FileEntry } from '@tauri-apps/api/fs';
-import { locToString, type Position } from '~/classes/Map';
+import { Place } from '~/classes/Place';
+import type { Position } from '~/classes/Map';
+import { Layer } from '~/classes/Layer';
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
@@ -47,8 +49,6 @@ class FileStore extends EventEmitter<{
 
   public initialized = false;
 
-  public locations: Record<string, number> = {};
-
   public photoCount = 0;
 
   public saveError = false;
@@ -60,6 +60,10 @@ class FileStore extends EventEmitter<{
   public thumbnailProgress = 0;
 
   public workingDir = '';
+
+  public places: Record<string, Place> = {};
+
+  public layers: Record<string, Layer> = {};
 
   /**
    * Sets the working dir name.
@@ -289,6 +293,9 @@ class FileStore extends EventEmitter<{
       });
       this.groups = await this.database.selectAll(Group);
       this.groupNames = this.groups.map((g) => g.data.name);
+      (await this.database.selectAll(Place)).forEach((place) => {
+        this.places[place.Id] = place;
+      });
       this.tags = tagList;
       this.sortTags();
       this.initialized = true;
@@ -321,11 +328,6 @@ class FileStore extends EventEmitter<{
    */
   public setFiles(data: Record<string, Photo>) {
     this.files = data;
-    Object.values(data).forEach((file) => {
-      if (file.hasLocation) {
-        this.addLocation(file.location as Position);
-      }
-    });
     this.photoCount = Object.values(data).length;
   }
 
@@ -520,8 +522,8 @@ class FileStore extends EventEmitter<{
         if (
           (hideTagged && file.tags.length > 0) ||
           (onlyTagged && file.tags.length === 0) ||
-          (hideLocated && file.location !== undefined) ||
-          (onlyLocated && file.location === undefined) ||
+          (hideLocated && file.hasLocation) ||
+          (onlyLocated && !file.hasLocation) ||
           (onlyError && file.valid) ||
           (hideDuplicates && file.data.isDuplicate)
         ) {
@@ -547,10 +549,10 @@ class FileStore extends EventEmitter<{
       });
     } else {
       Object.values(this.files).forEach((file) => {
-        if (file.location) {
+        if (file.hasLocation && this.places[file.data.location]) {
           if (
-            file.location.lat === filterPos.lat &&
-            file.location.lng === filterPos.lng
+            this.places[file.data.location].data.lat === filterPos.lat &&
+            this.places[file.data.location].data.lng === filterPos.lng
           ) {
             filtered.push(file);
           }
@@ -673,47 +675,62 @@ class FileStore extends EventEmitter<{
   }
 
   /**
-   * Creates and increments the count for a given location.
-   * @param location - The location to add.
-   */
-  private addLocation(location: Position) {
-    const key = locToString(location);
-    if (!this.locations[key]) {
-      this.locations[key] = 0;
-    }
-    this.locations[key] += 1;
-  }
-
-  /**
    * Sets a photo's location.
    * @param photo - The target photo.
    * @param location - The location to set.
    */
-  public async setLocation(photo: string, location: Position) {
-    // Remove from previous location
-    if (this.files[photo].hasLocation) {
-      const key = locToString(this.files[photo].location);
-      this.locations[key] -= 1;
-      if (this.locations[key] <= 0) {
-        delete this.locations[key];
-      }
-    }
-    this.files[photo].location = location;
-    this.addLocation(location);
+  public async setLocation(photo: string, location: Place) {
+    this.files[photo].data.location = location.Id;
     await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', photo);
     this.emit('updateLocations');
   }
 
   /**
-   * Set's a photo's locationApprox value.
-   * @param photo - The target photo.
-   * @param locationApprox - The locationApprox value to set.
+   * Creates a Place entry.
+   * @param name - The name of the place.
+   * @param pos - The latitude & longitude of the place.
+   * @param layer - The layer the place belongs to.
    */
-  public async setLocationApprox(photo: string, locationApprox: boolean) {
-    this.files[photo].data.locationApprox = locationApprox;
-    await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+  public async createPlace(name: string, pos: Position, layer: string) {
+    const p = new Place({
+      name,
+      lat: pos.lat,
+      lng: pos.lng,
+      layer,
+    });
+    this.places[p.Id] = p;
+    await this.database?.insert(p);
+    return p;
+  }
+
+  /**
+   * Creates a Layer entry.
+   * @param name - The name of the layer.
+   */
+  public async createLayer(name: string) {
+    const l = new Layer({ name, color: '#ff000' });
+    this.layers[l.Id] = l;
+    await this.database?.insert(l);
+    return l;
+  }
+
+  /**
+   * Gets a list of places in the given layer.
+   * @param layer - The target layer.
+   */
+  public getPlacesByLayer(layer: string) {
+    return Object.values(this.places).filter((p) => p.data.layer === layer);
+  }
+
+  /**
+   * Sets & saves a layer's color.
+   * @param layer - The target layer.
+   * @param color - The color to set.
+   */
+  public async setLayerColor(layer: string, color: string) {
+    this.layers[layer].data.color = color;
+    await this.database?.update(this.layers[layer]);
   }
 }
 

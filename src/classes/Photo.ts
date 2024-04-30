@@ -1,6 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Entity } from './Entity';
-import { type Position } from './Map';
 
 export interface PhotoData {
   name: string;
@@ -8,7 +7,6 @@ export interface PhotoData {
   title: string;
   description: string;
   location: string;
-  locationApprox: boolean;
   tags: string;
   isDuplicate: boolean;
   thumbnail: string;
@@ -42,17 +40,6 @@ export class Photo extends Entity<PhotoData> {
 
   public get hasLocation() {
     return typeof this.data.location === 'string' && this.data.location.length > 0;
-  }
-
-  public get location(): Position | undefined {
-    if (this.data.location) {
-      return JSON.parse(this.data.location);
-    }
-    return undefined;
-  }
-
-  public set location(location: Position) {
-    this.data.location = JSON.stringify(location);
   }
 
   public get tags() {
@@ -95,7 +82,6 @@ export function createPhoto(name: string, path: string): Photo {
     path: convertFileSrc(path),
     title: name,
     description: '',
-    locationApprox: false,
     tags: '',
     isDuplicate: false,
     rating: 0,
