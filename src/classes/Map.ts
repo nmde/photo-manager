@@ -1,6 +1,7 @@
 import { Loader } from '@googlemaps/js-api-loader';
 import { color as d3color } from 'd3-color';
 import { EventEmitter } from 'ee-ts';
+import { Shape, type ShapeType } from './Shape';
 
 export type Position = {
   lat: number;
@@ -16,6 +17,8 @@ export type Marker = {
 export const icons = {
   hospital: 'mdi-hospital',
 };
+
+export type PlaceType = keyof typeof icons;
 
 /**
  * Helper method to get lat,lng as a string.
@@ -48,6 +51,9 @@ export function stringToLoc(str: string) {
 export class Map extends EventEmitter<{
   markerClicked: (pos: Position) => void;
   markerCreated: (pos: Position) => void;
+  click: (pos: Position) => void;
+  dblclick: (pos: Position) => void;
+  shapeUpdate: (newPath: google.maps.MVCArray<google.maps.LatLng>) => void;
 }> {
   private heatmap!: google.maps.visualization.HeatmapLayer;
 
@@ -60,6 +66,8 @@ export class Map extends EventEmitter<{
   private markerLibrary!: google.maps.MarkerLibrary;
 
   private maxCount = 0;
+
+  private shapes: Record<string, google.maps.Polyline | google.maps.Polygon> = {};
 
   private visualizationLibrary!: google.maps.VisualizationLibrary;
 
@@ -128,6 +136,59 @@ export class Map extends EventEmitter<{
   }
 
   /**
+   * Creates a shape on the map.
+   * @param type - The type of shape.
+   * @param points - The points of the shape.
+   * @param color
+   * @param title
+   */
+  public createShape(type: ShapeType, points: Position[], color: string) {
+    let shape;
+    if (type === 'line') {
+      shape = new this.mapsLibrary.Polyline({
+        path: points,
+        geodesic: true,
+        strokeColor: color,
+        editable: true,
+      });
+    } else {
+      shape = new this.mapsLibrary.Polygon({
+        paths: points,
+        geodesic: true,
+        fillColor: color,
+        strokeColor: d3color(color)?.darker(0.15).toString(),
+        editable: true,
+      });
+    }
+    shape.setMap(this.map);
+    shape.getPath().addListener('set_at', () => {
+      this.emit('shapeUpdate', shape.getPath());
+    });
+    shape.getPath().addListener('insert_at', () => {
+      this.emit('shapeUpdate', shape.getPath());
+    });
+    shape.getPath().addListener('remove_at', () => {
+      this.emit('shapeUpdate', shape.getPath());
+    });
+    const s = new Shape({
+      type,
+      points: JSON.stringify(points),
+      layer: '',
+    });
+    this.shapes[s.Id] = shape;
+    return s.Id;
+  }
+
+  /**
+   * Removes a shape from the map.
+   * @param id - The ID of the shape.
+   */
+  public removeShape(id: string) {
+    this.shapes[id].setMap(null);
+    delete this.shapes[id];
+  }
+
+  /**
    * Initializes the map.
    * @param container - The element to initialize within.
    */
@@ -161,8 +222,12 @@ export class Map extends EventEmitter<{
 
           this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
             const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
-            this.createMarker(locToString(location));
-            this.emit('markerCreated', location);
+            this.emit('dblclick', location);
+          });
+
+          this.map.addListener('click', (e: google.maps.MapMouseEvent) => {
+            const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
+            this.emit('click', location);
           });
 
           resolve();

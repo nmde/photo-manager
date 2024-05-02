@@ -1,11 +1,12 @@
 import { Entity } from './Entity';
-import { locToString } from './Map';
+import { locToString, type PlaceType } from './Map';
 
 type PlaceData = {
   name: string;
   lat: number;
   lng: number;
   layer: string;
+  category: PlaceType;
 };
 
 export class Place extends Entity<PlaceData> {

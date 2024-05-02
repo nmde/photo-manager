@@ -9,6 +9,7 @@ import type { FileEntry } from '@tauri-apps/api/fs';
 import { Place } from '~/classes/Place';
 import type { Position } from '~/classes/Map';
 import { Layer } from '~/classes/Layer';
+import { Shape, type ShapeType } from '~/classes/Shape';
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
@@ -64,6 +65,8 @@ class FileStore extends EventEmitter<{
   public places: Record<string, Place> = {};
 
   public layers: Record<string, Layer> = {};
+
+  public shapes: Record<string, Shape> = {};
 
   /**
    * Sets the working dir name.
@@ -709,7 +712,7 @@ class FileStore extends EventEmitter<{
    * @param name - The name of the layer.
    */
   public async createLayer(name: string) {
-    const l = new Layer({ name, color: '#ff000' });
+    const l = new Layer({ name, color: '#ff0000' });
     this.layers[l.Id] = l;
     await this.database?.insert(l);
     return l;
@@ -731,6 +734,22 @@ class FileStore extends EventEmitter<{
   public async setLayerColor(layer: string, color: string) {
     this.layers[layer].data.color = color;
     await this.database?.update(this.layers[layer]);
+  }
+
+  /**
+   * Creates a shape.
+   * @param type - The shape type.
+   * @param points - The shape path.
+   * @param layer - The layer the shape belongs to.
+   */
+  public async createShape(type: ShapeType, points: Position[], layer: string) {
+    const s = new Shape({
+      type,
+      points: JSON.stringify(points),
+      layer,
+    });
+    this.shapes[s.Id] = s;
+    await this.database?.insert(s);
   }
 }
 
