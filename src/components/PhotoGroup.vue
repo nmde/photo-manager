@@ -7,8 +7,16 @@ const props = defineProps<{
   photos: Photo[];
 }>();
 
-const { setTitle, setDescription, updateTags, setRating, setDuplicate, setGroup, setDate } =
-  fileStore;
+const {
+  setTitle,
+  setDescription,
+  updateTags,
+  setRating,
+  setDuplicate,
+  setGroup,
+  setDate,
+  setLocation,
+} = fileStore;
 
 const current = ref(0);
 
@@ -76,6 +84,12 @@ watch(
       (date) =>
         props.photos.forEach((photo) => {
           setDate(photo.data.name, date);
+        })
+    "
+    @update:location="
+      (location) =>
+        props.photos.forEach((photo) => {
+          setLocation(photo.data.name, location);
         })
     "
   ></photo-detail>

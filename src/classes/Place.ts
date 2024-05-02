@@ -7,6 +7,7 @@ type PlaceData = {
   lng: number;
   layer: string;
   category: PlaceType;
+  shape: string;
 };
 
 export class Place extends Entity<PlaceData> {
@@ -14,7 +15,11 @@ export class Place extends Entity<PlaceData> {
     super('Place', data);
   }
 
+  public get posObj() {
+    return { lat: this.data.lat, lng: this.data.lng };
+  }
+
   public get pos() {
-    return locToString({ lat: this.data.lat, lng: this.data.lng });
+    return locToString(this.posObj);
   }
 }

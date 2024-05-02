@@ -7,7 +7,7 @@ import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
 import type { FileEntry } from '@tauri-apps/api/fs';
 import { Place } from '~/classes/Place';
-import type { Position } from '~/classes/Map';
+import type { PlaceType, Position } from '~/classes/Map';
 import { Layer } from '~/classes/Layer';
 import { Shape, type ShapeType } from '~/classes/Shape';
 
@@ -30,10 +30,7 @@ class FileStore extends EventEmitter<{
     disabledTags: [],
     enabledTags: [],
     filterMode: 'AND',
-    filterPos: {
-      lat: 0,
-      lng: 0,
-    },
+    filterPos: '',
     hideDuplicates: true,
     hideLocated: false,
     hideTagged: false,
@@ -299,6 +296,12 @@ class FileStore extends EventEmitter<{
       (await this.database.selectAll(Place)).forEach((place) => {
         this.places[place.Id] = place;
       });
+      (await this.database.selectAll(Layer)).forEach((layer) => {
+        this.layers[layer.Id] = layer;
+      });
+      (await this.database.selectAll(Shape)).forEach((shape) => {
+        this.shapes[shape.Id] = shape;
+      });
       this.tags = tagList;
       this.sortTags();
       this.initialized = true;
@@ -519,49 +522,45 @@ class FileStore extends EventEmitter<{
       onlyTagged,
       filterPos,
     } = this.filters;
-    if (filterBy === 0) {
-      Object.values(this.files).forEach((file) => {
-        let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
-        if (
-          (hideTagged && file.tags.length > 0) ||
-          (onlyTagged && file.tags.length === 0) ||
-          (hideLocated && file.hasLocation) ||
-          (onlyLocated && !file.hasLocation) ||
-          (onlyError && file.valid) ||
-          (hideDuplicates && file.data.isDuplicate)
-        ) {
+    Object.values(this.files).forEach((file) => {
+      let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+      if (
+        (hideTagged && file.tags.length > 0) ||
+        (onlyTagged && file.tags.length === 0) ||
+        (hideLocated && file.hasLocation) ||
+        (onlyLocated && !file.hasLocation) ||
+        (onlyError && file.valid) ||
+        (hideDuplicates && file.data.isDuplicate)
+      ) {
+        satisfiesTags = false;
+      }
+      if (satisfiesTags) {
+        enabledTags.forEach((tag) => {
+          if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
+            satisfiesTags = true;
+          } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
+            satisfiesTags = false;
+          }
+        });
+        disabledTags.forEach((tag) => {
+          if (file.tags.indexOf(tag) >= 0) {
+            satisfiesTags = false;
+          }
+        });
+      }
+      if (satisfiesTags && filterBy === 1) {
+        if (file.hasLocation && this.places[file.data.location]) {
+          if (file.data.location !== filterPos) {
+            satisfiesTags = false;
+          }
+        } else {
           satisfiesTags = false;
         }
-        if (satisfiesTags) {
-          enabledTags.forEach((tag) => {
-            if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
-              satisfiesTags = true;
-            } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
-              satisfiesTags = false;
-            }
-          });
-          disabledTags.forEach((tag) => {
-            if (file.tags.indexOf(tag) >= 0) {
-              satisfiesTags = false;
-            }
-          });
-        }
-        if (satisfiesTags) {
-          filtered.push(file);
-        }
-      });
-    } else {
-      Object.values(this.files).forEach((file) => {
-        if (file.hasLocation && this.places[file.data.location]) {
-          if (
-            this.places[file.data.location].data.lat === filterPos.lat &&
-            this.places[file.data.location].data.lng === filterPos.lng
-          ) {
-            filtered.push(file);
-          }
-        }
-      });
-    }
+      }
+      if (satisfiesTags) {
+        filtered.push(file);
+      }
+    });
     return filtered;
   }
 
@@ -682,8 +681,8 @@ class FileStore extends EventEmitter<{
    * @param photo - The target photo.
    * @param location - The location to set.
    */
-  public async setLocation(photo: string, location: Place) {
-    this.files[photo].data.location = location.Id;
+  public async setLocation(photo: string, location: string) {
+    this.files[photo].data.location = location;
     await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', photo);
     this.emit('updateLocations');
@@ -695,12 +694,14 @@ class FileStore extends EventEmitter<{
    * @param pos - The latitude & longitude of the place.
    * @param layer - The layer the place belongs to.
    */
-  public async createPlace(name: string, pos: Position, layer: string) {
+  public async createPlace(name: string, pos: Position, category: PlaceType, layer: string) {
     const p = new Place({
       name,
       lat: pos.lat,
       lng: pos.lng,
       layer,
+      category,
+      shape: '',
     });
     this.places[p.Id] = p;
     await this.database?.insert(p);
@@ -741,15 +742,28 @@ class FileStore extends EventEmitter<{
    * @param type - The shape type.
    * @param points - The shape path.
    * @param layer - The layer the shape belongs to.
+   * @param name - The name of the shape.
    */
-  public async createShape(type: ShapeType, points: Position[], layer: string) {
+  public async createShape(type: ShapeType, points: Position[], layer: string, name: string) {
     const s = new Shape({
       type,
       points: JSON.stringify(points),
       layer,
+      name,
     });
     this.shapes[s.Id] = s;
     await this.database?.insert(s);
+    return s;
+  }
+
+  /**
+   * Links a place to a polygon.
+   * @param place - The target place.
+   * @param shape - The associated shape.
+   */
+  public async setPlaceShape(place: string, shape: Shape) {
+    this.places[place].data.shape = shape.Id;
+    await this.database?.update(this.places[place]);
   }
 }
 

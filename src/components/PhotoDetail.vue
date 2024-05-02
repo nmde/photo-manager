@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
 
-const { groupNames, addGroup, removeGroup } = fileStore;
+const { groupNames, addGroup, removeGroup, places } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: 'update:isDuplicate', isDuplicate: boolean): void;
   (e: 'update:group', group?: string): void;
   (e: 'update:date', date: string): void;
+  (e: 'update:location', location: string): void;
 }>();
 
 const props = defineProps<{
@@ -39,6 +40,14 @@ const description = ref('');
 const newGroupError = ref(false);
 const date = ref('');
 const closeUp = ref(false);
+const location = ref('');
+
+const placeList = computed(() => {
+  return Object.values(places).map((p) => ({
+    title: p.data.name,
+    value: p.Id,
+  }));
+});
 
 function initialize() {
   rating.value = props.photo.data.rating;
@@ -48,6 +57,7 @@ function initialize() {
   title.value = props.photo.data.title;
   description.value = props.photo.data.description;
   date.value = props.photo.data.date;
+  location.value = props.photo.data.location;
 }
 
 watch(() => props.photo, initialize);
@@ -104,6 +114,12 @@ onMounted(initialize);
     >Clear Tags</v-btn
   >
   -->
+  <v-select
+    label="Location"
+    :items="placeList"
+    v-model="location"
+    @update:model-value="emit('update:location', location)"
+  ></v-select>
   <v-select
     label="Group"
     :items="groupNames"

@@ -7,6 +7,7 @@ type ShapeData = {
   type: ShapeType;
   points: string;
   layer: string;
+  name: string;
 };
 
 export class Shape extends Entity<ShapeData> {

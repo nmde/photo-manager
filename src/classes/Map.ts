@@ -15,7 +15,77 @@ export type Marker = {
 };
 
 export const icons = {
+  airport: 'mdi-airplane',
+  ambulance: 'mdi-ambulance',
+  'amusement-park': 'mdi-ferris-wheel',
+  aquarium: 'mdi-fishbowl',
+  art: 'mdi-palette',
+  bank: 'mdi-bank',
+  bar: 'mdi-glass-cocktail',
+  barber: 'mdi-content-cut',
+  baseball: 'mdi-baseball',
+  beach: 'mdi-beach',
+  bird: 'mdi-bird',
+  boat: 'mdi-sail-boat',
+  bowling: 'mdi-bowling',
+  bridge: 'mdi-bridge',
+  cafe: 'mdi-coffee',
+  camping: 'mdi-campfire',
+  'car-dealership': 'mdi-car-key',
+  castle: 'mdi-castle',
+  cat: 'mdi-cat',
+  cemetery: 'mdi-grave-stone',
+  church: 'mdi-cross',
+  dentist: 'mdi-tooth',
+  doctor: 'mdi-medical-bag',
+  factory: 'mdi-factory',
+  farm: 'mdi-silo',
+  fire: 'mdi-fire',
+  fireworks: 'mdi-firework',
+  'fire-tower': 'mdi-tower-fire',
+  garden: 'mdi-flower',
+  gas: 'mdi-gas-station',
+  golf: 'mdi-golf',
+  grocery: 'mdi-food-apple',
+  gun: 'mdi-pistol',
+  hiking: 'mdi-hiking',
+  home: 'mdi-home',
+  horse: 'mdi-horse',
   hospital: 'mdi-hospital',
+  hotel: 'mdi-bed',
+  icecream: 'mdi-ice-cream',
+  jellyfish: 'mdi-jellyfish',
+  library: 'mdi-library',
+  lighthouse: 'mdi-lighthouse',
+  'martial-arts': 'mdi-karate',
+  monument: 'mdi-chess-rook',
+  mountain: 'mdi-terrain',
+  'movie-theater': 'mdi-filmstrip',
+  museum: 'mdi-image-filter-frames',
+  office: 'mdi-office-building',
+  park: 'mdi-tree',
+  parking: 'mdi-parking',
+  playground: 'mdi-slide',
+  photography: 'mdi-camera',
+  pool: 'mdi-swim',
+  rabbit: 'mdi-rabbit',
+  'radio-tower': 'mdi-radio-tower',
+  restaurant: 'mdi-silverware-fork-knife',
+  school: 'mdi-school',
+  ship: 'mdi-ship-wheel',
+  skate: 'mdi-skate',
+  smoking: 'mdi-smoking',
+  soccer: 'mdi-soccer',
+  stadium: 'mdi-stadium',
+  store: 'mdi-store',
+  subway: 'mdi-subway-variant',
+  technology: 'mdi-laptop',
+  tennis: 'mdi-tennis-ball',
+  theater: 'mdi-theater',
+  train: 'mdi-train',
+  waterfall: 'mdi-waterfall',
+  work: 'mdi-briefcase',
+  zoo: 'mdi-elephant',
 };
 
 export type PlaceType = keyof typeof icons;
@@ -49,7 +119,7 @@ export function stringToLoc(str: string) {
  * Provides functions for working with google maps.
  */
 export class Map extends EventEmitter<{
-  markerClicked: (pos: Position) => void;
+  markerClicked: (place: string) => void;
   markerCreated: (pos: Position) => void;
   click: (pos: Position) => void;
   dblclick: (pos: Position) => void;
@@ -100,8 +170,9 @@ export class Map extends EventEmitter<{
    * @param icon - An icon to use for the marker.
    * @param color - The color of the marker.
    * @param title - The title of the marker.
+   * @param id - The ID of the associated Place, if any.
    */
-  public createMarker(pos: string, icon?: keyof typeof icons, color?: string, title?: string) {
+  public createMarker(pos: string, icon?: keyof typeof icons, color?: string, title?: string, id?: string) {
     if (!this.markers[pos]) {
       const position = stringToLoc(pos);
       const marker: google.maps.marker.AdvancedMarkerElementOptions = {
@@ -124,7 +195,7 @@ export class Map extends EventEmitter<{
         count: 1, // TODO
       };
       google.maps.event.addListener(this.markers[pos].el, 'click', () => {
-        this.emit('markerClicked', position);
+        this.emit('markerClicked', id || '');
       });
       this.map.setCenter(position);
       /**
@@ -142,14 +213,14 @@ export class Map extends EventEmitter<{
    * @param color
    * @param title
    */
-  public createShape(type: ShapeType, points: Position[], color: string) {
+  public createShape(type: ShapeType, points: Position[], color: string, editable = false) {
     let shape;
     if (type === 'line') {
       shape = new this.mapsLibrary.Polyline({
         path: points,
         geodesic: true,
         strokeColor: color,
-        editable: true,
+        editable,
       });
     } else {
       shape = new this.mapsLibrary.Polygon({
@@ -157,23 +228,26 @@ export class Map extends EventEmitter<{
         geodesic: true,
         fillColor: color,
         strokeColor: d3color(color)?.darker(0.15).toString(),
-        editable: true,
+        editable,
       });
     }
     shape.setMap(this.map);
-    shape.getPath().addListener('set_at', () => {
-      this.emit('shapeUpdate', shape.getPath());
-    });
-    shape.getPath().addListener('insert_at', () => {
-      this.emit('shapeUpdate', shape.getPath());
-    });
-    shape.getPath().addListener('remove_at', () => {
-      this.emit('shapeUpdate', shape.getPath());
-    });
+    if (editable) {
+      shape.getPath().addListener('set_at', () => {
+        this.emit('shapeUpdate', shape.getPath());
+      });
+      shape.getPath().addListener('insert_at', () => {
+        this.emit('shapeUpdate', shape.getPath());
+      });
+      shape.getPath().addListener('remove_at', () => {
+        this.emit('shapeUpdate', shape.getPath());
+      });
+    }
     const s = new Shape({
       type,
       points: JSON.stringify(points),
       layer: '',
+      name: '',
     });
     this.shapes[s.Id] = shape;
     return s.Id;

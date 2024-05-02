@@ -3,10 +3,21 @@ import { onMounted, ref } from 'vue';
 import { Map, type Position, locToString, icons } from '../../classes/Map';
 import { fileStore } from '../../stores/fileStore';
 import type { Layer } from '~/classes/Layer';
-import type { ShapeType } from '~/classes/Shape';
+import type { Shape, ShapeType } from '~/classes/Shape';
+import type { Place } from '~/classes/Place';
 
-const { places, layers, createPlace, createLayer, getPlacesByLayer, setLayerColor, createShape } =
-  fileStore;
+const router = useRouter();
+
+const {
+  places,
+  layers,
+  shapes,
+  createPlace,
+  createLayer,
+  setLayerColor,
+  createShape,
+  setPlaceShape,
+} = fileStore;
 
 const layerDialog = ref(false);
 const layerName = ref('');
@@ -22,6 +33,11 @@ const targetLayer = ref('');
 const drawMode = ref(false);
 const tmpShape = ref<Position[]>([]);
 const tmpShapeType = ref<ShapeType>('line');
+const placeMap = ref<Record<string, Place[]>>({});
+const shapeMap = ref<Record<string, Shape[]>>({});
+const shapeName = ref('');
+const shapeDialog = ref(false);
+const targetPlace = ref('');
 
 const categories = computed(() => Object.keys(icons));
 
@@ -52,6 +68,26 @@ async function openCreateDialog(layer: string) {
 let prevShape = '';
 onMounted(async () => {
   layerList.value = Object.values(layers);
+  const linkedShapes: string[] = [];
+  placeMap.value = {};
+  shapeMap.value = {};
+  Object.values(places).forEach((place) => {
+    if (!placeMap.value[place.data.layer]) {
+      placeMap.value[place.data.layer] = [];
+    }
+    placeMap.value[place.data.layer].push(place);
+    if (place.data.shape.length > 0) {
+      linkedShapes.push(place.data.shape);
+    }
+  });
+  Object.values(shapes)
+    .filter((shape) => linkedShapes.indexOf(shape.Id) < 0)
+    .forEach((shape) => {
+      if (!shapeMap.value[shape.data.layer]) {
+        shapeMap.value[shape.data.layer] = [];
+      }
+      shapeMap.value[shape.data.layer].push(shape);
+    });
   await map.initialize(mapEl.value as unknown as HTMLElement);
   Object.values(places).forEach((place) => {
     map.createMarker(
@@ -59,7 +95,11 @@ onMounted(async () => {
       place.data.category,
       layers[place.data.layer].data.color,
       place.data.name,
+      place.Id,
     );
+  });
+  Object.values(shapes).forEach((shape) => {
+    map.createShape(shape.data.type, shape.points, layers[shape.data.layer].data.color);
   });
   map.on('click', (pos) => {
     if (drawMode.value) {
@@ -71,6 +111,7 @@ onMounted(async () => {
         tmpShapeType.value,
         tmpShape.value,
         layers[targetLayer.value].data.color,
+        true,
       );
     }
   });
@@ -81,6 +122,9 @@ onMounted(async () => {
       });
     }
   });
+  map.on('markerClicked', (place) => {
+    router.push(`/tagger?place=${place}`);
+  });
 });
 </script>
 
@@ -89,7 +133,7 @@ onMounted(async () => {
     <v-btn color="primary" @click="layerDialog = true">Add Layer</v-btn>
     <v-container fluid>
       <v-row>
-        <v-col cols="6">
+        <v-col cols="4">
           <v-card class="layer" v-for="layer in layerList" :key="layer.Id">
             <v-card-title
               >{{ layer.data.name }}
@@ -104,10 +148,10 @@ onMounted(async () => {
                   <v-list-item
                     @click="
                       () => {
-                        tmpShape = [];
-                        drawMode = true;
-                        tmpShapeType = 'line';
                         targetLayer = layer.Id;
+                        targetPlace = '';
+                        shapeName = '';
+                        shapeDialog = true;
                       }
                     "
                     >Add Shape</v-list-item
@@ -125,7 +169,7 @@ onMounted(async () => {
             </v-card-title>
             <v-card-text>
               <v-expansion-panels>
-                <v-expansion-panel v-for="place in getPlacesByLayer(layer.Id)" :key="place.Id">
+                <v-expansion-panel v-for="place in placeMap[layer.Id]" :key="place.Id">
                   <v-expansion-panel-title>{{ place.data.name }}</v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-btn
@@ -136,19 +180,29 @@ onMounted(async () => {
                           drawMode = true;
                           tmpShapeType = 'polygon';
                           targetLayer = layer.Id;
+                          targetPlace = place.Id;
                         }
                       "
                       >Draw Polygon</v-btn
                     >
                     <v-text-field label="Name" v-model="place.data.name"></v-text-field>
+                    <v-select
+                      :items="categories"
+                      v-model="place.data.category"
+                      @update:model-value="() => {}"
+                    ></v-select>
                     <v-textarea label="Notes"></v-textarea>
                   </v-expansion-panel-text>
+                </v-expansion-panel>
+                <v-expansion-panel v-for="shape in shapeMap[layer.Id]" :key="shape.Id">
+                  <v-expansion-panel-title>{{ shape.data.name }}</v-expansion-panel-title>
+                  <v-expansion-panel-text></v-expansion-panel-text>
                 </v-expansion-panel>
               </v-expansion-panels>
             </v-card-text>
           </v-card>
         </v-col>
-        <v-col cols="6">
+        <v-col cols="8">
           <div class="map-container">
             <div ref="mapEl" class="map"></div>
           </div>
@@ -157,7 +211,14 @@ onMounted(async () => {
             color="primary"
             @click="
               async () => {
-                await createShape(tmpShapeType, tmpShape, targetLayer);
+                const s = await createShape(tmpShapeType, tmpShape, targetLayer, shapeName);
+                if (!shapeMap[targetLayer]) {
+                  shapeMap[targetLayer] = [];
+                }
+                shapeMap[targetLayer].push(s);
+                if (targetPlace.length > 0) {
+                  await setPlaceShape(targetPlace, s);
+                }
                 drawMode = false;
               }
             "
@@ -206,7 +267,9 @@ onMounted(async () => {
           color="primary"
           @click="
             async () => {
-              await createPlace(placeName, position, targetLayer);
+              placeMap[targetLayer].push(
+                await createPlace(placeName, position, placeCategory, targetLayer),
+              );
               map.createMarker(
                 locToString(position),
                 placeCategory,
@@ -224,6 +287,29 @@ onMounted(async () => {
       </v-card-actions>
     </v-card>
   </v-dialog>
+  <v-dialog v-model="shapeDialog">
+    <v-card>
+      <v-card-title>Create a Shape</v-card-title>
+      <v-card-text>
+        <v-text-field label="Name" v-model="shapeName"></v-text-field>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn @click="shapeDialog = false">Cancel</v-btn>
+        <v-btn
+          color="primary"
+          @click="
+            () => {
+              tmpShape = [];
+              drawMode = true;
+              tmpShapeType = 'line';
+              shapeDialog = false;
+            }
+          "
+          >Create</v-btn
+        >
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
@@ -236,7 +322,7 @@ onMounted(async () => {
 }
 
 .map {
-  height: 450px;
+  height: 824px;
 }
 
 .layer {
