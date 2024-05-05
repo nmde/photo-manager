@@ -765,6 +765,74 @@ class FileStore extends EventEmitter<{
     this.places[place].data.shape = shape.Id;
     await this.database?.update(this.places[place]);
   }
+
+  /**
+   * Updates a shape's path.
+   * @param shape - The target shape.
+   * @param path - The new path.
+   */
+  public async setShapePath(shape: string, path: Position[]) {
+    this.shapes[shape].points = path;
+    await this.database?.update(this.shapes[shape]);
+  }
+
+  /**
+   * Sets a shape's name.
+   * @param shape - The target shape.
+   * @param name - The new name.
+   */
+  public async setShapeName(shape: string, name: string) {
+    this.shapes[shape].data.name = name;
+    await this.database?.update(this.shapes[shape]);
+  }
+
+  /**
+   * Sets a place's name.
+   * @param place - The target place.
+   * @param name - The new name.
+   */
+  public async setPlaceName(place: string, name: string) {
+    this.places[place].data.name = name;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
+   * Deletes a place.
+   * @param place - The target place.
+   */
+  public async deletePlace(place: string) {
+    await this.database?.delete(this.places[place]);
+    delete this.places[place];
+  }
+
+  /**
+   * Deletes a shape.
+   * @param shape - The target shape.
+   */
+  public async deleteShape(shape: string) {
+    await this.database?.delete(this.shapes[shape]);
+    delete this.shapes[shape];
+  }
+
+  /**
+   * Sets a place's layer.
+   * @param place - The target place.
+   * @param layer - The target layer.
+   */
+  public async setPlaceLayer(place: string, layer: string) {
+    this.places[place].data.layer = layer;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
+   * Sets a shape's layer.
+   * @param shape - The target shape.
+   * @param layer - The target layer.
+   */
+  public async setShapeLayer(shape: string, layer: string) {
+    this.shapes[shape].data.layer = layer;
+    await this.database?.update(this.shapes[shape]);
+  }
 }
 
 const f = new FileStore();

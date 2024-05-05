@@ -1,7 +1,7 @@
 import { Loader } from '@googlemaps/js-api-loader';
 import { color as d3color } from 'd3-color';
 import { EventEmitter } from 'ee-ts';
-import { Shape, type ShapeType } from './Shape';
+import { type ShapeType } from './Shape';
 
 export type Position = {
   lat: number;
@@ -210,10 +210,11 @@ export class Map extends EventEmitter<{
    * Creates a shape on the map.
    * @param type - The type of shape.
    * @param points - The points of the shape.
-   * @param color
-   * @param title
+   * @param color - The shape color.
+   * @param id - The Shape id.
+   * @param editable - If the shape should be editable.
    */
-  public createShape(type: ShapeType, points: Position[], color: string, editable = false) {
+  public createShape(type: ShapeType, points: Position[], color: string, id: string, editable = false) {
     let shape;
     if (type === 'line') {
       shape = new this.mapsLibrary.Polyline({
@@ -243,14 +244,8 @@ export class Map extends EventEmitter<{
         this.emit('shapeUpdate', shape.getPath());
       });
     }
-    const s = new Shape({
-      type,
-      points: JSON.stringify(points),
-      layer: '',
-      name: '',
-    });
-    this.shapes[s.Id] = shape;
-    return s.Id;
+    this.shapes[id] = shape;
+    return shape;
   }
 
   /**
