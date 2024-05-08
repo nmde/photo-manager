@@ -73,6 +73,7 @@ async function openCreateDialog(layer: string) {
         position.value = pos;
         newPlaceMap.createMarker(
           locToString(pos),
+          '0',
           placeCategory.value,
           layers[targetLayer.value].data.color,
           placeName.value,
@@ -109,10 +110,10 @@ onMounted(async () => {
     }
     map.createMarker(
       place.pos,
+      place.Id,
       place.data.category,
       layers[place.data.layer].data.color,
       place.data.name,
-      place.Id,
     );
   });
   Object.values(shapes).forEach((shape) => {
@@ -231,6 +232,7 @@ onMounted(async () => {
                                   placeMap[layer.Id].findIndex((p) => p.Id === place.Id),
                                   1,
                                 );
+                                map.removeMarker(place.Id);
                               }
                             "
                             >Delete Place</v-list-item
@@ -283,6 +285,7 @@ onMounted(async () => {
                             tmpShape = shape.points;
                             editingShape = true;
                             targetShape = shape.Id;
+                            tmpShapeType = 'line';
                             map.createShape(
                               shape.data.type,
                               shape.points,
@@ -334,16 +337,27 @@ onMounted(async () => {
               async () => {
                 if (editingShape) {
                   await setShapePath(targetShape, tmpShape);
+                  map.removeShape(targetShape);
+                  map.createShape(
+                    shapes[targetShape].data.type,
+                    tmpShape,
+                    layers[targetLayer].data.color,
+                    targetShape,
+                  );
                 } else {
                   const s = await createShape(tmpShapeType, tmpShape, targetLayer, shapeName);
-                  if (!shapeMap[targetLayer]) {
-                    shapeMap[targetLayer] = [];
-                  }
-                  shapeMap[targetLayer].push(s);
                   if (targetPlace.length > 0) {
                     await setPlaceShape(targetPlace, s);
+                  } else {
+                    if (!shapeMap[targetLayer]) {
+                      shapeMap[targetLayer] = [];
+                    }
+                    shapeMap[targetLayer].push(s);
                   }
+                  map.removeShape(`${prevShape}`);
+                  map.createShape(tmpShapeType, tmpShape, layers[targetLayer].data.color, s.Id);
                 }
+                prevShape = 0;
                 drawMode = false;
               }
             "
@@ -412,11 +426,11 @@ onMounted(async () => {
           color="primary"
           @click="
             async () => {
-              placeMap[targetLayer].push(
-                await createPlace(placeName, position, placeCategory, targetLayer),
-              );
+              const p = await createPlace(placeName, position, placeCategory, targetLayer);
+              placeMap[targetLayer].push(p);
               map.createMarker(
                 locToString(position),
+                p.Id,
                 placeCategory,
                 layers[targetLayer].data.color,
                 placeName,

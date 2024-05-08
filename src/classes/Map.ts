@@ -35,6 +35,7 @@ export const icons = {
   castle: 'mdi-castle',
   cat: 'mdi-cat',
   cemetery: 'mdi-grave-stone',
+  chess: 'mdi-chess-pawn',
   church: 'mdi-cross',
   dentist: 'mdi-tooth',
   doctor: 'mdi-medical-bag',
@@ -57,6 +58,7 @@ export const icons = {
   jellyfish: 'mdi-jellyfish',
   library: 'mdi-library',
   lighthouse: 'mdi-lighthouse',
+  mail: 'mdi-mailbox',
   'martial-arts': 'mdi-karate',
   monument: 'mdi-chess-rook',
   mountain: 'mdi-terrain',
@@ -65,11 +67,14 @@ export const icons = {
   office: 'mdi-office-building',
   park: 'mdi-tree',
   parking: 'mdi-parking',
+  pharmacy: 'mdi-pill',
+  pizza: 'mdi-pizza',
   playground: 'mdi-slide',
   photography: 'mdi-camera',
   pool: 'mdi-swim',
   rabbit: 'mdi-rabbit',
   'radio-tower': 'mdi-radio-tower',
+  realtor: 'mdi-sign-real-estate',
   restaurant: 'mdi-silverware-fork-knife',
   school: 'mdi-school',
   ship: 'mdi-ship-wheel',
@@ -172,8 +177,8 @@ export class Map extends EventEmitter<{
    * @param title - The title of the marker.
    * @param id - The ID of the associated Place, if any.
    */
-  public createMarker(pos: string, icon?: keyof typeof icons, color?: string, title?: string, id?: string) {
-    if (!this.markers[pos]) {
+  public createMarker(pos: string, id: string, icon?: keyof typeof icons, color?: string, title?: string) {
+    if (!this.markers[id]) {
       const position = stringToLoc(pos);
       const marker: google.maps.marker.AdvancedMarkerElementOptions = {
         map: this.map,
@@ -189,13 +194,13 @@ export class Map extends EventEmitter<{
           borderColor: d3color(color)?.darker(0.15).toString(),
         }).element;
       }
-      this.markers[pos] = {
+      this.markers[id] = {
         el: new this.markerLibrary.AdvancedMarkerElement(marker),
         position,
         count: 1, // TODO
       };
-      google.maps.event.addListener(this.markers[pos].el, 'click', () => {
-        this.emit('markerClicked', id || '');
+      google.maps.event.addListener(this.markers[id].el, 'click', () => {
+        this.emit('markerClicked', id);
       });
       this.map.setCenter(position);
       /**
@@ -255,6 +260,15 @@ export class Map extends EventEmitter<{
   public removeShape(id: string) {
     this.shapes[id].setMap(null);
     delete this.shapes[id];
+  }
+
+  /**
+   * Deletes a marker.
+   * @param id - The ID of the marker to delete.
+   */
+  public removeMarker(id: string) {
+    this.markers[id].el.map = null;
+    delete this.markers[id];
   }
 
   /**

@@ -46,7 +46,7 @@ const placeList = computed(() => {
   return Object.values(places).map((p) => ({
     title: p.data.name,
     value: p.Id,
-  }));
+  })).reverse();
 });
 
 function initialize() {

@@ -356,7 +356,6 @@ onUnmounted(() => {
         Search for a tag to remove (<b>this action will effect {{ selected.length }} photos</b>!)
         <tag-input
           label="Tag to find"
-          single
           :value="targetTag"
           @update="(tag) => (targetTag = tag)"
         ></tag-input>
@@ -368,7 +367,6 @@ onUnmounted(() => {
           Replace with:
           <tag-input
             label="Tag to replace with"
-            single
             :value="replacementTag"
             @update="(tag) => (replacementTag = tag)"
           ></tag-input>
