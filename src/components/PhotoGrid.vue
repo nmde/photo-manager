@@ -20,6 +20,8 @@ const itemsPerRow = ref(4);
 const size = ref(0);
 const rows = ref(0);
 const gridCol = ref<any>();
+const sortBy = ref(0);
+const sortDir = ref(1);
 
 /**
  * Resizes the grid items when the window size changes
@@ -38,7 +40,31 @@ const filteredPhotos = computed(() => {
   let f = forceRefresh.value;
   const rows: GridRow[] = [];
   let row: GridRow = [];
-  const tempphotos = [...props.photos];
+  const tempphotos = [...props.photos].sort((a, b) => {
+    if (sortBy.value === 1) {
+      if (!b.rating) {
+        return 1 * sortDir.value;
+      }
+      if (!a.rating) {
+        return -1 * sortDir.value;
+      }
+      if (a.rating > b.rating) {
+        return 1 * sortDir.value;
+      }
+      if (a.rating < b.rating) {
+        return -1 * sortDir.value;
+      }
+      return 0;
+    } else {
+      if (a.data.name > b.data.name) {
+        return 1 * sortDir.value;
+      }
+      if (a.data.name < b.data.name) {
+        return -1 * sortDir.value;
+      }
+      return 0;
+    }
+  });
   const groups: string[] = [];
   while (tempphotos.length > 0) {
     const file = tempphotos[0];
@@ -140,6 +166,51 @@ onUnmounted(() => {
     <v-btn icon @click="searchDialog = true" flat>
       <v-icon>mdi-filter</v-icon>
     </v-btn>
+    <v-menu>
+      <template v-slot:activator="{ props }">
+        <v-btn v-bind="props" icon flat>
+          <v-icon>mdi-sort</v-icon>
+        </v-btn>
+      </template>
+      <v-list>
+        <v-list-item
+          @click="
+            () => {
+              sortBy = 0;
+              sortDir = 1;
+            }
+          "
+          >Sort by name (asc)</v-list-item
+        >
+        <v-list-item
+          @click="
+            () => {
+              sortBy = 0;
+              sortDir = -1;
+            }
+          "
+          >Sort by name (desc)</v-list-item
+        >
+        <v-list-item
+          @click="
+            () => {
+              sortBy = 1;
+              sortDir = 1;
+            }
+          "
+          >Sort by rating (asc)</v-list-item
+        >
+        <v-list-item
+          @click="
+            () => {
+              sortBy = 1;
+              sortDir = -1;
+            }
+          "
+          >Sort by rating (desc)</v-list-item
+        >
+      </v-list>
+    </v-menu>
     <v-checkbox
       color="primary"
       class="collection-control"

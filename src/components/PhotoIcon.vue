@@ -58,14 +58,20 @@ const displayName = computed(() => {
         :src="photoPath"
       >
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
-        <v-icon v-if="props.selected">mdi-check</v-icon>
-        <v-icon v-if="props.invalid" color="error">mdi-alert-octagram</v-icon>
-        <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
-        <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
-        <v-icon v-if="props.photo.hasRating">mdi-star</v-icon>
-        <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
-        <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
-        <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
+        <div class="icons">
+          <div v-if="props.photo.hasRating">
+            <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
+          </div>
+          <div>
+            <v-icon v-if="props.selected">mdi-check</v-icon>
+            <v-icon v-if="props.invalid" color="error">mdi-alert-octagram</v-icon>
+            <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
+            <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
+            <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
+            <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
+            <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
+          </div>
+        </div>
       </v-img>
     </v-card>
   </div>

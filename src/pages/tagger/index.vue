@@ -23,8 +23,8 @@ onMounted(() => {
   if (route.query.place) {
     setFilter('filterPos', route.query.place as string);
     filterBy.value = 1;
-    photos.value = filteredPhotos(filterBy.value);
   }
+  photos.value = filteredPhotos(filterBy.value);
 });
 </script>
 
