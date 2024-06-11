@@ -24,6 +24,8 @@ const {
   deleteShape,
   setPlaceLayer,
   setShapeLayer,
+  setPlaceTags,
+  setPlaceNotes,
 } = fileStore;
 
 const layerDialog = ref(false);
@@ -54,6 +56,7 @@ const targetPlace = ref('');
 const editingShape = ref(false);
 const targetShape = ref('');
 const hideMarkers = ref(false);
+const hideLabels = ref(false);
 const changeLayerDialog = ref(false);
 const layerChangeTarget = ref('');
 const changeShapeLayerDialog = ref(false);
@@ -114,6 +117,7 @@ onMounted(async () => {
       place.data.category,
       layers[place.data.layer].data.color,
       place.data.name,
+      place.count,
     );
   });
   Object.values(shapes).forEach((shape) => {
@@ -205,6 +209,7 @@ onMounted(async () => {
                     <v-expansion-panel-text>
                       <v-btn
                         color="primary"
+                        v-if="place.data.shape.length === 0"
                         @click="
                           () => {
                             tmpShape = [];
@@ -217,6 +222,9 @@ onMounted(async () => {
                         "
                         >Draw Polygon</v-btn
                       >
+                      <v-btn v-if="place.data.shape.length > 0" @click="() => {}">
+                        Edit Polygon
+                      </v-btn>
                       <v-menu>
                         <template v-slot:activator="{ props }">
                           <v-btn icon flat v-bind="props">
@@ -262,7 +270,24 @@ onMounted(async () => {
                         v-model="place.data.category"
                         @update:model-value="() => {}"
                       ></v-select>
-                      <v-textarea label="Notes"></v-textarea>
+                      <tag-input
+                        label="Tags"
+                        :value="place.tags"
+                        @update="
+                          async (tags) => {
+                            await setPlaceTags(place.Id, tags);
+                          }
+                        "
+                      ></tag-input>
+                      <v-textarea
+                        label="Notes"
+                        v-model="place.data.notes"
+                        @update:model-value="
+                          async () => {
+                            await setPlaceNotes(place.Id, place.data.notes);
+                          }
+                        "
+                      ></v-textarea>
                     </v-expansion-panel-text>
                   </v-expansion-panel>
                   <v-expansion-panel v-for="shape in shapeMap[layer.Id]" :key="shape.Id">
@@ -382,6 +407,26 @@ onMounted(async () => {
               }
             "
             >Show Markers</v-btn
+          >
+          <v-btn
+            v-if="!hideLabels"
+            @click="
+              () => {
+                map.setStyle(Map.BlankMap);
+                hideLabels = true;
+              }
+            "
+            >Hide Labels</v-btn
+          >
+          <v-btn
+            v-if="hideLabels"
+            @click="
+              () => {
+                map.setStyle(Map.DefaultMap);
+                hideLabels = false;
+              }
+            "
+            >Show Labels</v-btn
           >
         </v-col>
       </v-row>

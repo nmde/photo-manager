@@ -8,9 +8,13 @@ type PlaceData = {
   layer: string;
   category: PlaceType;
   shape: string;
+  tags: string;
+  notes: string;
 };
 
 export class Place extends Entity<PlaceData> {
+  public count = 0;
+
   public constructor(data: PlaceData) {
     super('Place', data);
   }
@@ -21,5 +25,16 @@ export class Place extends Entity<PlaceData> {
 
   public get pos() {
     return locToString(this.posObj);
+  }
+
+  public get tags() {
+    if (this.data.tags.length === 0) {
+      return [];
+    }
+    return this.data.tags.split(',');
+  }
+
+  public set tags(tags: string[]) {
+    this.data.tags = tags.join(',');
   }
 }

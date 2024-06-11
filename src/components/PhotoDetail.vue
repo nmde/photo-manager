@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
 
-const { groupNames, addGroup, removeGroup, places } = fileStore;
+const { groupNames, addGroup, removeGroup, places, layers } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -44,6 +44,7 @@ const location = ref('');
 
 const placeList = computed(() => {
   return Object.values(places).map((p) => ({
+    color: layers[p.data.layer]?.data.color,
     title: p.data.name,
     value: p.Id,
   })).reverse();
@@ -119,7 +120,11 @@ onMounted(initialize);
     :items="placeList"
     v-model="location"
     @update:model-value="emit('update:location', location)"
-  ></v-select>
+  >
+    <template v-slot:item="{ props, item }">
+      <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
+    </template>
+  </v-select>
   <v-select
     label="Group"
     :items="groupNames"

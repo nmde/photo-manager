@@ -269,6 +269,9 @@ class FileStore extends EventEmitter<{
       this.advTags = await this.database.selectAll(Tag);
       const tagList: string[] = [];
       const encounteredGroups: string[] = [];
+      (await this.database.selectAll(Place)).forEach((place) => {
+        this.places[place.Id] = place;
+      });
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
         let firstInGroup = false;
@@ -289,13 +292,13 @@ class FileStore extends EventEmitter<{
             this.tagCounts[tag] += 1;
           });
         }
+        if (photo.hasLocation) {
+          this.places[photo.data.location].count += 1;
+        }
         this.validateTags(photo.data.name);
       });
       this.groups = await this.database.selectAll(Group);
       this.groupNames = this.groups.map((g) => g.data.name);
-      (await this.database.selectAll(Place)).forEach((place) => {
-        this.places[place.Id] = place;
-      });
       (await this.database.selectAll(Layer)).forEach((layer) => {
         this.layers[layer.Id] = layer;
       });
@@ -702,6 +705,8 @@ class FileStore extends EventEmitter<{
       layer,
       category,
       shape: '',
+      tags: '',
+      notes: '',
     });
     this.places[p.Id] = p;
     await this.database?.insert(p);
@@ -832,6 +837,26 @@ class FileStore extends EventEmitter<{
   public async setShapeLayer(shape: string, layer: string) {
     this.shapes[shape].data.layer = layer;
     await this.database?.update(this.shapes[shape]);
+  }
+
+  /**
+   * Sets a place's tags.
+   * @param place - The target place.
+   * @param tags - The tags to set.
+   */
+  public async setPlaceTags(place: string, tags: string[]) {
+    this.places[place].tags = tags;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
+   * Sets a place's notes.
+   * @param place - The target place.
+   * @param notes - The notes to set.
+   */
+  public async setPlaceNotes(place: string, notes: string) {
+    this.places[place].data.notes = notes;
+    await this.database?.update(this.places[place]);
   }
 }
 

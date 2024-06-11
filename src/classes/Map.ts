@@ -25,13 +25,17 @@ export const icons = {
   barber: 'mdi-content-cut',
   baseball: 'mdi-baseball',
   beach: 'mdi-beach',
+  bike: 'mdi-bike',
   bird: 'mdi-bird',
   boat: 'mdi-sail-boat',
   bowling: 'mdi-bowling',
   bridge: 'mdi-bridge',
+  burger: 'mdi-hamburger',
   cafe: 'mdi-coffee',
   camping: 'mdi-campfire',
+  car: 'mdi-car',
   'car-dealership': 'mdi-car-key',
+  cards: 'mdi-cards',
   castle: 'mdi-castle',
   cat: 'mdi-cat',
   cemetery: 'mdi-grave-stone',
@@ -44,8 +48,10 @@ export const icons = {
   fire: 'mdi-fire',
   fireworks: 'mdi-firework',
   'fire-tower': 'mdi-tower-fire',
+  frisbee: 'mdi-disc',
   garden: 'mdi-flower',
   gas: 'mdi-gas-station',
+  glasses: 'mdi-glasses',
   golf: 'mdi-golf',
   grocery: 'mdi-food-apple',
   gun: 'mdi-pistol',
@@ -76,6 +82,7 @@ export const icons = {
   'radio-tower': 'mdi-radio-tower',
   realtor: 'mdi-sign-real-estate',
   restaurant: 'mdi-silverware-fork-knife',
+  rowing: 'mdi-rowing',
   school: 'mdi-school',
   ship: 'mdi-ship-wheel',
   skate: 'mdi-skate',
@@ -130,6 +137,77 @@ export class Map extends EventEmitter<{
   dblclick: (pos: Position) => void;
   shapeUpdate: (newPath: google.maps.MVCArray<google.maps.LatLng>) => void;
 }> {
+  public static DefaultMap = [];
+
+  public static BlankMap = [
+    {
+      elementType: 'labels',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'administrative',
+      elementType: 'geometry',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'administrative.land_parcel',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'administrative.neighborhood',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'poi',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'road',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'road',
+      elementType: 'labels.icon',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+    {
+      featureType: 'transit',
+      stylers: [
+        {
+          visibility: 'off',
+        },
+      ],
+    },
+  ];
+
   private heatmap!: google.maps.visualization.HeatmapLayer;
 
   private map!: google.maps.Map;
@@ -177,7 +255,14 @@ export class Map extends EventEmitter<{
    * @param title - The title of the marker.
    * @param id - The ID of the associated Place, if any.
    */
-  public createMarker(pos: string, id: string, icon?: keyof typeof icons, color?: string, title?: string) {
+  public createMarker(
+    pos: string,
+    id: string,
+    icon?: keyof typeof icons,
+    color?: string,
+    title?: string,
+    count?: number,
+  ) {
     if (!this.markers[id]) {
       const position = stringToLoc(pos);
       const marker: google.maps.marker.AdvancedMarkerElementOptions = {
@@ -188,11 +273,33 @@ export class Map extends EventEmitter<{
       if (typeof icon === 'string' && typeof color === 'string') {
         const i = document.createElement('div');
         i.innerHTML = `<i class="mdi ${icons[icon]}"></i>`;
-        marker.content = new this.markerLibrary.PinElement({
-          glyph: i,
-          background: color,
-          borderColor: d3color(color)?.darker(0.15).toString(),
-        }).element;
+        const markerEl = document.createElement('div');
+        markerEl.appendChild(
+          new this.markerLibrary.PinElement({
+            glyph: i,
+            background: color,
+            borderColor: d3color(color)?.darker(0.15).toString(),
+          }).element,
+        );
+        if (typeof count === 'number' && count > 0) {
+          const countEl = document.createElement('div');
+          countEl.innerText = `${count}`;
+          countEl.style.backgroundColor = 'red';
+          if (count > 10) {
+            countEl.style.width = '14px';
+          } else {
+            countEl.style.width = '12px';
+          }
+          countEl.style.height = '12px';
+          countEl.style.borderRadius = '12px';
+          countEl.style.color = 'white';
+          countEl.style.position = 'fixed';
+          countEl.style.top = '-4px';
+          countEl.style.right = '-2px';
+          countEl.style.textAlign = 'center';
+          markerEl.appendChild(countEl);
+        }
+        marker.content = markerEl;
       }
       this.markers[id] = {
         el: new this.markerLibrary.AdvancedMarkerElement(marker),
@@ -219,7 +326,13 @@ export class Map extends EventEmitter<{
    * @param id - The Shape id.
    * @param editable - If the shape should be editable.
    */
-  public createShape(type: ShapeType, points: Position[], color: string, id: string, editable = false) {
+  public createShape(
+    type: ShapeType,
+    points: Position[],
+    color: string,
+    id: string,
+    editable = false,
+  ) {
     let shape;
     if (type === 'line') {
       shape = new this.mapsLibrary.Polyline({
@@ -358,5 +471,15 @@ export class Map extends EventEmitter<{
    */
   public showHeatmap() {
     this.heatmap.setMap(this.map);
+  }
+
+  /**
+   * Changes the map style.
+   * @param styles
+   */
+  public setStyle(styles: google.maps.MapTypeStyle[]) {
+    this.map.setOptions({
+      styles,
+    });
   }
 }
