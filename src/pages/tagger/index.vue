@@ -9,22 +9,27 @@ const { filteredPhotos, filters, setFilter, places } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
-const filterBy = ref(0);
+const filterByLocation = ref(false);
+const filterByDate = ref(false);
 
 fileStore.on('updateFilters', () => {
-  photos.value = filteredPhotos(filterBy.value);
+  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
 fileStore.on('updatePhoto', () => {
-  photos.value = filteredPhotos(filterBy.value);
+  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
 onMounted(() => {
   if (route.query.place) {
     setFilter('filterPos', route.query.place as string);
-    filterBy.value = 1;
+    filterByLocation.value = true;
   }
-  photos.value = filteredPhotos(filterBy.value);
+  if (route.query.date) {
+    setFilter('filterDate', route.query.date as string);
+    filterByDate.value = true;
+  }
+  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 </script>
 
@@ -43,20 +48,35 @@ onMounted(() => {
                 }
               "
             ></tag-input>
-            <div v-if="filterBy === 1">
+            <div v-if="filterByLocation">
               <v-btn
                 icon
                 flat
                 @click="
                   () => {
-                    filterBy = 0;
-                    photos = filteredPhotos(filterBy);
+                    filterByLocation = false;
+                    photos = filteredPhotos(filterByLocation, filterByDate);
                   }
                 "
               >
                 <v-icon>mdi-close</v-icon>
               </v-btn>
               {{ places[route.query.place as string].data.name }}
+            </div>
+            <div v-if="filterByDate">
+              <v-btn
+                icon
+                flat
+                @click="
+                  () => {
+                    filterByDate = false;
+                    photos = filteredPhotos(filterByLocation, filterByDate);
+                  }
+                "
+              >
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+              {{ route.query.date }}
             </div>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>

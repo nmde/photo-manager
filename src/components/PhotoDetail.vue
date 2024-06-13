@@ -38,16 +38,32 @@ const photoTags = ref<string[]>([]);
 const title = ref('');
 const description = ref('');
 const newGroupError = ref(false);
-const date = ref('');
+const date = ref<Date>(new Date());
 const closeUp = ref(false);
 const location = ref('');
 
 const placeList = computed(() => {
-  return Object.values(places).map((p) => ({
-    color: layers[p.data.layer]?.data.color,
-    title: p.data.name,
-    value: p.Id,
-  })).reverse();
+  return Object.values(places)
+    .sort((a, b) => {
+      if (a.isNewestPlace) {
+        return -1;
+      }
+      if (b.isNewestPlace) {
+        return 1;
+      }
+      if (a.count < b.count) {
+        return 1;
+      }
+      if (a.count > b.count) {
+        return -1;
+      }
+      return 0;
+    })
+    .map((p) => ({
+      color: layers[p.data.layer]?.data.color,
+      title: p.data.name,
+      value: p.Id,
+    }));
 });
 
 function initialize() {
@@ -57,7 +73,7 @@ function initialize() {
   photoTags.value = props.photo.tags;
   title.value = props.photo.data.title;
   description.value = props.photo.data.description;
-  date.value = props.photo.data.date;
+  date.value = props.photo.date;
   location.value = props.photo.data.location;
 }
 
@@ -141,11 +157,11 @@ onMounted(initialize);
     v-model="description"
     @update:model-value="emit('update:description', description)"
   ></v-textarea>
-  <v-text-field
+  <v-date-input
     label="Date"
     v-model="date"
-    @update:model-value="emit('update:date', date)"
-  ></v-text-field>
+    @update:model-value="emit('update:date', date.toISOString())"
+  ></v-date-input>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"

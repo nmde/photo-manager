@@ -11,7 +11,8 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTagsForGroup } = fileStore;
+const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTagsForGroup } =
+  fileStore;
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
@@ -52,6 +53,17 @@ const filteredPhotos = computed(() => {
         return 1 * sortDir.value;
       }
       if (a.rating < b.rating) {
+        return -1 * sortDir.value;
+      }
+      return 0;
+    } else if (sortBy.value === 2) {
+      if (b.data.date.length === 0) {
+        return -1 * sortDir.value;
+      }
+      if (a.date > b.date) {
+        return 1 * sortDir.value;
+      }
+      if (a.date < b.date) {
         return -1 * sortDir.value;
       }
       return 0;
@@ -209,6 +221,14 @@ onUnmounted(() => {
           "
           >Sort by rating (desc)</v-list-item
         >
+        <v-list-item
+          @click="
+            sortBy = 2;
+            sortDir = 1;
+          "
+        >
+          Sort by date
+        </v-list-item>
       </v-list>
     </v-menu>
     <v-checkbox

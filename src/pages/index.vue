@@ -23,6 +23,7 @@ async function openFolder() {
   loading.value = true;
   const { open } = await import('@tauri-apps/api/dialog');
   const { readDir } = await import('@tauri-apps/api/fs');
+  const { convertFileSrc } = await import('@tauri-apps/api/tauri');
   const selected = await open({
     directory: true,
     multiple: false,
@@ -57,7 +58,7 @@ async function openFolder() {
         files[file.path] = existing[file.path];
         delete existing[file.path];
       } else {
-        files[file.path] = createPhoto(file.path, file.path);
+        files[file.path] = createPhoto(file.path, convertFileSrc(file.path));
       }
       if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
         files[file.path].data.raw = true;

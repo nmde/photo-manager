@@ -83,7 +83,6 @@ function initialize() {
 watch(() => props.value, initialize);
 
 fileStore.on('validationUpdate', () => {
-  console.log(targetPhoto.value);
   valid.value = targetPhoto.value?.valid;
   validationMsg.value = targetPhoto.value?.validationMsg;
 });

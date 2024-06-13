@@ -31,6 +31,7 @@ class FileStore extends EventEmitter<{
     enabledTags: [],
     filterMode: 'AND',
     filterPos: '',
+    filterDate: '',
     hideDuplicates: true,
     hideLocated: false,
     hideTagged: false,
@@ -531,9 +532,10 @@ class FileStore extends EventEmitter<{
 
   /**
    * A list of photos, with the filter options applied.
-   * @param filterBy - 0 to filter by tags, 1 to filter by locations
+   * @param filterByLocation
+   * @param filterByDate
    */
-  public filteredPhotos(filterBy = 0) {
+  public filteredPhotos(filterByLocation = false, filterByDate = false) {
     const filtered: Photo[] = [];
     const {
       filterMode,
@@ -546,6 +548,7 @@ class FileStore extends EventEmitter<{
       onlyLocated,
       onlyTagged,
       filterPos,
+      filterDate,
     } = this.filters;
     Object.values(this.files).forEach((file) => {
       let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
@@ -573,9 +576,23 @@ class FileStore extends EventEmitter<{
           }
         });
       }
-      if (satisfiesTags && filterBy === 1) {
+      if (satisfiesTags && filterByLocation) {
         if (file.hasLocation && this.places[file.data.location]) {
           if (file.data.location !== filterPos) {
+            satisfiesTags = false;
+          }
+        } else {
+          satisfiesTags = false;
+        }
+      }
+      if (satisfiesTags && filterByDate) {
+        const d1 = new Date(Date.parse(filterDate) + 90000000);
+        if (file.data.date.length > 0) {
+          if (
+            d1.getFullYear() !== file.date.getFullYear() ||
+            d1.getMonth() !== file.date.getMonth() ||
+            d1.getDate() !== file.date.getDate()
+          ) {
             satisfiesTags = false;
           }
         } else {

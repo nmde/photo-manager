@@ -1,4 +1,3 @@
-import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Entity } from './Entity';
 
 export interface PhotoData {
@@ -74,12 +73,16 @@ export class Photo extends Entity<PhotoData> {
   public hasTag(tag: string) {
     return this.tags.indexOf(tag) >= 0;
   }
+
+  public get date() {
+    return new Date(this.data.date);
+  }
 }
 
 export function createPhoto(name: string, path: string): Photo {
   return new Photo({
     name,
-    path: convertFileSrc(path),
+    path,
     title: name,
     description: '',
     tags: '',

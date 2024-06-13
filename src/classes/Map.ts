@@ -72,6 +72,7 @@ export const icons = {
   mountain: 'mdi-terrain',
   'movie-theater': 'mdi-filmstrip',
   museum: 'mdi-image-filter-frames',
+  nuclear: 'mdi-atom',
   office: 'mdi-office-building',
   park: 'mdi-tree',
   parking: 'mdi-parking',

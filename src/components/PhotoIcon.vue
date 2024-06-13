@@ -7,6 +7,7 @@ const props = defineProps<{
   size: number;
   selected?: boolean;
   invalid?: boolean;
+  hideIcons?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -58,7 +59,7 @@ const displayName = computed(() => {
         :src="photoPath"
       >
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
-        <div class="icons">
+        <div class="icons" v-if="props.hideIcons !== true">
           <div v-if="props.photo.hasRating">
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>
@@ -66,6 +67,7 @@ const displayName = computed(() => {
             <v-icon v-if="props.selected">mdi-check</v-icon>
             <v-icon v-if="props.invalid" color="error">mdi-alert-octagram</v-icon>
             <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
+            <v-icon v-if="props.photo.data.date.length > 0">mdi-calendar</v-icon>
             <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
             <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
             <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
