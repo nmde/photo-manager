@@ -31,6 +31,7 @@ export const icons = {
   bowling: 'mdi-bowling',
   bridge: 'mdi-bridge',
   burger: 'mdi-hamburger',
+  bus: 'mdi-bus',
   cafe: 'mdi-coffee',
   camping: 'mdi-campfire',
   car: 'mdi-car',
@@ -55,6 +56,7 @@ export const icons = {
   golf: 'mdi-golf',
   grocery: 'mdi-food-apple',
   gun: 'mdi-pistol',
+  gym: 'mdi-dumbbell',
   hiking: 'mdi-hiking',
   home: 'mdi-home',
   horse: 'mdi-horse',
@@ -285,7 +287,9 @@ export class Map extends EventEmitter<{
           const countEl = document.createElement('div');
           countEl.innerText = `${count}`;
           countEl.style.backgroundColor = 'red';
-          if (count > 10) {
+          if (count >= 100) {
+            countEl.style.width = '16px';
+          } else if (count >= 10) {
             countEl.style.width = '14px';
           } else {
             countEl.style.width = '12px';

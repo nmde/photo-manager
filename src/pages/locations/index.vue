@@ -26,6 +26,7 @@ const {
   setShapeLayer,
   setPlaceTags,
   setPlaceNotes,
+  updateTags,
 } = fileStore;
 
 const layerDialog = ref(false);
@@ -276,6 +277,7 @@ onMounted(async () => {
                         @update="
                           async (tags) => {
                             await setPlaceTags(place.Id, tags);
+                            updateTags(tags);
                           }
                         "
                       ></tag-input>

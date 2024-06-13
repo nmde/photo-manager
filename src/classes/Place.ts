@@ -15,6 +15,8 @@ type PlaceData = {
 export class Place extends Entity<PlaceData> {
   public count = 0;
 
+  public isNewestPlace = false;
+
   public constructor(data: PlaceData) {
     super('Place', data);
   }

@@ -61,6 +61,8 @@ class FileStore extends EventEmitter<{
 
   public places: Record<string, Place> = {};
 
+  private newestPlace = '';
+
   public layers: Record<string, Layer> = {};
 
   public shapes: Record<string, Shape> = {};
@@ -156,7 +158,7 @@ class FileStore extends EventEmitter<{
         }
       });
     });
-    await this.updateTags(photo, collectedTags);
+    await this.updateTagsForGroup(photo, collectedTags);
     this.emit('updatePhoto', photo);
   }
 
@@ -171,11 +173,11 @@ class FileStore extends EventEmitter<{
   }
 
   /**
-   * Adds new tags to the master list.
-   * @param photo - The photo to apply tags to.
-   * @param t - The tags to apply.
+   * Updates tags for photo groups.
+   * @param photo - The base photo.
+   * @param t - The list of tags.
    */
-  public async updateTags(photo: string, t: string[]) {
+  public async updateTagsForGroup(photo: string, t: string[]) {
     const newTags: string[] = [];
     t.forEach((tag) => {
       if (this.files[photo].group === undefined || this.files[photo].firstInGroup) {
@@ -207,6 +209,21 @@ class FileStore extends EventEmitter<{
     this.sortTags();
     this.emit('updatePhoto', photo);
     // TODO: inform of newly created tags
+  }
+
+  /**
+   * Adds new tags to the master list.
+   * @param t - The tags to apply.
+   */
+  public updateTags(t: string[]) {
+    const newTags: string[] = [];
+    t.forEach((tag) => {
+      if (this.tags.indexOf(tag) < 0) {
+        this.tags.push(tag);
+        newTags.push(tag);
+      }
+    });
+    this.sortTags();
   }
 
   /**
@@ -271,6 +288,11 @@ class FileStore extends EventEmitter<{
       const encounteredGroups: string[] = [];
       (await this.database.selectAll(Place)).forEach((place) => {
         this.places[place.Id] = place;
+        place.tags.forEach((tag) => {
+          if (tagList.indexOf(tag) < 0) {
+            tagList.push(tag);
+          }
+        });
       });
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
@@ -685,7 +707,11 @@ class FileStore extends EventEmitter<{
    * @param location - The location to set.
    */
   public async setLocation(photo: string, location: string) {
+    if (this.files[photo].hasLocation) {
+      this.places[this.files[photo].data.location].count -= 1;
+    }
     this.files[photo].data.location = location;
+    this.places[location].count += 1;
     await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', photo);
     this.emit('updateLocations');
@@ -708,6 +734,11 @@ class FileStore extends EventEmitter<{
       tags: '',
       notes: '',
     });
+    p.isNewestPlace = true;
+    if (this.places[this.newestPlace]) {
+      this.places[this.newestPlace].isNewestPlace = false;
+    }
+    this.newestPlace = p.Id;
     this.places[p.Id] = p;
     await this.database?.insert(p);
     return p;

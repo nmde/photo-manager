@@ -10,7 +10,7 @@ const props = defineProps<{
 const {
   setTitle,
   setDescription,
-  updateTags,
+  updateTagsForGroup,
   setRating,
   setDuplicate,
   setGroup,
@@ -65,7 +65,7 @@ watch(
     @update:tags="
       (tags) => {
         props.photos.forEach((photo) => {
-          updateTags(photo.data.name, tags);
+          updateTagsForGroup(photo.data.name, tags);
         });
       }
     "

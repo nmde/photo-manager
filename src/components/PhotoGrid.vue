@@ -11,7 +11,7 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTags } = fileStore;
+const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTagsForGroup } = fileStore;
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
@@ -406,7 +406,7 @@ onUnmounted(() => {
               async () => {
                 loading = true;
                 selected.forEach(async (photo) => {
-                  await updateTags(photo.data.name, photo.tags.concat(targetTag));
+                  await updateTagsForGroup(photo.data.name, photo.tags.concat(targetTag));
                 });
                 loading = false;
                 tagAddDialog = false;
@@ -454,12 +454,12 @@ onUnmounted(() => {
                 if (tagAction === 'remove') {
                   const updatedTags = [...photo.tags];
                   updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
-                  await updateTags(photo.data.name, updatedTags);
+                  await updateTagsForGroup(photo.data.name, updatedTags);
                 } else {
                   const updatedTags = [...photo.tags];
                   updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
                   updatedTags.push(replacementTag[0]);
-                  await updateTags(photo.data.name, updatedTags);
+                  await updateTagsForGroup(photo.data.name, updatedTags);
                 }
               });
               loading = false;
