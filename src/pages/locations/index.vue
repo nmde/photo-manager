@@ -61,6 +61,7 @@ const hideLabels = ref(false);
 const changeLayerDialog = ref(false);
 const layerChangeTarget = ref('');
 const changeShapeLayerDialog = ref(false);
+const totalArea = ref(0);
 
 const categories = computed(() => Object.keys(icons));
 
@@ -94,6 +95,7 @@ onMounted(async () => {
   layerList.value = Object.values(layers);
   placeMap.value = {};
   shapeMap.value = {};
+  totalArea.value = 0;
   layerList.value.forEach((layer) => {
     placeMap.value[layer.Id] = [];
     shapeMap.value[layer.Id] = [];
@@ -128,6 +130,7 @@ onMounted(async () => {
       }
       shapeMap.value[shape.data.layer].push(shape);
     }
+    totalArea.value += shape.area;
     map.createShape(shape.data.type, shape.points, layers[shape.data.layer].data.color, shape.Id);
   });
   map.on('click', (pos) => {
@@ -185,6 +188,7 @@ onMounted(async () => {
                     <v-list-item
                       @click="
                         () => {
+                          tmpShapeType = 'line';
                           targetLayer = layer.Id;
                           targetPlace = '';
                           shapeName = '';
@@ -192,8 +196,23 @@ onMounted(async () => {
                           editingShape = false;
                         }
                       "
-                      >Add Shape</v-list-item
                     >
+                      Add Line
+                    </v-list-item>
+                    <v-list-item
+                      @click="
+                        () => {
+                          tmpShapeType = 'polygon';
+                          targetLayer = layer.Id;
+                          targetPlace = '';
+                          shapeName = '';
+                          shapeDialog = true;
+                          editingShape = false;
+                        }
+                      "
+                    >
+                      Add Polygon
+                    </v-list-item>
                   </v-list>
                 </v-menu>
                 <color-picker
@@ -223,9 +242,10 @@ onMounted(async () => {
                         "
                         >Draw Polygon</v-btn
                       >
-                      <v-btn v-if="place.data.shape.length > 0" @click="() => {}">
-                        Edit Polygon
-                      </v-btn>
+                      <div v-if="place.data.shape.length > 0">
+                        <v-btn @click="() => {}"> Edit Polygon </v-btn>
+                        Area: {{ shapes[place.data.shape].area }}
+                      </div>
                       <v-menu>
                         <template v-slot:activator="{ props }">
                           <v-btn icon flat v-bind="props">
@@ -312,7 +332,7 @@ onMounted(async () => {
                             tmpShape = shape.points;
                             editingShape = true;
                             targetShape = shape.Id;
-                            tmpShapeType = 'line';
+                            tmpShapeType = shape.data.type;
                             map.createShape(
                               shape.data.type,
                               shape.points,
@@ -495,7 +515,7 @@ onMounted(async () => {
   </v-dialog>
   <v-dialog v-model="shapeDialog">
     <v-card>
-      <v-card-title>Create a Shape</v-card-title>
+      <v-card-title>Create a {{ tmpShapeType }}</v-card-title>
       <v-card-text>
         <v-text-field label="Name" v-model="shapeName"></v-text-field>
       </v-card-text>
@@ -507,7 +527,6 @@ onMounted(async () => {
             () => {
               tmpShape = [];
               drawMode = true;
-              tmpShapeType = 'line';
               shapeDialog = false;
             }
           "

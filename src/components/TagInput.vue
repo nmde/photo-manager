@@ -21,6 +21,7 @@ const emit = defineEmits<{
 const selected = ref<string[]>([]);
 const valid = ref<boolean | undefined>(true);
 const validationMsg = ref<string | undefined>(undefined);
+const hasChanged = ref(false);
 
 const targetPhoto = computed(() => {
   if (props.target) {
@@ -99,14 +100,17 @@ fileStore.on('validationUpdate', () => {
     v-model="selected"
     @update:model-value="
       () => {
+        hasChanged = true;
         emit('change', selected);
         validateTagsWrapper();
       }
     "
     @update:focused="
       () => {
-        emit('update', selected);
-        validateTagsWrapper();
+        if (hasChanged) {
+          emit('update', selected);
+          validateTagsWrapper();
+        }
       }
     "
     :error="!valid"

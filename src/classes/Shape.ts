@@ -1,3 +1,4 @@
+import * as turf from '@turf/turf';
 import { Entity } from './Entity';
 import type { Position } from './Map';
 
@@ -21,5 +22,13 @@ export class Shape extends Entity<ShapeData> {
 
   public set points(points: Position[]) {
     this.data.points = JSON.stringify(points);
+  }
+
+  public get area() {
+    const points = this.points.map(
+      (p) => turf.toWgs84(turf.point([p.lat, p.lng])).geometry.coordinates,
+    );
+    points.push(points[0]);
+    return turf.area(turf.polygon([points]));
   }
 }

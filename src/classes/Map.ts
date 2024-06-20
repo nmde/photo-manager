@@ -289,7 +289,7 @@ export class Map extends EventEmitter<{
           countEl.innerText = `${count}`;
           countEl.style.backgroundColor = 'red';
           if (count >= 100) {
-            countEl.style.width = '16px';
+            countEl.style.width = '20px';
           } else if (count >= 10) {
             countEl.style.width = '14px';
           } else {

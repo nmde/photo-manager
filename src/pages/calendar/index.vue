@@ -5,7 +5,10 @@ import { Photo } from '../../classes/Photo';
 
 const router = useRouter();
 
-const { files } = fileStore;
+const jumpDate = ref<Date>(new Date());
+const date = ref<Date[]>([new Date()]);
+
+const { files, calendarViewDate, setCalendarViewDate } = fileStore;
 
 const events = computed(() => {
   const events: any[] = [];
@@ -59,6 +62,11 @@ const events = computed(() => {
   });
   return events;
 });
+
+onMounted(() => {
+  console.log(calendarViewDate);
+  date.value[0] = calendarViewDate;
+});
 </script>
 
 <template>
@@ -66,7 +74,27 @@ const events = computed(() => {
     <v-container fluid>
       <v-row>
         <v-col>
-          <v-calendar type="month" :events="events" hide-week-number>
+          <v-date-input
+            label="Jump to"
+            v-model="jumpDate"
+            @update:model-value="
+              () => {
+                date[0] = jumpDate;
+                setCalendarViewDate(date[0]);
+              }
+            "
+          ></v-date-input>
+          <v-calendar
+            type="month"
+            :events="events"
+            hide-week-number
+            v-model="date"
+            @update:model-value="
+              () => {
+                setCalendarViewDate(date[0]);
+              }
+            "
+          >
             <template v-slot:event="{ day, event }">
               <div class="calendar-photos">
                 <photo-icon

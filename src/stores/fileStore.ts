@@ -68,6 +68,8 @@ class FileStore extends EventEmitter<{
 
   public shapes: Record<string, Shape> = {};
 
+  public calendarViewDate = new Date();
+
   /**
    * Sets the working dir name.
    * @param path - The path to the working dir.
@@ -315,7 +317,7 @@ class FileStore extends EventEmitter<{
             this.tagCounts[tag] += 1;
           });
         }
-        if (photo.hasLocation) {
+        if (photo.hasLocation && this.places[photo.data.location]) {
           this.places[photo.data.location].count += 1;
         }
         this.validateTags(photo.data.name);
@@ -724,7 +726,7 @@ class FileStore extends EventEmitter<{
    * @param location - The location to set.
    */
   public async setLocation(photo: string, location: string) {
-    if (this.files[photo].hasLocation) {
+    if (this.files[photo].hasLocation && this.places[this.files[photo].data.location]) {
       this.places[this.files[photo].data.location].count -= 1;
     }
     this.files[photo].data.location = location;
@@ -905,6 +907,10 @@ class FileStore extends EventEmitter<{
   public async setPlaceNotes(place: string, notes: string) {
     this.places[place].data.notes = notes;
     await this.database?.update(this.places[place]);
+  }
+
+  public setCalendarViewDate(date: Date) {
+    this.calendarViewDate = date;
   }
 }
 
