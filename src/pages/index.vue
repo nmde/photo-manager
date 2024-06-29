@@ -6,7 +6,7 @@ import { Photo, createPhoto } from '~/classes/Photo';
 import type { FileEntry } from '@tauri-apps/api/fs';
 
 const router = useRouter();
-const { setWorkingDir, loadPhotos, removeDeleted, setFiles, generateThumbnails } = fileStore;
+const { setWorkingDir, loadPhotos, setFiles, generateThumbnails, groupRaws } = fileStore;
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -53,6 +53,7 @@ async function openFolder() {
     console.log('Read dir');
     fileCount.value = dir.length;
     await expandDir(dir);
+    const rawPhotos: Photo[] = [];
     fullFileList.forEach(async (file) => {
       if (existing[file.path]) {
         files[file.path] = existing[file.path];
@@ -67,12 +68,16 @@ async function openFolder() {
         files[file.path].data.video = true;
         videos.push(file);
       }
+      if (files[file.path].data.raw) {
+        rawPhotos.push(files[file.path]);
+      }
     });
     deleted.value = Object.keys(existing);
     for (let i = 0; i < deleted.value.length; i += 1) {
-      await removeDeleted(deleted.value[i]);
+      // await removeDeleted(deleted.value[i]);
     }
     setFiles(files);
+    groupRaws(rawPhotos);
     if (raws.length > 0 || videos.length > 0) {
       generateThumbnails(raws, videos);
       if (deleted.value.length > 0) {
