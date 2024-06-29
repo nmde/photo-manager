@@ -93,6 +93,7 @@ onMounted(initialize);
   ></video-player>
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true"></v-img>
   <br />
+  {{ photo.rawFile }}
   <tag-input
     advanced
     :label="`Photo Tags (${photoTags.length})`"

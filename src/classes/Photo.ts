@@ -21,6 +21,10 @@ export class Photo extends Entity<PhotoData> {
 
   public firstInGroup = false;
 
+  public hidden = false;
+
+  public rawFile = '';
+
   public valid = true;
 
   public validationMsg = '';

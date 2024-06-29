@@ -297,6 +297,7 @@ class FileStore extends EventEmitter<{
           }
         });
       });
+      const raws: Photo[] = [];
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
         let firstInGroup = false;
@@ -321,7 +322,11 @@ class FileStore extends EventEmitter<{
           this.places[photo.data.location].count += 1;
         }
         this.validateTags(photo.data.name);
+        if (photo.data.raw) {
+          raws.push(photo);
+        }
       });
+      this.groupRaws(raws);
       this.groups = await this.database.selectAll(Group);
       this.groupNames = this.groups.map((g) => g.data.name);
       (await this.database.selectAll(Layer)).forEach((layer) => {
@@ -363,6 +368,23 @@ class FileStore extends EventEmitter<{
   public setFiles(data: Record<string, Photo>) {
     this.files = data;
     this.photoCount = Object.values(data).length;
+  }
+
+  /**
+   * Automatically groups raw photos that already have a JPG or PNG version.
+   * @param raws - The list of raw files.
+   */
+  public groupRaws(raws: Photo[]) {
+    raws.forEach((raw) => {
+      const baseName = raw.data.name.replace('.ORF', '').replace('.NRW', '');
+      if (this.files[`${baseName}.JPG`]) {
+        this.files[`${baseName}.JPG`].rawFile = raw.data.thumbnail;
+        this.files[raw.data.name].hidden = true;
+      } else if (this.files[`${baseName}.PNG`]) {
+        this.files[`${baseName}.PNG`].rawFile = raw.data.thumbnail;
+        this.files[raw.data.name].hidden = true;
+      }
+    });
   }
 
   /**
@@ -552,59 +574,61 @@ class FileStore extends EventEmitter<{
       filterPos,
       filterDate,
     } = this.filters;
-    Object.values(this.files).forEach((file) => {
-      let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
-      if (
-        (hideTagged && file.tags.length > 0) ||
-        (onlyTagged && file.tags.length === 0) ||
-        (hideLocated && file.hasLocation) ||
-        (onlyLocated && !file.hasLocation) ||
-        (onlyError && file.valid) ||
-        (hideDuplicates && file.data.isDuplicate)
-      ) {
-        satisfiesTags = false;
-      }
-      if (satisfiesTags) {
-        enabledTags.forEach((tag) => {
-          if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
-            satisfiesTags = true;
-          } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
-            satisfiesTags = false;
-          }
-        });
-        disabledTags.forEach((tag) => {
-          if (file.tags.indexOf(tag) >= 0) {
-            satisfiesTags = false;
-          }
-        });
-      }
-      if (satisfiesTags && filterByLocation) {
-        if (file.hasLocation && this.places[file.data.location]) {
-          if (file.data.location !== filterPos) {
-            satisfiesTags = false;
-          }
-        } else {
+    Object.values(this.files)
+      .filter((file) => !file.hidden)
+      .forEach((file) => {
+        let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+        if (
+          (hideTagged && file.tags.length > 0) ||
+          (onlyTagged && file.tags.length === 0) ||
+          (hideLocated && file.hasLocation) ||
+          (onlyLocated && !file.hasLocation) ||
+          (onlyError && file.valid) ||
+          (hideDuplicates && file.data.isDuplicate)
+        ) {
           satisfiesTags = false;
         }
-      }
-      if (satisfiesTags && filterByDate) {
-        const d1 = new Date(Date.parse(filterDate) + 90000000);
-        if (file.data.date.length > 0) {
-          if (
-            d1.getFullYear() !== file.date.getFullYear() ||
-            d1.getMonth() !== file.date.getMonth() ||
-            d1.getDate() !== file.date.getDate()
-          ) {
+        if (satisfiesTags) {
+          enabledTags.forEach((tag) => {
+            if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
+              satisfiesTags = true;
+            } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
+              satisfiesTags = false;
+            }
+          });
+          disabledTags.forEach((tag) => {
+            if (file.tags.indexOf(tag) >= 0) {
+              satisfiesTags = false;
+            }
+          });
+        }
+        if (satisfiesTags && filterByLocation) {
+          if (file.hasLocation && this.places[file.data.location]) {
+            if (file.data.location !== filterPos) {
+              satisfiesTags = false;
+            }
+          } else {
             satisfiesTags = false;
           }
-        } else {
-          satisfiesTags = false;
         }
-      }
-      if (satisfiesTags) {
-        filtered.push(file);
-      }
-    });
+        if (satisfiesTags && filterByDate) {
+          const d1 = new Date(Date.parse(filterDate));
+          if (file.data.date.length > 0) {
+            if (
+              d1.getFullYear() !== file.date.getFullYear() ||
+              d1.getMonth() !== file.date.getMonth() ||
+              d1.getDate() !== file.date.getDate()
+            ) {
+              satisfiesTags = false;
+            }
+          } else {
+            satisfiesTags = false;
+          }
+        }
+        if (satisfiesTags) {
+          filtered.push(file);
+        }
+      });
     return filtered;
   }
 
@@ -909,6 +933,20 @@ class FileStore extends EventEmitter<{
     await this.database?.update(this.places[place]);
   }
 
+  /**
+   * Sets a place's category.
+   * @param place - The target place.
+   * @param category - The category to set.
+   */
+  public async setPlaceCategory(place: string, category: PlaceType) {
+    this.places[place].data.category = category;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
+   * Update the calendar's focused date.
+   * @param date - The date to focus on.
+   */
   public setCalendarViewDate(date: Date) {
     this.calendarViewDate = date;
   }
@@ -917,7 +955,14 @@ class FileStore extends EventEmitter<{
 const f = new FileStore();
 Object.getOwnPropertyNames(Object.getPrototypeOf(f)).forEach((key) => {
   if (key !== 'constructor') {
-    f[key] = Object.getPrototypeOf(f)[key].bind(f);
+    if (typeof Object.getPrototypeOf(f)[key] === 'function') {
+      f[key] = (...args: any[]) => {
+        console.log(key, args);
+        return Object.getPrototypeOf(f)[key].call(f, ...args);
+      };
+    } else {
+      f[key] = Object.getPrototypeOf(f)[key].bind(f);
+    }
   }
 });
 export const fileStore = f;

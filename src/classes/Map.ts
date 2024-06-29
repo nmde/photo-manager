@@ -62,6 +62,7 @@ export const icons = {
   horse: 'mdi-horse',
   hospital: 'mdi-hospital',
   hotel: 'mdi-bed',
+  hunting: 'mdi-bow-arrow',
   icecream: 'mdi-ice-cream',
   jellyfish: 'mdi-jellyfish',
   library: 'mdi-library',
