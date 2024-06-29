@@ -228,7 +228,42 @@ onMounted(async () => {
                   :color="layer.data.color"
                   @update="
                     async (color) => {
-                      await setLayerColor(layer.Id, color);
+                      // don't know why this line is needed, but it is otherwise shapes in edit mode won't have the right color and new shapes won't either
+                      layers[layer.Id].data.color = color
+                      // update color of places, lines, and shapes
+                      placeMap[layer.Id].forEach((place) => {
+                        map.removeMarker(place.Id);
+                        map.createMarker(
+                          place.pos,
+                          place.Id,
+                          place.data.category,
+                          color,
+                          place.data.name,
+                          place.count,
+                        );
+                        // update color of linked polygons
+                        if (place.data.shape.length > 0) {
+                          map.removeShape(place.data.shape);
+                          map.createShape(
+                            shapes[place.data.shape].data.type,
+                            shapes[place.data.shape].points,
+                            color,
+                            shapes[place.data.shape].Id,
+                            true,
+                          );
+                        }
+                      });
+                      shapeMap[layer.Id].forEach((shape) => {
+                        console.log(shape.Id);
+                        map.removeShape(shape.Id);
+                        map.createShape(
+                          shape.data.type,
+                          shape.points,
+                          color,
+                          shape.Id,
+                          true,
+                        );
+                      });
                     }
                   "
                 ></color-picker>
