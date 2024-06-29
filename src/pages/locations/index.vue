@@ -26,6 +26,7 @@ const {
   setShapeLayer,
   setPlaceTags,
   setPlaceNotes,
+  setPlaceCategory,
   updateTags,
 } = fileStore;
 
@@ -183,7 +184,7 @@ onMounted(async () => {
         <v-col cols="4">
           <v-expansion-panels>
             <v-expansion-panel v-for="layer in layerList" :key="layer.Id">
-              <v-expansion-panel-title>{{ layer.data.name }}</v-expansion-panel-title>
+              <v-expansion-panel-title>{{ layer.data.name }} ({{ placeMap[layer.Id].length }})</v-expansion-panel-title>
               <v-expansion-panel-text>
                 {{ layer.data.name }}
                 <v-menu :disabled="drawMode">
@@ -336,7 +337,9 @@ onMounted(async () => {
                       <v-select
                         :items="categories"
                         v-model="place.data.category"
-                        @update:model-value="() => {}"
+                        @update:model-value="async () => {
+                          await setPlaceCategory(place.Id, place.data.category);
+                        }"
                       ></v-select>
                       <tag-input
                         label="Tags"

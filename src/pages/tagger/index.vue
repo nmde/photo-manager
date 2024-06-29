@@ -11,6 +11,11 @@ const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
 const filterByLocation = ref(false);
 const filterByDate = ref(false);
+const currentDate = ref(new Date());
+
+function formatDate(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
 
 fileStore.on('updateFilters', () => {
   photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
@@ -28,6 +33,7 @@ onMounted(() => {
   if (route.query.date) {
     setFilter('filterDate', route.query.date as string);
     filterByDate.value = true;
+    currentDate.value = new Date(Date.parse(filters.filterDate));
   }
   photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
@@ -76,7 +82,31 @@ onMounted(() => {
               >
                 <v-icon>mdi-close</v-icon>
               </v-btn>
-              {{ route.query.date }}
+              <v-btn
+                icon
+                flat
+                @click="
+                  () => {
+                    currentDate.setDate(currentDate.getDate() - 1);
+                    setFilter('filterDate', formatDate(currentDate));
+                  }
+                "
+              >
+                <v-icon>mdi-arrow-left</v-icon>
+              </v-btn>
+              {{ formatDate(currentDate) }}
+              <v-btn
+                icon
+                flat
+                @click="
+                  () => {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                    setFilter('filterDate', formatDate(currentDate));
+                  }
+                "
+              >
+                <v-icon>mdi-arrow-right</v-icon>
+              </v-btn>
             </div>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>

@@ -62,6 +62,7 @@ export const icons = {
   horse: 'mdi-horse',
   hospital: 'mdi-hospital',
   hotel: 'mdi-bed',
+  hunting: 'mdi-bow-arrow',
   icecream: 'mdi-ice-cream',
   jellyfish: 'mdi-jellyfish',
   library: 'mdi-library',
@@ -413,7 +414,7 @@ export class Map extends EventEmitter<{
             zoom: 6,
             mapId: 'DEMO_MAP_ID',
           });
-          this.map.setCenter({lat: 0.0, lng: 0.0});
+          this.map.setCenter({ lat: 0.0, lng: 0.0 });
           navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
             this.map.setCenter({
               lat: position.coords.latitude,
