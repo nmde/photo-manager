@@ -414,7 +414,7 @@ export class Map extends EventEmitter<{
             zoom: 6,
             mapId: 'DEMO_MAP_ID',
           });
-
+          this.map.setCenter({ lat: 0.0, lng: 0.0 });
           navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
             this.map.setCenter({
               lat: position.coords.latitude,

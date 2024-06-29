@@ -29,5 +29,5 @@ Organize photos and videos with an advanced tagging system and geolocation.
 - Install [Rust](https://www.rust-lang.org/learn/get-started)
 - Install [ImageMagick](https://imagemagick.org/script/download.php)
 - Install [ffmpeg](https://ffmpeg.org/download.html)
-- Initialize Nuxt by running `yarn nuxt dev`
+- Initialize Nuxt by running `yarn add nuxt` then `yarn nuxt dev`
 - Launch the program by running `yarn tauri dev`

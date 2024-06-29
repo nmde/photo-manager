@@ -91,6 +91,15 @@ async function openCreateDialog(layer: string) {
   }
 }
 
+async function deleteShapeFunc(layer_id: string, id: string) {
+  await deleteShape(id);
+  map.removeShape(id);
+  shapeMap.value[layer_id].splice(
+    shapeMap.value[layer_id].findIndex((p) => p.Id === id),
+    1,
+  );
+}
+
 let prevShape = 0;
 onMounted(async () => {
   layerList.value = Object.values(layers);
@@ -258,6 +267,9 @@ onMounted(async () => {
                             @click="
                               async () => {
                                 await deletePlace(place.Id);
+                                if (place.data.shape.length > 0) {
+                                  deleteShapeFunc(layer.Id, place.data.shape);
+                                }
                                 placeMap[layer.Id].splice(
                                   placeMap[layer.Id].findIndex((p) => p.Id === place.Id),
                                   1,
@@ -360,11 +372,7 @@ onMounted(async () => {
                       <v-btn
                         @click="
                           async () => {
-                            await deleteShape(shape.Id);
-                            shapeMap[layer.Id].splice(
-                              shapeMap[layer.Id].findIndex((p) => p.Id === shape.Id),
-                              1,
-                            );
+                            deleteShapeFunc(layer.Id, shape.Id);
                           }
                         "
                         >Delete Shape</v-btn
