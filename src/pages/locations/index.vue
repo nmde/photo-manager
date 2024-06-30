@@ -91,28 +91,14 @@ async function openCreateDialog(layer: string) {
   }
 }
 
-
 async function setShapeColor(shape: Shape, color: string) {
   map.removeShape(shape.Id);
-  map.createShape(
-    shape.data.type,
-    shape.points,
-    color,
-    shape.Id,
-    true,
-  );
+  map.createShape(shape.data.type, shape.points, color, shape.Id, true);
 }
 
 async function setPlaceColor(place: Place, color: string) {
   map.removeMarker(place.Id);
-  map.createMarker(
-    place.pos,
-    place.Id,
-    place.data.category,
-    color,
-    place.data.name,
-    place.count,
-  );
+  map.createMarker(place.pos, place.Id, place.data.category, color, place.data.name, place.count);
   // update color of linked polygons
   if (place.data.shape.length > 0) {
     setShapeColor(shapes[place.data.shape], color);
@@ -212,7 +198,9 @@ onMounted(async () => {
         <v-col cols="4">
           <v-expansion-panels>
             <v-expansion-panel v-for="layer in layerList" :key="layer.Id">
-              <v-expansion-panel-title>{{ layer.data.name }} ({{ placeMap[layer.Id].length }})</v-expansion-panel-title>
+              <v-expansion-panel-title
+                >{{ layer.data.name }} ({{ placeMap[layer.Id].length }})</v-expansion-panel-title
+              >
               <v-expansion-panel-text>
                 {{ layer.data.name }}
                 <v-menu :disabled="drawMode">
@@ -258,7 +246,8 @@ onMounted(async () => {
                   @update="
                     async (color) => {
                       // don't know why this line is needed, but it is otherwise shapes in edit mode won't have the right color and new shapes won't either
-                      layers[layer.Id].data.color = color
+                      layers[layer.Id].data.color = color;
+                      await setLayerColor(layer.Id, color);
                       // update color of places, lines, and shapes
                       placeMap[layer.Id].forEach((place) => {
                         setPlaceColor(place, color);
@@ -338,18 +327,20 @@ onMounted(async () => {
                       <v-select
                         :items="categories"
                         v-model="place.data.category"
-                        @update:model-value="async () => {
-                          await setPlaceCategory(place.Id, place.data.category);
-                          map.removeMarker(place.Id);
-                          map.createMarker(
-                            place.pos,
-                            place.Id,
-                            place.data.category,
-                            layers[place.data.layer].data.color,
-                            place.data.name,
-                            place.count,
-                          );
-                        }"
+                        @update:model-value="
+                          async () => {
+                            await setPlaceCategory(place.Id, place.data.category);
+                            map.removeMarker(place.Id);
+                            map.createMarker(
+                              place.pos,
+                              place.Id,
+                              place.data.category,
+                              layers[place.data.layer].data.color,
+                              place.data.name,
+                              place.count,
+                            );
+                          }
+                        "
                       ></v-select>
                       <tag-input
                         label="Tags"
@@ -615,11 +606,6 @@ onMounted(async () => {
               const polygon = places[targetPlace].data.shape;
               if (polygon.length > 0) {
                 await setShapeLayer(polygon, layerChangeTarget);
-                // shapeMap[prevLayer].splice(
-                //   shapeMap[prevLayer].findIndex((s) => s.Id === polygon),
-                //   1,
-                // );
-                // shapeMap[layerChangeTarget].push(shapes[polygon]);
               }
               setPlaceColor(places[targetPlace], layers[layerChangeTarget].data.color);
               changeLayerDialog = false;
@@ -649,9 +635,7 @@ onMounted(async () => {
                 shapeMap[prevLayer].findIndex((s) => s.Id === targetShape),
                 1,
               );
-              shapeMap[layerChangeTarget].push(
-                shapes[targetShape]
-              );
+              shapeMap[layerChangeTarget].push(shapes[targetShape]);
               await setShapeLayer(targetShape, layerChangeTarget);
               setShapeColor(shapes[targetShape], layers[layerChangeTarget].data.color);
               changeShapeLayerDialog = false;
