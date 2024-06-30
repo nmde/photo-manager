@@ -91,6 +91,34 @@ async function openCreateDialog(layer: string) {
   }
 }
 
+
+async function setShapeColor(shape: Shape, color: string) {
+  map.removeShape(shape.Id);
+  map.createShape(
+    shape.data.type,
+    shape.points,
+    color,
+    shape.Id,
+    true,
+  );
+}
+
+async function setPlaceColor(place: Place, color: string) {
+  map.removeMarker(place.Id);
+  map.createMarker(
+    place.pos,
+    place.Id,
+    place.data.category,
+    color,
+    place.data.name,
+    place.count,
+  );
+  // update color of linked polygons
+  if (place.data.shape.length > 0) {
+    setShapeColor(shapes[place.data.shape], color);
+  }
+}
+
 async function deleteShapeFunc(layer_id: string, id: string) {
   await deleteShape(id);
   map.removeShape(id);
@@ -233,37 +261,10 @@ onMounted(async () => {
                       layers[layer.Id].data.color = color
                       // update color of places, lines, and shapes
                       placeMap[layer.Id].forEach((place) => {
-                        map.removeMarker(place.Id);
-                        map.createMarker(
-                          place.pos,
-                          place.Id,
-                          place.data.category,
-                          color,
-                          place.data.name,
-                          place.count,
-                        );
-                        // update color of linked polygons
-                        if (place.data.shape.length > 0) {
-                          map.removeShape(place.data.shape);
-                          map.createShape(
-                            shapes[place.data.shape].data.type,
-                            shapes[place.data.shape].points,
-                            color,
-                            shapes[place.data.shape].Id,
-                            true,
-                          );
-                        }
+                        setPlaceColor(place, color);
                       });
                       shapeMap[layer.Id].forEach((shape) => {
-                        console.log(shape.Id);
-                        map.removeShape(shape.Id);
-                        map.createShape(
-                          shape.data.type,
-                          shape.points,
-                          color,
-                          shape.Id,
-                          true,
-                        );
+                        setShapeColor(shape, color);
                       });
                     }
                   "
@@ -600,16 +601,18 @@ onMounted(async () => {
                 1,
               );
               await setPlaceLayer(targetPlace, layerChangeTarget);
+
               placeMap[layerChangeTarget].push(places[targetPlace]);
               const polygon = places[targetPlace].data.shape;
               if (polygon.length > 0) {
                 await setShapeLayer(polygon, layerChangeTarget);
-                shapeMap[prevLayer].splice(
-                  shapeMap[prevLayer].findIndex((s) => s.Id === polygon),
-                  1,
-                );
-                shapeMap[layerChangeTarget].push(shapes[polygon]);
+                // shapeMap[prevLayer].splice(
+                //   shapeMap[prevLayer].findIndex((s) => s.Id === polygon),
+                //   1,
+                // );
+                // shapeMap[layerChangeTarget].push(shapes[polygon]);
               }
+              setPlaceColor(places[targetPlace], layers[layerChangeTarget].data.color);
               changeLayerDialog = false;
               layerChangeTarget = '';
             }
@@ -637,7 +640,11 @@ onMounted(async () => {
                 shapeMap[prevLayer].findIndex((s) => s.Id === targetShape),
                 1,
               );
+              shapeMap[layerChangeTarget].push(
+                shapes[targetShape]
+              );
               await setShapeLayer(targetShape, layerChangeTarget);
+              setShapeColor(shapes[targetShape], layers[layerChangeTarget].data.color);
               changeShapeLayerDialog = false;
               layerChangeTarget = '';
             }
