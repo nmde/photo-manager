@@ -340,6 +340,15 @@ onMounted(async () => {
                         v-model="place.data.category"
                         @update:model-value="async () => {
                           await setPlaceCategory(place.Id, place.data.category);
+                          map.removeMarker(place.Id);
+                          map.createMarker(
+                            place.pos,
+                            place.Id,
+                            place.data.category,
+                            layers[place.data.layer].data.color,
+                            place.data.name,
+                            place.count,
+                          );
                         }"
                       ></v-select>
                       <tag-input
