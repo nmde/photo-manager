@@ -24,6 +24,7 @@ export const icons = {
   bar: 'mdi-glass-cocktail',
   barber: 'mdi-content-cut',
   baseball: 'mdi-baseball',
+  bathroom: 'mdi-toilet',
   beach: 'mdi-beach',
   bike: 'mdi-bike',
   bird: 'mdi-bird',

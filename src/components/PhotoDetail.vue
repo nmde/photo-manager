@@ -175,6 +175,14 @@ onMounted(initialize);
   <v-btn icon @click="removeGroup(photo.data.name)">
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
+  <v-btn
+    @click="
+      async () => {
+        emit('update:location', '');
+      }
+    "
+    >Remove Location</v-btn
+  >
   <div v-if="showAddGroup">
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
     <v-btn
