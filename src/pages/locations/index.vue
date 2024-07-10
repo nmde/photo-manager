@@ -513,7 +513,9 @@ onMounted(async () => {
           color="primary"
           @click="
             async () => {
-              layerList.push(await createLayer(layerName));
+              const layer = await createLayer(layerName);
+              layerList.push(layer);
+              placeMap[layer.Id] = [];
               layerDialog = false;
               layerName = '';
             }

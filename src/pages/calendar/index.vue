@@ -95,6 +95,18 @@ function getLocationsByDate(date: Date) {
   return locations;
 }
 
+function getAvgRatingByDate(date: Date) {
+  let sum = 0;
+  let count = 0;
+  eventMap[date.toISOString()].photos.forEach((photo) => {
+    if (photo.rating) {
+      sum += photo.rating;
+      count += 1;
+    }
+  });
+  return sum / count;
+}
+
 onMounted(() => {
   console.log(calendarViewDate);
   date.value[0] = calendarViewDate;
@@ -149,7 +161,6 @@ onMounted(() => {
                 class="focus"
                 @click="
                   () => {
-                    console.log(day.date);
                     dialogDate = day.date;
                     dayDialog = true;
                   }
@@ -187,6 +198,10 @@ onMounted(() => {
                   :color="layers[place.data.layer].data.color"
                   >{{ place.data.name }}</v-chip
                 >
+                <br />
+                Total photos: {{ eventMap[dialogDate.toISOString()].photos.length }}
+                <br />
+                Average rating: {{ getAvgRatingByDate(dialogDate) }}
               </v-col>
             </v-row>
           </v-container>

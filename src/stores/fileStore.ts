@@ -300,6 +300,9 @@ class FileStore extends EventEmitter<{
       const raws: Photo[] = [];
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
+        if (photo.data.date === null) {
+          photo.data.date = '';
+        }
         let firstInGroup = false;
         if (photo.group && encounteredGroups.indexOf(photo.group) < 0) {
           this.files[photo.data.name].firstInGroup = true;
