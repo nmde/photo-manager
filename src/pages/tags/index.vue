@@ -41,7 +41,6 @@ const avgRating = computed(() => {
   let count = 0;
   Object.values(files).forEach((photo) => {
     if (photo.rating) {
-      console.log(photo.rating);
       sum += photo.rating;
       count += 1;
     }

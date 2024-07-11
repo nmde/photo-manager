@@ -300,6 +300,9 @@ class FileStore extends EventEmitter<{
       const raws: Photo[] = [];
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
+        if (photo.data.date === null) {
+          photo.data.date = '';
+        }
         let firstInGroup = false;
         if (photo.group && encounteredGroups.indexOf(photo.group) < 0) {
           this.files[photo.data.name].firstInGroup = true;
@@ -940,6 +943,17 @@ class FileStore extends EventEmitter<{
    */
   public async setPlaceCategory(place: string, category: PlaceType) {
     this.places[place].data.category = category;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
+   * Sets a place's position.
+   * @param place - The target place.
+   * @param position - The position to set.
+   */
+  public async setPlacePosition(place: string, position: Position) {
+    this.places[place].data.lat = position.lat;
+    this.places[place].data.lng = position.lng;
     await this.database?.update(this.places[place]);
   }
 

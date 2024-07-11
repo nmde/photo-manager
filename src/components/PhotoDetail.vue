@@ -41,6 +41,7 @@ const newGroupError = ref(false);
 const date = ref<Date>(new Date());
 const closeUp = ref(false);
 const location = ref('');
+const showRaw = ref(false);
 
 const placeList = computed(() => {
   return Object.values(places)
@@ -92,8 +93,8 @@ onMounted(initialize);
     :height="400"
   ></video-player>
   <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true"></v-img>
-  <br />
-  {{ photo.rawFile }}
+  <v-img v-if="showRaw" max-height="600" :src="photo.rawFile"></v-img>
+  <v-btn v-if="photo.rawFile.length > 0" @click="showRaw = !showRaw">RAW</v-btn>
   <tag-input
     advanced
     :label="`Photo Tags (${photoTags.length})`"
@@ -175,6 +176,14 @@ onMounted(initialize);
   <v-btn icon @click="removeGroup(photo.data.name)">
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
+  <v-btn
+    @click="
+      async () => {
+        emit('update:location', '');
+      }
+    "
+    >Remove Location</v-btn
+  >
   <div v-if="showAddGroup">
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
     <v-btn
