@@ -27,6 +27,7 @@ const {
   setPlaceTags,
   setPlaceNotes,
   setPlaceCategory,
+  setPlacePosition,
   updateTags,
 } = fileStore;
 
@@ -93,7 +94,7 @@ async function openCreateDialog(layer: string) {
 
 async function setShapeColor(shape: Shape, color: string) {
   map.removeShape(shape.Id);
-  map.createShape(shape.data.type, shape.points, color, shape.Id, true);
+  map.createShape(shape.data.type, shape.points, color, shape.Id, false);
 }
 
 async function setPlaceColor(place: Place, color: string) {
@@ -278,7 +279,29 @@ onMounted(async () => {
                         >Draw Polygon</v-btn
                       >
                       <div v-if="place.data.shape.length > 0">
-                        <v-btn @click="() => {}"> Edit Polygon </v-btn>
+                        <v-btn
+                          @click="
+                            () => {
+                              const shape = shapes[place.data.shape];
+                              map.removeShape(place.data.shape);
+                              targetLayer = layer.Id;
+                              tmpShape = shape.points;
+                              editingShape = true;
+                              targetShape = shape.Id;
+                              tmpShapeType = shape.data.type;
+                              map.createShape(
+                                shape.data.type,
+                                shape.points,
+                                layers[shape.data.layer].data.color,
+                                shape.Id,
+                                true,
+                              );
+                              drawMode = true;
+                            }
+                          "
+                        >
+                          Edit Polygon
+                        </v-btn>
                         Area: {{ shapes[place.data.shape].area }}
                       </div>
                       <v-menu>
@@ -312,6 +335,28 @@ onMounted(async () => {
                               }
                             "
                             >Change Layer</v-list-item
+                          >
+                          <v-list-item
+                            @click="
+                              () => {
+                                targetLayer = place.data.layer;
+                                map.removeMarker(place.Id);
+                                editingShape = true;
+                                const listener = map.on('dblclick', async (pos) => {
+                                  map.createMarker(
+                                    locToString(pos),
+                                    place.Id,
+                                    place.data.category,
+                                    layers[targetLayer].data.color,
+                                    place.data.name,
+                                    place.count,
+                                  );
+                                  map.off('dblclick', listener);
+                                  await setPlacePosition(place.Id, pos);
+                                });
+                              }
+                            "
+                            >Move Icon</v-list-item
                           >
                         </v-list>
                       </v-menu>

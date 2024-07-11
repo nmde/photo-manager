@@ -947,6 +947,17 @@ class FileStore extends EventEmitter<{
   }
 
   /**
+   * Sets a place's position.
+   * @param place - The target place.
+   * @param position - The position to set.
+   */
+  public async setPlacePosition(place: string, position: Position) {
+    this.places[place].data.lat = position.lat;
+    this.places[place].data.lng = position.lng;
+    await this.database?.update(this.places[place]);
+  }
+
+  /**
    * Update the calendar's focused date.
    * @param date - The date to focus on.
    */
