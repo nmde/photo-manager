@@ -198,14 +198,27 @@ onMounted(() => {
                   :color="layers[place.data.layer].data.color"
                   >{{ place.data.name }}</v-chip
                 >
-                <br />
-                Total photos: {{ eventMap[dialogDate.toISOString()].photos.length }}
-                <br />
-                Average rating: {{ getAvgRatingByDate(dialogDate) }}
+                <div v-if="eventMap[dialogDate.toISOString()].photos.length > 0">
+                  <br />
+                  Total photos: {{ eventMap[dialogDate.toISOString()].photos.length }}
+                  <br />
+                  Average rating: {{ getAvgRatingByDate(dialogDate) }}
+                </div>
               </v-col>
             </v-row>
           </v-container>
         </v-card-text>
+        <v-card-actions>
+          <v-btn
+            color="primary"
+            @click="
+              () => {
+                router.push(`/journal?date=${dialogDate.toISOString()}`);
+              }
+            "
+            >Open In Journal</v-btn
+          >
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-main>

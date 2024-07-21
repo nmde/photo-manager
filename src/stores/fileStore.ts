@@ -10,6 +10,7 @@ import { Place } from '~/classes/Place';
 import type { PlaceType, Position } from '~/classes/Map';
 import { Layer } from '~/classes/Layer';
 import { Shape, type ShapeType } from '~/classes/Shape';
+import { JournalEntry } from '~/classes/JournalEntry';
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
@@ -47,6 +48,8 @@ class FileStore extends EventEmitter<{
   public groupNames: string[] = [];
 
   public initialized = false;
+
+  public journals: Record<string, JournalEntry> = {};
 
   public photoCount = 0;
 
@@ -337,6 +340,9 @@ class FileStore extends EventEmitter<{
       });
       (await this.database.selectAll(Shape)).forEach((shape) => {
         this.shapes[shape.Id] = shape;
+      });
+      (await this.database.selectAll(JournalEntry)).forEach((entry) => {
+        this.journals[entry.data.date] = entry;
       });
       this.tags = tagList;
       this.sortTags();
@@ -963,6 +969,20 @@ class FileStore extends EventEmitter<{
    */
   public setCalendarViewDate(date: Date) {
     this.calendarViewDate = date;
+  }
+
+  /**
+   * Creates a new journal entry.
+   * @param date - The date of the entry.
+   * @param mood - The mood.
+   * @param text - The entry text.
+   */
+  public async createJournalEntry(date: string, mood: number, text: string) {
+    if (!this.journals[date]) {
+      const entry = new JournalEntry({ date, mood, text });
+      this.journals[date] = entry;
+      await this.database?.insert(entry);
+    }
   }
 }
 
