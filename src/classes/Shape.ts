@@ -25,10 +25,6 @@ export class Shape extends Entity<ShapeData> {
   }
 
   public get area() {
-    const points = this.points.map(
-      (p) => turf.toWgs84(turf.point([p.lat, p.lng])).geometry.coordinates,
-    );
-    points.push(points[0]);
-    return turf.area(turf.polygon([points]));
+    return 0;
   }
 }
