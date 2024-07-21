@@ -11,6 +11,7 @@ import type { PlaceType, Position } from '~/classes/Map';
 import { Layer } from '~/classes/Layer';
 import { Shape, type ShapeType } from '~/classes/Shape';
 import { JournalEntry } from '~/classes/JournalEntry';
+import { Activity } from '~/classes/Activity';
 
 export const moods = [
   {
@@ -49,6 +50,8 @@ class FileStore extends EventEmitter<{
   thumbnailProgress(progress: number): void;
   validationUpdate(photo: string): void;
 }> {
+  public activities: Record<string, Activity> = {};
+
   public advTags: Tag[] = [];
 
   public database: TauriDatabase | null = null;
@@ -369,8 +372,16 @@ class FileStore extends EventEmitter<{
       (await this.database.selectAll(Shape)).forEach((shape) => {
         this.shapes[shape.Id] = shape;
       });
+      (await this.database.selectAll(Activity)).forEach((activity) => {
+        this.activities[activity.Id] = activity;
+      });
       (await this.database.selectAll(JournalEntry)).forEach((entry) => {
         this.journals[entry.data.date] = entry;
+        if (entry.data.activities.length > 0) {
+          this.journals[entry.data.date].activities = entry.data.activities
+            .split(',')
+            .map((a) => this.activities[a]);
+        }
       });
       this.tags = tagList;
       this.sortTags();
@@ -1004,13 +1015,37 @@ class FileStore extends EventEmitter<{
    * @param date - The date of the entry.
    * @param mood - The mood.
    * @param text - The entry text.
+   * @param activities - The entry activities.
    */
-  public async createJournalEntry(date: string, mood: number, text: string) {
+  public async createJournalEntry(
+    date: string,
+    mood: number,
+    text: string,
+    activities: Activity[],
+  ) {
     if (!this.journals[date]) {
-      const entry = new JournalEntry({ date, mood, text });
+      const entry = new JournalEntry({
+        date,
+        mood,
+        text,
+        activities: activities.map((a) => a.Id).join(','),
+      });
+      entry.activities = activities;
       this.journals[date] = entry;
       await this.database?.insert(entry);
     }
+  }
+
+  /**
+   * Creates a new activity.
+   * @param name - The name of the activity.
+   * @param icon - The icon for the activity.
+   */
+  public async createActivity(name: string, icon: string) {
+    const a = new Activity({ name, icon });
+    this.activities[a.Id] = a;
+    await this.database?.insert(a);
+    return a;
   }
 }
 

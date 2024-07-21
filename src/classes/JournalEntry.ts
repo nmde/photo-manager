@@ -1,12 +1,16 @@
+import type { Activity } from './Activity';
 import { Entity } from './Entity';
 
 type JournalData = {
   date: string;
   mood: number;
   text: string;
+  activities: string;
 };
 
 export class JournalEntry extends Entity<JournalData> {
+  public activities: Activity[] = [];
+
   public constructor(data: JournalData) {
     super('Journal', data);
   }
