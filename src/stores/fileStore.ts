@@ -12,6 +12,34 @@ import { Layer } from '~/classes/Layer';
 import { Shape, type ShapeType } from '~/classes/Shape';
 import { JournalEntry } from '~/classes/JournalEntry';
 
+export const moods = [
+  {
+    color: '#F44336',
+    label: 'Awful',
+    value: 0,
+  },
+  {
+    color: '#FF9800',
+    label: 'Bad',
+    value: 1,
+  },
+  {
+    color: '#2196F3',
+    label: 'Meh',
+    value: 2,
+  },
+  {
+    color: '#4CAF50',
+    label: 'Good',
+    value: 3,
+  },
+  {
+    color: '#009688',
+    label: 'Awesome',
+    value: 4,
+  },
+];
+
 class FileStore extends EventEmitter<{
   updateFilters(): void;
   updatePhoto(photo: string): void;

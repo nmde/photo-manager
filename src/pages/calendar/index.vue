@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { fileStore } from '../../stores/fileStore';
+import { fileStore, moods } from '../../stores/fileStore';
 import { Photo } from '../../classes/Photo';
 import type { Place } from '~/classes/Place';
 
@@ -11,7 +11,7 @@ const date = ref<Date[]>([new Date()]);
 const dayDialog = ref(false);
 const dialogDate = ref<Date>(new Date());
 
-const { files, calendarViewDate, setCalendarViewDate, places, layers } = fileStore;
+const { files, calendarViewDate, setCalendarViewDate, places, layers, journals } = fileStore;
 
 let eventMap: Record<
   string,
@@ -141,6 +141,19 @@ onMounted(() => {
             "
           >
             <template v-slot:event="{ day, event }">
+              <div
+                class="event-bg"
+                v-if="journals[day.date.toISOString()]"
+                :style="{
+                  backgroundColor: moods[journals[day.date.toISOString()].data.mood].color,
+                }"
+                @click="
+                  () => {
+                    dialogDate = day.date;
+                    dayDialog = true;
+                  }
+                "
+              ></div>
               <div class="calendar-photos">
                 <photo-icon
                   v-for="photo in event.photos.slice(0, 4)"
@@ -157,7 +170,7 @@ onMounted(() => {
                 ></photo-icon>
               </div>
               <div
-                v-if="event.photos.length === 0"
+                v-if="event.photos.length === 0 && !journals[day.date.toISOString()]"
                 class="focus"
                 @click="
                   () => {
@@ -173,7 +186,13 @@ onMounted(() => {
     </v-container>
     <v-dialog v-model="dayDialog">
       <v-card>
-        <v-card-title>{{ dialogDate.toDateString() }}</v-card-title>
+        <v-card-title
+          >{{ dialogDate.toDateString() }}
+          <mood-icon
+            v-if="journals[dialogDate.toISOString()]"
+            :mood="journals[dialogDate.toISOString()].data.mood"
+          ></mood-icon
+        ></v-card-title>
         <v-card-text>
           <v-container>
             <v-row>
@@ -229,5 +248,12 @@ onMounted(() => {
   height: 200px;
   width: 200px;
   display: block;
+}
+
+.event-bg {
+  width: 100%;
+  height: 200px;
+  position: absolute;
+  opacity: 0.5;
 }
 </style>
