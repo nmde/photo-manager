@@ -43,7 +43,7 @@ async function openFolder() {
           reading.value = file.path;
           console.log(`Reading ${file.path}`);
           initializingProgress.value += 1;
-          expandDir(await readDir(file.path));
+          await expandDir(await readDir(file.path));
         } else {
           fullFileList.push(file);
         }
