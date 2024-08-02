@@ -35,6 +35,7 @@ const prereqTags = ref<string[]>([]);
 const coreqTags = ref<string[]>([]);
 const incompatibleTags = ref<string[]>([]);
 const filterColor = ref('');
+const relative = ref(false);
 
 const avgRating = computed(() => {
   let sum = 0;
@@ -99,30 +100,36 @@ const tagChartData = computed(() => {
 const tagRatingData = computed(() => {
   let sorted: string[] = [];
   const ratingsMap: Record<string, number[]> = {};
-  tags.forEach((tag) => {
-    let color = getTagColor(tag);
-    if (color === 'black' || color.length === 0) {
-      color = 'rgba(201, 203, 207, 0.8)';
-    }
-    if (filterColor.value.length > 0 && color !== filterColor.value) {
-      return;
-    }
-    sorted.push(tag);
-    ratingsMap[tag] = [0, 0];
-    Object.values(files)
-      .filter((photo) => photo.hasTag(tag))
-      .forEach((photo) => {
-        if (photo.rating) {
-          ratingsMap[tag][0] += 1;
-          ratingsMap[tag][1] += photo.rating;
-        }
-      });
-  });
+  Object.entries(tagCounts)
+    .filter((count) => count[1] >= cutoff.value)
+    .forEach(([tag]) => {
+      let color = getTagColor(tag);
+      if (color === 'black' || color.length === 0) {
+        color = 'rgba(201, 203, 207, 0.8)';
+      }
+      if (filterColor.value.length > 0 && color !== filterColor.value) {
+        return;
+      }
+      sorted.push(tag);
+      ratingsMap[tag] = [0, 0];
+      Object.values(files)
+        .filter((photo) => photo.hasTag(tag))
+        .forEach((photo) => {
+          if (photo.rating) {
+            ratingsMap[tag][0] += 1;
+            ratingsMap[tag][1] += photo.rating;
+          }
+        });
+    });
   sorted = sorted
     .filter((tag) => ratingsMap[tag][0] >= cutoff.value)
     .sort((a, b) => {
-      const aa = ratingsMap[a][1] / ratingsMap[a][0];
-      const ba = ratingsMap[b][1] / ratingsMap[b][0];
+      let aa = ratingsMap[a][1] / ratingsMap[a][0];
+      let ba = ratingsMap[b][1] / ratingsMap[b][0];
+      if (relative.value) {
+        aa -= avgRating.value;
+        ba -= avgRating.value;
+      }
       if (aa > ba) {
         return -1;
       }
@@ -137,7 +144,13 @@ const tagRatingData = computed(() => {
       {
         axis: 'y',
         label: 'Avg. Rating',
-        data: sorted.map((tag) => ratingsMap[tag][1] / ratingsMap[tag][0]),
+        data: sorted.map((tag) => {
+          let avg = ratingsMap[tag][1] / ratingsMap[tag][0];
+          if (relative.value) {
+            avg -= avgRating.value;
+          }
+          return avg;
+        }),
         backgroundColor: sorted.map((tag) => {
           let color = getTagColor(tag);
           if (color === 'black' || color.length === 0) {
@@ -237,6 +250,7 @@ const tagRatingData = computed(() => {
             }"
             :data="tagRatingData"
           ></Bar>
+          <v-checkbox label="Show relative rating impact" v-model="relative"></v-checkbox>
           Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
           Filter by color:
           <color-options @select="(color) => (filterColor = color)"></color-options>

@@ -149,6 +149,7 @@ onMounted(initialize);
     v-model="group"
     @update:model-value="emit('update:group', group)"
   ></v-select>
+  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-text-field
     label="Title"
     v-model="title"
@@ -164,7 +165,6 @@ onMounted(initialize);
     v-model="date"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
-  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-checkbox
     label="Mark as duplicate"
     v-model="isDuplicate"

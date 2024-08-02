@@ -62,10 +62,10 @@ async function openFolder() {
       } else {
         files[file.path] = createPhoto(file.path, convertFileSrc(file.path));
       }
-      if (/^.*\.(ORF|NRW)$/.test(file.path.toUpperCase())) {
+      if (/^.*\.(ORF|NRW|HEIC|TIFF)$/.test(file.path.toUpperCase())) {
         files[file.path].data.raw = true;
         raws.push(file);
-      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V)$/.test(file.path.toUpperCase())) {
+      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM)$/.test(file.path.toUpperCase())) {
         files[file.path].data.video = true;
         videos.push(file);
       }

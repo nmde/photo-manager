@@ -1016,12 +1016,14 @@ class FileStore extends EventEmitter<{
    * @param mood - The mood.
    * @param text - The entry text.
    * @param activities - The entry activities.
+   * @param steps - The number of steps taken.
    */
   public async createJournalEntry(
     date: string,
     mood: number,
     text: string,
     activities: Activity[],
+    steps: number,
   ) {
     if (!this.journals[date]) {
       const entry = new JournalEntry({
@@ -1029,11 +1031,23 @@ class FileStore extends EventEmitter<{
         mood,
         text,
         activities: activities.map((a) => a.Id).join(','),
+        steps,
       });
       entry.activities = activities;
       this.journals[date] = entry;
       await this.database?.insert(entry);
+    } else {
+      this.journals[date].data = {
+        mood,
+        text,
+        date,
+        activities: activities.map((a) => a.Id).join(','),
+        steps,
+      };
+      this.journals[date].activities = activities;
+      await this.database?.update(this.journals[date]);
     }
+    return this.journals[date];
   }
 
   /**

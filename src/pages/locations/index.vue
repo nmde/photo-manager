@@ -131,32 +131,43 @@ onMounted(async () => {
   });
   await map.initialize(mapEl.value as unknown as HTMLElement);
   const linkedShapes: string[] = [];
-  Object.values(places).forEach((place) => {
-    if (!placeMap.value[place.data.layer]) {
-      placeMap.value[place.data.layer] = [];
-    }
-    placeMap.value[place.data.layer].push(place);
-    if (place.data.shape.length > 0) {
-      linkedShapes.push(place.data.shape);
-    }
-    map.createMarker(
-      place.pos,
-      place.Id,
-      place.data.category,
-      layers[place.data.layer].data.color,
-      place.data.name,
-      place.count,
-    );
-  });
-  Object.values(shapes).forEach((shape) => {
-    if (linkedShapes.indexOf(shape.Id) < 0) {
-      if (!shapeMap.value[shape.data.layer]) {
-        shapeMap.value[shape.data.layer] = [];
-      }
-      shapeMap.value[shape.data.layer].push(shape);
-    }
-    totalArea.value += shape.area;
-    map.createShape(shape.data.type, shape.points, layers[shape.data.layer].data.color, shape.Id);
+  layerList.value.forEach((layer) => {
+    Object.values(places)
+      .filter((place) => place.data.layer === layer.Id)
+      .forEach((place) => {
+        if (!placeMap.value[place.data.layer]) {
+          placeMap.value[place.data.layer] = [];
+        }
+        placeMap.value[place.data.layer].push(place);
+        if (place.data.shape.length > 0) {
+          linkedShapes.push(place.data.shape);
+        }
+        map.createMarker(
+          place.pos,
+          place.Id,
+          place.data.category,
+          layers[place.data.layer].data.color,
+          place.data.name,
+          place.count,
+        );
+      });
+    Object.values(shapes)
+      .filter((shape) => shape.data.layer === layer.Id)
+      .forEach((shape) => {
+        if (linkedShapes.indexOf(shape.Id) < 0) {
+          if (!shapeMap.value[shape.data.layer]) {
+            shapeMap.value[shape.data.layer] = [];
+          }
+          shapeMap.value[shape.data.layer].push(shape);
+        }
+        totalArea.value += shape.area;
+        map.createShape(
+          shape.data.type,
+          shape.points,
+          layers[shape.data.layer].data.color,
+          shape.Id,
+        );
+      });
   });
   map.on('click', (pos) => {
     if (drawMode.value) {

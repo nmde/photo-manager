@@ -4,7 +4,14 @@ import { fileStore, moods } from '../../stores/fileStore';
 
 const route = useRoute();
 
-const { createJournalEntry, journals, activities, createActivity } = fileStore;
+const {
+  createJournalEntry,
+  journals,
+  activities,
+  createActivity,
+  setCalendarViewDate,
+  calendarViewDate,
+} = fileStore;
 
 function simplifyDate(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -15,11 +22,13 @@ const createDate = ref(simplifyDate(new Date()));
 const createMood = ref(2);
 const createText = ref('');
 const createActivities = ref<number[]>([]);
+const createSteps = ref('0');
 
 const date = ref(simplifyDate(new Date()));
 const mood = ref(2);
 const text = ref('');
 const entryActivities = ref<Activity[]>([]);
+const steps = ref(0);
 
 function setDate(d: Date) {
   date.value = simplifyDate(d);
@@ -28,11 +37,14 @@ function setDate(d: Date) {
     mood.value = entry.data.mood;
     text.value = entry.data.text;
     entryActivities.value = entry.activities;
+    steps.value = entry.data.steps;
   } else {
     mood.value = 2;
     text.value = '';
     entryActivities.value = [];
+    steps.value = 0;
   }
+  setCalendarViewDate(date.value);
 }
 
 const activityDialog = ref(false);
@@ -43,6 +55,8 @@ const localActivities = ref<Activity[]>([]);
 onMounted(() => {
   if (typeof route.query.date === 'string') {
     date.value = simplifyDate(new Date(route.query.date));
+  } else {
+    date.value = calendarViewDate;
   }
   setDate(date.value);
   localActivities.value = Object.values(activities);
@@ -77,6 +91,25 @@ onMounted(() => {
     <h1 class="header">
       {{ date.toISOString() }}
       <mood-icon :mood="mood"></mood-icon>
+      <v-btn
+        icon
+        @click="
+          () => {
+            createDate = date;
+            createMood = mood;
+            createText = text;
+            const a: number[] = [];
+            Object.values(entryActivities).forEach((activity) => {
+              a.push(Object.keys(activities).indexOf(activity.Id));
+            });
+            createActivities = a;
+            createSteps = `${steps}`;
+            createDialog = true;
+          }
+        "
+      >
+        <v-icon>mdi-pencil</v-icon>
+      </v-btn>
     </h1>
     <v-chip
       v-for="activity in entryActivities"
@@ -84,6 +117,7 @@ onMounted(() => {
       :text="activity.data.name"
       :prepend-icon="activity.data.icon"
     ></v-chip>
+    {{ steps }} Steps<br />
     {{ text }}
   </v-main>
   <v-dialog v-model="createDialog">
@@ -102,7 +136,7 @@ onMounted(() => {
             <v-list-item v-bind="props" :style="{ color: item.raw.color }"></v-list-item>
           </template>
         </v-select>
-        <v-chip-group multiple selected-class="text-primary" v-model="createActivities">
+        <v-chip-group multiple column selected-class="text-primary" v-model="createActivities">
           <v-chip
             v-for="activity in localActivities"
             :key="activity.Id"
@@ -113,6 +147,7 @@ onMounted(() => {
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </v-chip-group>
+        <v-text-field v-model="createSteps" label="Steps"></v-text-field>
         <v-textarea v-model="createText"></v-textarea>
       </v-card-text>
       <v-card-actions>
@@ -120,19 +155,23 @@ onMounted(() => {
         <v-btn
           @click="
             async () => {
-              await createJournalEntry(
+              const j = await createJournalEntry(
                 createDate.toISOString(),
                 createMood,
                 createText,
                 createActivities.map((i) => Object.values(activities)[i]),
+                Number(createSteps),
               );
               mood = createMood;
               text = createText;
               date = createDate;
+              steps = Number(createSteps);
+              entryActivities = j.activities;
               createDialog = false;
               createMood = 2;
               createText = '';
               createActivities = [];
+              createSteps = '0';
             }
           "
           color="primary"

@@ -4,6 +4,7 @@ import { Photo } from '../../classes/Photo';
 import { fileStore } from '../../stores/fileStore';
 
 const route = useRoute();
+const router = useRouter();
 
 const { filteredPhotos, filters, setFilter, places } = fileStore;
 
@@ -107,6 +108,9 @@ onMounted(() => {
               >
                 <v-icon>mdi-arrow-right</v-icon>
               </v-btn>
+              <v-btn @click="() => {
+                router.push(`/journal?date=${currentDate.toISOString()}`);
+              }">Open in Journal</v-btn>
             </div>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>
