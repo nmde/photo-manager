@@ -1,4 +1,5 @@
 import { EventEmitter } from 'ee-ts';
+import moment from 'moment';
 import { Group } from '../classes/Group';
 import { Photo } from '../classes/Photo';
 import { TauriDatabase } from '@/classes/TauriDatabase';
@@ -660,7 +661,7 @@ class FileStore extends EventEmitter<{
           }
         }
         if (satisfiesTags && filterByDate) {
-          const d1 = new Date(Date.parse(filterDate));
+          const d1 = moment(filterDate).toDate();
           if (file.data.date.length > 0) {
             if (
               d1.getFullYear() !== file.date.getFullYear() ||

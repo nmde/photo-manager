@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import moment from 'moment';
 import { ref } from 'vue';
 import { Photo } from '../../classes/Photo';
 import { fileStore } from '../../stores/fileStore';
@@ -88,7 +89,7 @@ onMounted(() => {
                 flat
                 @click="
                   () => {
-                    currentDate.setDate(currentDate.getDate() - 1);
+                    currentDate = moment(currentDate).subtract(1, 'day').toDate();
                     setFilter('filterDate', formatDate(currentDate));
                   }
                 "
@@ -101,7 +102,7 @@ onMounted(() => {
                 flat
                 @click="
                   () => {
-                    currentDate.setDate(currentDate.getDate() + 1);
+                    currentDate = moment(currentDate).add(1, 'day').toDate();
                     setFilter('filterDate', formatDate(currentDate));
                   }
                 "
