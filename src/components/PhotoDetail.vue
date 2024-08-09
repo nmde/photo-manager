@@ -5,7 +5,14 @@ import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
 
-const { groupNames, addGroup, removeGroup, places, layers } = fileStore;
+type PeopleEntry = {
+  title: string;
+  value: string;
+  color: string;
+};
+
+const { groupNames, addGroup, removeGroup, places, layers, peopleCategories, people, peopleMap } =
+  fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -16,6 +23,7 @@ const emit = defineEmits<{
   (e: 'update:group', group?: string): void;
   (e: 'update:date', date: string): void;
   (e: 'update:location', location: string): void;
+  (e: 'update:people', people: string[]): void;
 }>();
 
 const props = defineProps<{
@@ -42,6 +50,23 @@ const date = ref<Date>(new Date());
 const closeUp = ref(false);
 const location = ref('');
 const showRaw = ref(false);
+const photoPeople = ref<PeopleEntry[]>([]);
+
+const peopleList = computed(() => {
+  let re: PeopleEntry[] = [];
+  Object.entries(peopleMap).forEach(([category, persons]) => {
+    re = re.concat(
+      persons.map((person) => {
+        return {
+          color: peopleCategories[category].data.color,
+          title: person.data.name,
+          value: person.Id,
+        };
+      }),
+    );
+  });
+  return re;
+});
 
 const placeList = computed(() => {
   return Object.values(places)
@@ -76,6 +101,13 @@ function initialize() {
   description.value = props.photo.data.description;
   date.value = props.photo.date;
   location.value = props.photo.data.location;
+  photoPeople.value = props.photo.people.map((person) => {
+    return {
+      title: people[person].data.name,
+      value: person,
+      color: peopleCategories[people[person].data.category].data.color,
+    };
+  });
 }
 
 watch(() => props.photo, initialize);
@@ -143,12 +175,30 @@ onMounted(initialize);
       <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
     </template>
   </v-select>
-  <v-select
-    label="Group"
-    :items="groupNames"
-    v-model="group"
-    @update:model-value="emit('update:group', group)"
-  ></v-select>
+  <v-combobox
+    label="People"
+    :items="peopleList"
+    multiple
+    chips
+    clearable
+    item-value="value"
+    v-model="photoPeople"
+    @update:model-value="
+      () => {
+        emit(
+          'update:people',
+          photoPeople.map((p) => p.value),
+        );
+      }
+    "
+  >
+    <template v-slot:item="{ item, props }">
+      <v-list-item v-bind="props" :style="{ color: item.raw.color }"></v-list-item>
+    </template>
+    <template v-slot:chip="{ item, props }">
+      <v-chip v-bind="props" :color="item.raw.color"></v-chip>
+    </template>
+  </v-combobox>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-text-field
     label="Title"
@@ -165,6 +215,12 @@ onMounted(initialize);
     v-model="date"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
+  <v-select
+    label="Group"
+    :items="groupNames"
+    v-model="group"
+    @update:model-value="emit('update:group', group)"
+  ></v-select>
   <v-checkbox
     label="Mark as duplicate"
     v-model="isDuplicate"

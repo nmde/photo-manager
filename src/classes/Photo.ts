@@ -14,6 +14,7 @@ export interface PhotoData {
   photoGroup: string;
   date: string;
   raw: boolean;
+  people: string;
 }
 
 export class Photo extends Entity<PhotoData> {
@@ -81,6 +82,17 @@ export class Photo extends Entity<PhotoData> {
   public get date() {
     return new Date(this.data.date);
   }
+
+  public get people() {
+    if (this.data.people === null || this.data.people.length === 0) {
+      return [];
+    }
+    return this.data.people.split(',');
+  }
+
+  public set people(people: string[]) {
+    this.data.people = people.join(',');
+  }
 }
 
 export function createPhoto(name: string, path: string): Photo {
@@ -98,5 +110,6 @@ export function createPhoto(name: string, path: string): Photo {
     photoGroup: '',
     date: '',
     raw: false,
+    people: '',
   });
 }

@@ -20,7 +20,7 @@ const reading = ref('');
  * Uses dir to quickly read a directory's contents.
  * @param path - The path to read.
  */
-async function readDir(path: string) {
+async function readDir(path: string, top = true) {
   const { join } = await import('@tauri-apps/api/path');
   const { Command } = await import('@tauri-apps/api/shell');
   console.log(`Reading ${path}`);
@@ -35,18 +35,31 @@ async function readDir(path: string) {
     let curr = it.next();
     while (!curr.done) {
       if (curr.value[0].indexOf('<DIR>') > 0) {
-        const dir = curr.value[0].replace(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/, '');
+        const dir = curr.value[0].replace(
+          /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
+          '',
+        );
         if (['.', '..'].indexOf(dir) < 0) {
           dirs.push(dir);
         }
       } else {
-        files.push(await join(path, curr.value[0].replace(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/, '')));
+        files.push(
+          await join(
+            path,
+            curr.value[0].replace(
+              /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/,
+              '',
+            ),
+          ),
+        );
       }
       curr = it.next();
     }
-    fileCount.value += dirs.length;
+    if (top) {
+      fileCount.value += dirs.length;
+    }
     for (const dir of dirs) {
-      files = files.concat(await readDir(await join(path, dir)));
+      files = files.concat(await readDir(await join(path, dir), false));
     }
   }
   initializingProgress.value += 1;

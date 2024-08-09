@@ -16,6 +16,7 @@ const {
   setGroup,
   setDate,
   setLocation,
+  setPeople,
 } = fileStore;
 
 const current = ref(0);
@@ -92,5 +93,8 @@ watch(
           setLocation(photo.data.name, location);
         })
     "
+    @update:people="(people) => {
+      setPeople(props.photos[current].data.name, people);
+    }"
   ></photo-detail>
 </template>

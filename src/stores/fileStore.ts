@@ -108,7 +108,9 @@ class FileStore extends EventEmitter<{
 
   public peopleCategories: Record<string, PersonCategory> = {};
 
-  public people: Record<string, Person[]> = {};
+  public peopleMap: Record<string, Person[]> = {};
+
+  public people: Record<string, Person> = {};
 
   /**
    * Sets the working dir name.
@@ -391,10 +393,11 @@ class FileStore extends EventEmitter<{
       });
       (await this.database.selectAll(PersonCategory)).forEach((pcat) => {
         this.peopleCategories[pcat.Id] = pcat;
-        this.people[pcat.Id] = [];
+        this.peopleMap[pcat.Id] = [];
       });
       (await this.database.selectAll(Person)).forEach((person) => {
-        this.people[person.data.category].push(person);
+        this.peopleMap[person.data.category].push(person);
+        this.people[person.Id] = person;
       });
       this.tags = tagList;
       this.sortTags();
@@ -822,6 +825,16 @@ class FileStore extends EventEmitter<{
   }
 
   /**
+   * Sets a photo's people.
+   * @param photo - The target photo.
+   * @param people - The people in the photo.
+   */
+  public async setPeople(photo: string, people: string[]) {
+    this.files[photo].people = people;
+    await this.database?.insert(this.files[photo]);
+  }
+
+  /**
    * Creates a Place entry.
    * @param name - The name of the place.
    * @param pos - The latitude & longitude of the place.
@@ -1088,7 +1101,8 @@ class FileStore extends EventEmitter<{
       notes,
       category,
     });
-    this.people[category].push(p);
+    this.peopleMap[category].push(p);
+    this.people[p.Id] = p;
     await this.database?.insert(p);
     return p;
   }
@@ -1103,8 +1117,9 @@ class FileStore extends EventEmitter<{
       name,
       color,
     });
+    await this.database?.insert(c);
     this.peopleCategories[c.Id] = c;
-    this.people[c.Id] = [];
+    this.peopleMap[c.Id] = [];
     return c;
   }
 }

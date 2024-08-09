@@ -79,15 +79,6 @@ onMounted(() => {
     >
       <v-icon>mdi-arrow-right</v-icon>
     </v-btn>
-    <v-btn
-      @click="
-        () => {
-          createDate = date;
-          createDialog = true;
-        }
-      "
-      >Add Entry</v-btn
-    >
     <h1 class="header">
       {{ date.toISOString() }}
       <mood-icon :mood="mood"></mood-icon>
