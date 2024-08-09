@@ -47,6 +47,11 @@
             "name": "ffmpeg",
             "cmd": "ffmpeg",
             "args": true
+          },
+          {
+            "name": "cmd",
+            "cmd": "cmd",
+            "args": true
           }
         ]
       }

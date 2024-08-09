@@ -6,13 +6,14 @@ import { TauriDatabase } from '@/classes/TauriDatabase';
 import { Tag } from '~/classes/Tag';
 import { Graph } from '~/classes/Graph';
 import { GraphNode } from '~/classes/GraphNode';
-import type { FileEntry } from '@tauri-apps/api/fs';
 import { Place } from '~/classes/Place';
 import type { PlaceType, Position } from '~/classes/Map';
 import { Layer } from '~/classes/Layer';
 import { Shape, type ShapeType } from '~/classes/Shape';
 import { JournalEntry } from '~/classes/JournalEntry';
 import { Activity } from '~/classes/Activity';
+import { Person } from '~/classes/Person';
+import { PersonCategory } from '~/classes/PersonCategory';
 
 export const moods = [
   {
@@ -104,6 +105,10 @@ class FileStore extends EventEmitter<{
   public shapes: Record<string, Shape> = {};
 
   public calendarViewDate = new Date();
+
+  public peopleCategories: Record<string, PersonCategory> = {};
+
+  public people: Record<string, Person[]> = {};
 
   /**
    * Sets the working dir name.
@@ -383,6 +388,13 @@ class FileStore extends EventEmitter<{
             .split(',')
             .map((a) => this.activities[a]);
         }
+      });
+      (await this.database.selectAll(PersonCategory)).forEach((pcat) => {
+        this.peopleCategories[pcat.Id] = pcat;
+        this.people[pcat.Id] = [];
+      });
+      (await this.database.selectAll(Person)).forEach((person) => {
+        this.people[person.data.category].push(person);
       });
       this.tags = tagList;
       this.sortTags();
@@ -686,7 +698,7 @@ class FileStore extends EventEmitter<{
    * @param raws - RAW photo files to generate thumbnails for.
    * @param videos - Video files to generate thumbnails for.
    */
-  public async generateThumbnails(raws: FileEntry[], videos: FileEntry[]) {
+  public async generateThumbnails(raws: string[], videos: string[]) {
     const { readDir, exists, createDir } = await import('@tauri-apps/api/fs');
     const { join, appDataDir } = await import('@tauri-apps/api/path');
     const { convertFileSrc } = await import('@tauri-apps/api/tauri');
@@ -721,10 +733,10 @@ class FileStore extends EventEmitter<{
     }
     const thumbnails = (await readDir(projectThumbnailDir)).map((p) => p.name);
     for (const raw of raws) {
-      const thumbnailFile = `${clean(raw.path as string).replace(/\..*$/, '')}.jpg`;
+      const thumbnailFile = `${clean(raw).replace(/\..*$/, '')}.jpg`;
       const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`; // tauri's join() slowed down this one line by like 10,000%
       if (thumbnails.indexOf(thumbnailFile) < 0) {
-        const convertOutput = await new Command('magick', [raw.path, thumbnailPath]).execute();
+        const convertOutput = await new Command('magick', [raw, thumbnailPath]).execute();
         if (convertOutput.code !== 0) {
           console.error(convertOutput.stderr);
         }
@@ -738,10 +750,10 @@ class FileStore extends EventEmitter<{
           console.error(resizeOutput.stderr);
         }
       }
-      if (this.files[raw.path].data.thumbnail.length === 0) {
-        await this.setThumbnail(raw.path, convertFileSrc(thumbnailPath));
+      if (this.files[raw].data.thumbnail.length === 0) {
+        await this.setThumbnail(raw, convertFileSrc(thumbnailPath));
       }
-      this.files[raw.path].awaitingThumbnail = false;
+      this.files[raw].awaitingThumbnail = false;
       progress += 1;
       const p = Math.round((progress / total) * 100);
       if (p > lastProgressInt) {
@@ -749,15 +761,15 @@ class FileStore extends EventEmitter<{
         lastProgressInt = p;
         this.emit('thumbnailProgress', this.thumbnailProgress);
       }
-      this.emit('updatePhoto', raw.path);
+      this.emit('updatePhoto', raw);
     }
     for (const video of videos) {
-      const thumbnailFile = `${clean(video.path as string).replace(/\..*$/, '')}.png`;
+      const thumbnailFile = `${clean(video).replace(/\..*$/, '')}.png`;
       const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`;
       if (thumbnails.indexOf(thumbnailFile) < 0) {
         const convertOutput = await new Command('ffmpeg', [
           '-i',
-          video.path,
+          video,
           '-ss',
           '00:00:01.00',
           '-vframes',
@@ -768,10 +780,10 @@ class FileStore extends EventEmitter<{
           console.error(convertOutput.stderr);
         }
       }
-      if (this.files[video.path].data.thumbnail.length === 0) {
-        await this.setThumbnail(video.path, convertFileSrc(thumbnailPath));
+      if (this.files[video].data.thumbnail.length === 0) {
+        await this.setThumbnail(video, convertFileSrc(thumbnailPath));
       }
-      this.files[video.path].awaitingThumbnail = false;
+      this.files[video].awaitingThumbnail = false;
       progress += 1;
       const p = Math.round((progress / total) * 100);
       if (p > lastProgressInt) {
@@ -779,7 +791,7 @@ class FileStore extends EventEmitter<{
         lastProgressInt = p;
         this.emit('thumbnailProgress', this.thumbnailProgress);
       }
-      this.emit('updatePhoto', video.path);
+      this.emit('updatePhoto', video);
     }
     this.generatingThumbnails = false;
   }
@@ -1061,6 +1073,39 @@ class FileStore extends EventEmitter<{
     this.activities[a.Id] = a;
     await this.database?.insert(a);
     return a;
+  }
+
+  /**
+   * Adds a person.
+   * @param name - The name of the person.
+   * @param notes - Initial notes for the person.
+   * @param category - Category color.
+   */
+  public async addPerson(name: string, notes: string, category: string) {
+    const p = new Person({
+      name,
+      photo: '',
+      notes,
+      category,
+    });
+    this.people[category].push(p);
+    await this.database?.insert(p);
+    return p;
+  }
+
+  /**
+   * Adds a person category.
+   * @param name - The name of the category.
+   * @param color - The color of the category.
+   */
+  public async addPersonCategory(name: string, color: string) {
+    const c = new PersonCategory({
+      name,
+      color,
+    });
+    this.peopleCategories[c.Id] = c;
+    this.people[c.Id] = [];
+    return c;
   }
 }
 

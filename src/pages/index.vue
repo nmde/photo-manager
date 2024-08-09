@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { fileStore } from '../stores/fileStore';
 import { Photo, createPhoto } from '~/classes/Photo';
-import type { FileEntry } from '@tauri-apps/api/fs';
 
 const router = useRouter();
 const { setWorkingDir, loadPhotos, setFiles, generateThumbnails, groupRaws, removeDeleted } =
@@ -18,12 +17,48 @@ const fileCount = ref(0);
 const reading = ref('');
 
 /**
+ * Uses dir to quickly read a directory's contents.
+ * @param path - The path to read.
+ */
+async function readDir(path: string) {
+  const { join } = await import('@tauri-apps/api/path');
+  const { Command } = await import('@tauri-apps/api/shell');
+  console.log(`Reading ${path}`);
+  reading.value = path;
+  let files: string[] = [];
+  const output = await new Command('cmd', ['/C', 'dir', path]).execute();
+  if (output.stderr.length > 0) {
+    console.error(output.stderr);
+  } else {
+    const dirs: string[] = [];
+    const it = output.stdout.matchAll(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}.*$/gm);
+    let curr = it.next();
+    while (!curr.done) {
+      if (curr.value[0].indexOf('<DIR>') > 0) {
+        const dir = curr.value[0].replace(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/, '');
+        if (['.', '..'].indexOf(dir) < 0) {
+          dirs.push(dir);
+        }
+      } else {
+        files.push(await join(path, curr.value[0].replace(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/, '')));
+      }
+      curr = it.next();
+    }
+    fileCount.value += dirs.length;
+    for (const dir of dirs) {
+      files = files.concat(await readDir(await join(path, dir)));
+    }
+  }
+  initializingProgress.value += 1;
+  return files;
+}
+
+/**
  * Prompts the user to select the folder to manage.
  */
 async function openFolder() {
   loading.value = true;
   const { open } = await import('@tauri-apps/api/dialog');
-  const { readDir } = await import('@tauri-apps/api/fs');
   const { convertFileSrc } = await import('@tauri-apps/api/tauri');
   const selected = await open({
     directory: true,
@@ -34,43 +69,29 @@ async function openFolder() {
     await setWorkingDir(selected);
     const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
-    const fullFileList: any[] = [];
-    let raws: any[] = [];
-    let videos: any[] = [];
-    const expandDir = async (entries: FileEntry[]) => {
-      for (const file of entries) {
-        if (file.children !== undefined) {
-          reading.value = file.path;
-          console.log(`Reading ${file.path}`);
-          initializingProgress.value += 1;
-          await expandDir(await readDir(file.path));
-        } else {
-          fullFileList.push(file);
-        }
-      }
-    };
+    let fullFileList: string[] = [];
+    let raws: string[] = [];
+    let videos: string[] = [];
     console.log('Loaded photos');
-    const dir = await readDir(selected);
+    fullFileList = await readDir(selected);
     console.log('Read dir');
-    fileCount.value = dir.length;
-    await expandDir(dir);
     const rawPhotos: Photo[] = [];
     fullFileList.forEach(async (file) => {
-      if (existing[file.path]) {
-        files[file.path] = existing[file.path];
-        delete existing[file.path];
+      if (existing[file]) {
+        files[file] = existing[file];
+        delete existing[file];
       } else {
-        files[file.path] = createPhoto(file.path, convertFileSrc(file.path));
+        files[file] = createPhoto(file, convertFileSrc(file));
       }
-      if (/^.*\.(ORF|NRW|HEIC|TIFF)$/.test(file.path.toUpperCase())) {
-        files[file.path].data.raw = true;
+      if (/^.*\.(ORF|NRW|HEIC|TIFF|TIF)$/.test(file.toUpperCase())) {
+        files[file].data.raw = true;
         raws.push(file);
-      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM)$/.test(file.path.toUpperCase())) {
-        files[file.path].data.video = true;
+      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM)$/.test(file.toUpperCase())) {
+        files[file].data.video = true;
         videos.push(file);
       }
-      if (files[file.path].data.raw) {
-        rawPhotos.push(files[file.path]);
+      if (files[file].data.raw) {
+        rawPhotos.push(files[file]);
       }
     });
     deleted.value = Object.keys(existing);
