@@ -43,6 +43,9 @@ export const moods = [
   },
 ];
 
+export function formatDate(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
 class FileStore extends EventEmitter<{
   updateFilters(): void;
   updatePhoto(photo: Photo): void;
@@ -66,6 +69,7 @@ class FileStore extends EventEmitter<{
     filterMode: 'AND',
     filterPos: '',
     filterDate: '',
+    filterPerson: '',
     hideDuplicates: true,
     hideLocated: false,
     hideTagged: false,
@@ -111,6 +115,12 @@ class FileStore extends EventEmitter<{
   public peopleMap: Record<string, Person[]> = {};
 
   public people: Record<string, Person> = {};
+
+  public dateMap: Record<string, Photo[]> = {};
+
+  public locationMap: Record<string, Photo[]> = {};
+
+  public peoplePhotoMap: Record<string, Photo[]> = {};
 
   /**
    * Sets the working dir name.
@@ -339,6 +349,14 @@ class FileStore extends EventEmitter<{
           }
         });
       });
+      (await this.database.selectAll(PersonCategory)).forEach((pcat) => {
+        this.peopleCategories[pcat.Id] = pcat;
+        this.peopleMap[pcat.Id] = [];
+      });
+      (await this.database.selectAll(Person)).forEach((person) => {
+        this.peopleMap[person.data.category].push(person);
+        this.people[person.Id] = person;
+      });
       const raws: Photo[] = [];
       (await this.database.selectAll(Photo)).forEach((photo) => {
         this.files[photo.data.name] = photo;
@@ -365,6 +383,26 @@ class FileStore extends EventEmitter<{
         }
         if (photo.hasLocation && this.places[photo.data.location]) {
           this.places[photo.data.location].count += 1;
+          if (!this.locationMap[photo.data.location]) {
+            this.locationMap[photo.data.location] = [];
+          }
+          this.locationMap[photo.data.location].push(photo);
+        }
+        photo.people.forEach((id) => {
+          if (this.people[id]) {
+            this.people[id].count += 1;
+          }
+          if (!this.peoplePhotoMap[id]) {
+            this.peoplePhotoMap[id] = [];
+          }
+          this.peoplePhotoMap[id].push(photo);
+        });
+        if (photo.data.date.length > 0) {
+          const date = formatDate(photo.date);
+          if (!this.dateMap[date]) {
+            this.dateMap[date] = [];
+          }
+          this.dateMap[date].push(photo);
         }
         this.validateTags(photo.data.name);
         if (photo.data.raw) {
@@ -390,14 +428,6 @@ class FileStore extends EventEmitter<{
             .split(',')
             .map((a) => this.activities[a]);
         }
-      });
-      (await this.database.selectAll(PersonCategory)).forEach((pcat) => {
-        this.peopleCategories[pcat.Id] = pcat;
-        this.peopleMap[pcat.Id] = [];
-      });
-      (await this.database.selectAll(Person)).forEach((person) => {
-        this.peopleMap[person.data.category].push(person);
-        this.people[person.Id] = person;
       });
       this.tags = tagList;
       this.sortTags();
@@ -457,7 +487,21 @@ class FileStore extends EventEmitter<{
    * @param date - The date to set.
    */
   public async setDate(photo: string, date: string) {
+    if (this.files[photo].data.date.length > 0) {
+      const oldDate = formatDate(this.files[photo].date);
+      if (this.dateMap[oldDate]) {
+        const idx = this.dateMap[oldDate].findIndex((p) => p.data.name === photo);
+        if (idx >= 0) {
+          this.dateMap[oldDate].splice(idx, 1);
+        }
+      }
+    }
     this.files[photo].data.date = date;
+    const d = formatDate(this.files[photo].date);
+    if (!this.dateMap[d]) {
+      this.dateMap[d] = [];
+    }
+    this.dateMap[d].push(this.files[photo]);
     await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', this.files[photo]);
   }
@@ -624,7 +668,12 @@ class FileStore extends EventEmitter<{
    * @param filterByLocation
    * @param filterByDate
    */
-  public checkFilter(file: Photo, filterByLocation = false, filterByDate = false) {
+  public checkFilter(
+    file: Photo,
+    filterByLocation = false,
+    filterByDate = false,
+    filterByPerson = false,
+  ) {
     const {
       filterMode,
       disabledTags,
@@ -637,6 +686,7 @@ class FileStore extends EventEmitter<{
       onlyTagged,
       filterPos,
       filterDate,
+      filterPerson,
     } = this.filters;
     let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
     if (
@@ -686,6 +736,11 @@ class FileStore extends EventEmitter<{
         satisfiesTags = false;
       }
     }
+    if (satisfiesTags && filterByPerson) {
+      if (file.people.indexOf(filterPerson) < 0) {
+        satisfiesTags = false;
+      }
+    }
     return satisfiesTags;
   }
 
@@ -694,12 +749,35 @@ class FileStore extends EventEmitter<{
    * @param filterByLocation
    * @param filterByDate
    */
-  public filteredPhotos(filterByLocation = false, filterByDate = false) {
+  public filteredPhotos(filterByLocation = false, filterByDate = false, filterByPerson = false) {
     const filtered: Photo[] = [];
-    Object.values(this.files)
+    const { filterDate, filterPos, filterPerson } = this.filters;
+    let files = Object.values(this.files);
+    let dateMapped: Photo[] = [];
+    let locationMapped: Photo[] = [];
+    let personMapped: Photo[] = [];
+    if (filterByDate) {
+      dateMapped = this.dateMap[filterDate] || [];
+    }
+    if (filterByLocation) {
+      locationMapped = this.locationMap[filterPos] || [];
+    }
+    if (filterByPerson) {
+      personMapped = this.peoplePhotoMap[filterPerson] || [];
+    }
+    if (dateMapped.length < locationMapped.length && dateMapped.length < personMapped.length) {
+      files = dateMapped;
+    }
+    if (locationMapped.length < dateMapped.length && locationMapped.length < personMapped.length) {
+      files = locationMapped;
+    }
+    if (personMapped.length < dateMapped.length && personMapped.length < locationMapped.length) {
+      files = personMapped;
+    }
+    files
       .filter((file) => !file.hidden)
       .forEach((file) => {
-        if (this.checkFilter(file, filterByLocation, filterByDate)) {
+        if (this.checkFilter(file, filterByLocation, filterByDate, filterByPerson)) {
           filtered.push(file);
         }
       });
@@ -824,13 +902,26 @@ class FileStore extends EventEmitter<{
    * @param location - The location to set.
    */
   public async setLocation(photo: string, location: string) {
-    if (this.files[photo].hasLocation && this.places[this.files[photo].data.location]) {
-      this.places[this.files[photo].data.location].count -= 1;
+    if (this.files[photo].hasLocation) {
+      const oldPos = this.files[photo].data.location;
+      if (this.places[oldPos]) {
+        this.places[this.files[photo].data.location].count -= 1;
+      }
+      if (this.locationMap[oldPos]) {
+        const idx = this.locationMap[oldPos].findIndex((p) => p.data.name === photo);
+        if (idx >= 0) {
+          this.locationMap[oldPos].splice(idx, 1);
+        }
+      }
     }
     this.files[photo].data.location = location;
     if (this.places[location]) {
       this.places[location].count += 1;
     }
+    if (!this.locationMap[location]) {
+      this.locationMap[location] = [];
+    }
+    this.locationMap[location].push(this.files[photo]);
     await this.database?.insert(this.files[photo]);
     this.emit('updatePhoto', this.files[photo]);
     this.emit('updateLocations');
@@ -842,7 +933,26 @@ class FileStore extends EventEmitter<{
    * @param people - The people in the photo.
    */
   public async setPeople(photo: string, people: string[]) {
+    const oldPeople = this.files[photo].people;
+    oldPeople.forEach((person) => {
+      if (this.peoplePhotoMap[person]) {
+        const idx = this.peoplePhotoMap[person].findIndex((p) => p.data.name === photo);
+        if (idx >= 0) {
+          this.peoplePhotoMap[person].splice(idx, 1);
+        }
+      }
+      if (this.people[person]) {
+        this.people[person].count -= 1;
+      }
+    });
     this.files[photo].people = people;
+    people.forEach((id) => {
+      this.people[id].count += 1;
+      if (!this.peoplePhotoMap[id]) {
+        this.peoplePhotoMap[id] = [];
+      }
+      this.peoplePhotoMap[id].push(this.files[photo]);
+    });
     await this.database?.insert(this.files[photo]);
   }
 

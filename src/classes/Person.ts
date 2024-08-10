@@ -8,6 +8,8 @@ type PersonData = {
 };
 
 export class Person extends Entity<PersonData> {
+  public count = 0;
+  
   public constructor(data: PersonData) {
     super('Person', data);
   }

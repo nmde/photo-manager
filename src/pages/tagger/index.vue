@@ -2,22 +2,19 @@
 import moment from 'moment';
 import { ref } from 'vue';
 import { Photo } from '../../classes/Photo';
-import { fileStore } from '../../stores/fileStore';
+import { fileStore, formatDate } from '../../stores/fileStore';
 
 const route = useRoute();
 const router = useRouter();
 
-const { filteredPhotos, filters, setFilter, places, checkFilter } = fileStore;
+const { filteredPhotos, filters, setFilter, places, checkFilter, people } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
 const filterByLocation = ref(false);
 const filterByDate = ref(false);
+const filterByPerson = ref(false);
 const currentDate = ref(new Date());
-
-function formatDate(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
 
 fileStore.on('updateFilters', () => {
   photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
@@ -25,7 +22,7 @@ fileStore.on('updateFilters', () => {
 
 fileStore.on('updatePhoto', (photo) => {
   const idx = photos.value.findIndex((p) => p.data.name === photo.data.name);
-  if (checkFilter(photo, filterByLocation.value, filterByDate.value)) {
+  if (checkFilter(photo, filterByLocation.value, filterByDate.value, filterByPerson.value)) {
     if (idx < 0) {
       photos.value.push(photo);
     }
@@ -43,11 +40,16 @@ onMounted(() => {
     filterByLocation.value = true;
   }
   if (route.query.date) {
-    setFilter('filterDate', route.query.date as string);
+    const d = formatDate(new Date(route.query.date as string));
+    setFilter('filterDate', d);
     filterByDate.value = true;
     currentDate.value = new Date(Date.parse(filters.filterDate));
   }
-  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
+  if (route.query.person) {
+    setFilter('filterPerson', route.query.person as string);
+    filterByPerson.value = true;
+  }
+  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);
 });
 </script>
 
@@ -73,13 +75,28 @@ onMounted(() => {
                 @click="
                   () => {
                     filterByLocation = false;
-                    photos = filteredPhotos(filterByLocation, filterByDate);
+                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
                   }
                 "
               >
                 <v-icon>mdi-close</v-icon>
               </v-btn>
               {{ places[route.query.place as string].data.name }}
+            </div>
+            <div v-if="filterByPerson">
+              <v-btn
+                icon
+                flat
+                @click="
+                  () => {
+                    filterByPerson = false;
+                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
+                  }
+                "
+              >
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+              {{ people[route.query.person as string].data.name }}
             </div>
             <div v-if="filterByDate">
               <v-btn
@@ -88,7 +105,7 @@ onMounted(() => {
                 @click="
                   () => {
                     filterByDate = false;
-                    photos = filteredPhotos(filterByLocation, filterByDate);
+                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
                   }
                 "
               >

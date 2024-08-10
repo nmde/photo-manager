@@ -4,6 +4,8 @@ import { Person } from '../../classes/Person';
 import { PersonCategory } from '../../classes/PersonCategory';
 import { fileStore } from '../../stores/fileStore';
 
+const router = useRouter();
+
 const { addPerson, peopleMap, peopleCategories, addPersonCategory, updatePerson } = fileStore;
 
 const editing = ref(false);
@@ -48,7 +50,9 @@ onMounted(() => {
     <v-btn color="secondary" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-expansion-panels>
       <v-expansion-panel v-for="category in localCategories" :key="category.Id">
-        <v-expansion-panel-title>{{ category.data.name }}</v-expansion-panel-title>
+        <v-expansion-panel-title :color="category.data.color">{{
+          category.data.name
+        }}</v-expansion-panel-title>
         <v-expansion-panel-text>
           <div class="people-grid">
             <v-card class="person-card" v-for="person in localPeople[category.Id]" :key="person.Id">
@@ -59,23 +63,43 @@ onMounted(() => {
               </template>
               <v-card-title
                 >{{ person.data.name }}
-                <v-btn
-                  icon
-                  flat
-                  @click="
-                    () => {
-                      editing = true;
-                      editTarget = person.Id;
-                      addName = person.data.name;
-                      addNotes = person.data.notes;
-                      addCategory = person.data.category;
-                      addDialog = true;
-                    }
-                  "
-                  ><v-icon>mdi-pencil</v-icon></v-btn
-                ></v-card-title
-              >
-              <v-card-text>{{ person.data.notes }}</v-card-text>
+                <v-menu>
+                  <template v-slot:activator="{ props }">
+                    <v-btn icon flat v-bind="props">
+                      <v-icon>mdi-menu</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-list>
+                    <v-list-item
+                      @click="
+                        () => {
+                          editing = true;
+                          editTarget = person.Id;
+                          addName = person.data.name;
+                          addNotes = person.data.notes;
+                          addCategory = person.data.category;
+                          addDialog = true;
+                        }
+                      "
+                      >Edit</v-list-item
+                    >
+                    <v-list-item
+                      @click="
+                        () => {
+                          router.push(`/tagger?person=${person.Id}`);
+                        }
+                      "
+                    >
+                      View Photos
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+              </v-card-title>
+              <v-card-text>
+                Photo count: {{ person.count }}
+                <br />
+                <p class="notes">{{ person.data.notes }}</p>
+              </v-card-text>
             </v-card>
           </div>
         </v-expansion-panel-text>
@@ -152,5 +176,9 @@ onMounted(() => {
 
 .person-card {
   margin: 12px;
+}
+
+.notes {
+  white-space: pre;
 }
 </style>
