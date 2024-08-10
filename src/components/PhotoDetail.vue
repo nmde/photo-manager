@@ -11,8 +11,17 @@ type PeopleEntry = {
   color: string;
 };
 
-const { groupNames, addGroup, removeGroup, places, layers, peopleCategories, people, peopleMap } =
-  fileStore;
+const {
+  groupNames,
+  addGroup,
+  removeGroup,
+  places,
+  layers,
+  peopleCategories,
+  people,
+  peopleMap,
+  setPersonPhoto,
+} = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -51,6 +60,9 @@ const closeUp = ref(false);
 const location = ref('');
 const showRaw = ref(false);
 const photoPeople = ref<PeopleEntry[]>([]);
+
+const setPhotoDialog = ref(false);
+const setPhotoTarget = ref('');
 
 const peopleList = computed(() => {
   let re: PeopleEntry[] = [];
@@ -240,6 +252,7 @@ onMounted(initialize);
     "
     >Remove Location</v-btn
   >
+  <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
   <div v-if="showAddGroup">
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
     <v-btn
@@ -273,6 +286,33 @@ onMounted(initialize);
         ></video-player>
         <v-img v-if="!photo.data.video" max-height="600" :src="photoPath"></v-img>
       </v-card-text>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="setPhotoDialog">
+    <v-card>
+      <v-card-title>Set Profile Photo</v-card-title>
+      <v-card-text>
+        Set as profile photo for:
+        <v-select :items="peopleList" v-model="setPhotoTarget">
+          <template v-slot:item="{ props, item }">
+            <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
+          </template>
+        </v-select>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn @click="setPhotoDialog = false">Cancel</v-btn>
+        <v-btn
+          color="primary"
+          @click="
+            async () => {
+              await setPersonPhoto(setPhotoTarget, photoPath);
+              setPhotoDialog = false;
+              setPhotoTarget = '';
+            }
+          "
+          >Save</v-btn
+        >
+      </v-card-actions>
     </v-card>
   </v-dialog>
 </template>

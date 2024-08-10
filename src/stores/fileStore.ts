@@ -1108,6 +1108,33 @@ class FileStore extends EventEmitter<{
   }
 
   /**
+   * Updates a person.
+   * @param name - The name of the person.
+   * @param notes - Initial notes for the person.
+   * @param category - Category color.
+   */
+  public async updatePerson(id: string, name: string, notes: string, category: string) {
+    this.people[id].data = {
+      ...this.people[id].data,
+      name,
+      notes,
+      category,
+    };
+    await this.database?.update(this.people[id]);
+    return this.people[id];
+  }
+
+  /**
+   * Sets a person's profile photo.
+   * @param person - The target person.
+   * @param photo - The photo to set.
+   */
+  public async setPersonPhoto(person: string, photo: string) {
+    this.people[person].data.photo = photo;
+    await this.database?.update(this.people[person]);
+  }
+
+  /**
    * Adds a person category.
    * @param name - The name of the category.
    * @param color - The color of the category.

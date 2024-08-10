@@ -94,7 +94,9 @@ watch(
         })
     "
     @update:people="(people) => {
-      setPeople(props.photos[current].data.name, people);
+      props.photos.forEach((photo) => {
+        setPeople(photo.data.name, people);
+      });
     }"
   ></photo-detail>
 </template>

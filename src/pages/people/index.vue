@@ -4,8 +4,10 @@ import { Person } from '../../classes/Person';
 import { PersonCategory } from '../../classes/PersonCategory';
 import { fileStore } from '../../stores/fileStore';
 
-const { addPerson, peopleMap, peopleCategories, addPersonCategory } = fileStore;
+const { addPerson, peopleMap, peopleCategories, addPersonCategory, updatePerson } = fileStore;
 
+const editing = ref(false);
+const editTarget = ref('');
 const addDialog = ref(false);
 const addName = ref('');
 const addNotes = ref('');
@@ -33,21 +35,49 @@ onMounted(() => {
 
 <template>
   <v-main>
-    <v-btn color="primary" @click="addDialog = true">Add Person</v-btn>
+    <v-btn
+      color="primary"
+      @click="
+        () => {
+          editing = false;
+          addDialog = true;
+        }
+      "
+      >Add Person</v-btn
+    >
     <v-btn color="secondary" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-expansion-panels>
       <v-expansion-panel v-for="category in localCategories" :key="category.Id">
         <v-expansion-panel-title>{{ category.data.name }}</v-expansion-panel-title>
         <v-expansion-panel-text>
-          <v-card v-for="person in localPeople[category.Id]" :key="person.Id">
-            <template v-slot:prepend v-if="person.data.photo.length > 0">
-              <v-avatar size="24">
-                <v-img :src="person.data.photo"></v-img>
-              </v-avatar>
-            </template>
-            <v-card-title>{{ person.data.name }}</v-card-title>
-            <v-card-text>{{ person.data.notes }}</v-card-text>
-          </v-card>
+          <div class="people-grid">
+            <v-card class="person-card" v-for="person in localPeople[category.Id]" :key="person.Id">
+              <template v-slot:prepend v-if="person.data.photo.length > 0">
+                <v-avatar size="128">
+                  <v-img :src="person.data.photo"></v-img>
+                </v-avatar>
+              </template>
+              <v-card-title
+                >{{ person.data.name }}
+                <v-btn
+                  icon
+                  flat
+                  @click="
+                    () => {
+                      editing = true;
+                      editTarget = person.Id;
+                      addName = person.data.name;
+                      addNotes = person.data.notes;
+                      addCategory = person.data.category;
+                      addDialog = true;
+                    }
+                  "
+                  ><v-icon>mdi-pencil</v-icon></v-btn
+                ></v-card-title
+              >
+              <v-card-text>{{ person.data.notes }}</v-card-text>
+            </v-card>
+          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
@@ -95,7 +125,11 @@ onMounted(() => {
             color="primary"
             @click="
               async () => {
-                const p = await addPerson(addName, addNotes, addCategory);
+                if (editing) {
+                  await updatePerson(editTarget, addName, addNotes, addCategory);
+                } else {
+                  await addPerson(addName, addNotes, addCategory);
+                }
                 addDialog = false;
                 addName = '';
                 addNotes = '';
@@ -109,3 +143,14 @@ onMounted(() => {
     </v-dialog>
   </v-main>
 </template>
+
+<style scoped>
+.people-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.person-card {
+  margin: 12px;
+}
+</style>

@@ -62,7 +62,9 @@ async function readDir(path: string, top = true) {
       files = files.concat(await readDir(await join(path, dir), false));
     }
   }
-  initializingProgress.value += 1;
+  if (top) {
+    initializingProgress.value += 1;
+  }
   return files;
 }
 

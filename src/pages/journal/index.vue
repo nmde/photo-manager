@@ -109,7 +109,7 @@ onMounted(() => {
       :prepend-icon="activity.data.icon"
     ></v-chip>
     {{ steps }} Steps<br />
-    {{ text }}
+    <p class="entry-text">{{ text }}</p>
   </v-main>
   <v-dialog v-model="createDialog">
     <v-card>
@@ -205,5 +205,9 @@ onMounted(() => {
 
 .header {
   display: flex;
+}
+
+.entry-text {
+  white-space: pre;
 }
 </style>
