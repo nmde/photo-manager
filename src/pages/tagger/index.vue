@@ -7,7 +7,7 @@ import { fileStore } from '../../stores/fileStore';
 const route = useRoute();
 const router = useRouter();
 
-const { filteredPhotos, filters, setFilter, places } = fileStore;
+const { filteredPhotos, filters, setFilter, places, checkFilter } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
@@ -23,8 +23,18 @@ fileStore.on('updateFilters', () => {
   photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
-fileStore.on('updatePhoto', () => {
-  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
+fileStore.on('updatePhoto', (photo) => {
+  const idx = photos.value.findIndex((p) => p.data.name === photo.data.name);
+  if (checkFilter(photo, filterByLocation.value, filterByDate.value)) {
+    if (idx < 0) {
+      photos.value.push(photo);
+    }
+  } else {
+    if (idx >= 0) {
+      photos.value.splice(idx, 1);
+    }
+  }
+  // photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
 onMounted(() => {
@@ -109,9 +119,14 @@ onMounted(() => {
               >
                 <v-icon>mdi-arrow-right</v-icon>
               </v-btn>
-              <v-btn @click="() => {
-                router.push(`/journal?date=${currentDate.toISOString()}`);
-              }">Open in Journal</v-btn>
+              <v-btn
+                @click="
+                  () => {
+                    router.push(`/journal?date=${currentDate.toISOString()}`);
+                  }
+                "
+                >Open in Journal</v-btn
+              >
             </div>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>

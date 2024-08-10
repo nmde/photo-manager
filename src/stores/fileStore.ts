@@ -45,7 +45,7 @@ export const moods = [
 
 class FileStore extends EventEmitter<{
   updateFilters(): void;
-  updatePhoto(photo: string): void;
+  updatePhoto(photo: Photo): void;
   updateLocations(): void;
   saving(value: boolean): void;
   saveError(): void;
@@ -139,7 +139,7 @@ class FileStore extends EventEmitter<{
   private async setThumbnail(photo: string, thumbnail: string) {
     this.files[photo].data.thumbnail = thumbnail;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -161,7 +161,7 @@ class FileStore extends EventEmitter<{
   public async setRating(photo: string, rating: number) {
     this.files[photo].data.rating = rating;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -172,7 +172,7 @@ class FileStore extends EventEmitter<{
   public async setDuplicate(photo: string, isDuplicate: boolean) {
     this.files[photo].data.isDuplicate = isDuplicate;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -204,7 +204,7 @@ class FileStore extends EventEmitter<{
       });
     });
     await this.updateTagsForGroup(photo, collectedTags);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -214,7 +214,7 @@ class FileStore extends EventEmitter<{
   public async removeGroup(photo: string) {
     this.files[photo].data.photoGroup = '';
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -252,7 +252,7 @@ class FileStore extends EventEmitter<{
     this.files[photo].tags = t;
     await this.database?.insert(this.files[photo]);
     this.sortTags();
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
     // TODO: inform of newly created tags
   }
 
@@ -279,7 +279,7 @@ class FileStore extends EventEmitter<{
   public async setTitle(photo: string, title: string) {
     this.files[photo].data.title = title;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -290,7 +290,7 @@ class FileStore extends EventEmitter<{
   public async setDescription(photo: string, description: string) {
     this.files[photo].data.description = description;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -459,7 +459,7 @@ class FileStore extends EventEmitter<{
   public async setDate(photo: string, date: string) {
     this.files[photo].data.date = date;
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -614,17 +614,17 @@ class FileStore extends EventEmitter<{
     });
     this.files[photo].valid = valid;
     this.files[photo].validationMsg = msg;
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
     this.emit('validationUpdate', photo);
   }
 
   /**
-   * A list of photos, with the filter options applied.
+   * Checks a single photo to see if it matches the current filters.
+   * @param photo - The photo to check.
    * @param filterByLocation
    * @param filterByDate
    */
-  public filteredPhotos(filterByLocation = false, filterByDate = false) {
-    const filtered: Photo[] = [];
+  public checkFilter(file: Photo, filterByLocation = false, filterByDate = false) {
     const {
       filterMode,
       disabledTags,
@@ -638,58 +638,68 @@ class FileStore extends EventEmitter<{
       filterPos,
       filterDate,
     } = this.filters;
-    Object.values(this.files)
-      .filter((file) => !file.hidden)
-      .forEach((file) => {
-        let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+    let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
+    if (
+      (hideTagged && file.tags.length > 0) ||
+      (onlyTagged && file.tags.length === 0) ||
+      (hideLocated && file.hasLocation) ||
+      (onlyLocated && !file.hasLocation) ||
+      (onlyError && file.valid) ||
+      (hideDuplicates && file.data.isDuplicate)
+    ) {
+      satisfiesTags = false;
+    }
+    if (satisfiesTags) {
+      enabledTags.forEach((tag) => {
+        if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
+          satisfiesTags = true;
+        } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
+          satisfiesTags = false;
+        }
+      });
+      disabledTags.forEach((tag) => {
+        if (file.tags.indexOf(tag) >= 0) {
+          satisfiesTags = false;
+        }
+      });
+    }
+    if (satisfiesTags && filterByLocation) {
+      if (file.hasLocation && this.places[file.data.location]) {
+        if (file.data.location !== filterPos) {
+          satisfiesTags = false;
+        }
+      } else {
+        satisfiesTags = false;
+      }
+    }
+    if (satisfiesTags && filterByDate) {
+      const d1 = moment(filterDate).toDate();
+      if (file.data.date.length > 0) {
         if (
-          (hideTagged && file.tags.length > 0) ||
-          (onlyTagged && file.tags.length === 0) ||
-          (hideLocated && file.hasLocation) ||
-          (onlyLocated && !file.hasLocation) ||
-          (onlyError && file.valid) ||
-          (hideDuplicates && file.data.isDuplicate)
+          d1.getFullYear() !== file.date.getFullYear() ||
+          d1.getMonth() !== file.date.getMonth() ||
+          d1.getDate() !== file.date.getDate()
         ) {
           satisfiesTags = false;
         }
-        if (satisfiesTags) {
-          enabledTags.forEach((tag) => {
-            if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
-              satisfiesTags = true;
-            } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
-              satisfiesTags = false;
-            }
-          });
-          disabledTags.forEach((tag) => {
-            if (file.tags.indexOf(tag) >= 0) {
-              satisfiesTags = false;
-            }
-          });
-        }
-        if (satisfiesTags && filterByLocation) {
-          if (file.hasLocation && this.places[file.data.location]) {
-            if (file.data.location !== filterPos) {
-              satisfiesTags = false;
-            }
-          } else {
-            satisfiesTags = false;
-          }
-        }
-        if (satisfiesTags && filterByDate) {
-          const d1 = moment(filterDate).toDate();
-          if (file.data.date.length > 0) {
-            if (
-              d1.getFullYear() !== file.date.getFullYear() ||
-              d1.getMonth() !== file.date.getMonth() ||
-              d1.getDate() !== file.date.getDate()
-            ) {
-              satisfiesTags = false;
-            }
-          } else {
-            satisfiesTags = false;
-          }
-        }
-        if (satisfiesTags) {
+      } else {
+        satisfiesTags = false;
+      }
+    }
+    return satisfiesTags;
+  }
+
+  /**
+   * A list of photos, with the filter options applied.
+   * @param filterByLocation
+   * @param filterByDate
+   */
+  public filteredPhotos(filterByLocation = false, filterByDate = false) {
+    const filtered: Photo[] = [];
+    Object.values(this.files)
+      .filter((file) => !file.hidden)
+      .forEach((file) => {
+        if (this.checkFilter(file, filterByLocation, filterByDate)) {
           filtered.push(file);
         }
       });
@@ -755,6 +765,7 @@ class FileStore extends EventEmitter<{
       }
       if (this.files[raw].data.thumbnail.length === 0) {
         await this.setThumbnail(raw, convertFileSrc(thumbnailPath));
+        this.emit('updatePhoto', this.files[raw]);
       }
       this.files[raw].awaitingThumbnail = false;
       progress += 1;
@@ -764,7 +775,6 @@ class FileStore extends EventEmitter<{
         lastProgressInt = p;
         this.emit('thumbnailProgress', this.thumbnailProgress);
       }
-      this.emit('updatePhoto', raw);
     }
     for (const video of videos) {
       const thumbnailFile = `${clean(video).replace(/\..*$/, '')}.png`;
@@ -785,6 +795,7 @@ class FileStore extends EventEmitter<{
       }
       if (this.files[video].data.thumbnail.length === 0) {
         await this.setThumbnail(video, convertFileSrc(thumbnailPath));
+        this.emit('updatePhoto', this.files[video]);
       }
       this.files[video].awaitingThumbnail = false;
       progress += 1;
@@ -794,7 +805,6 @@ class FileStore extends EventEmitter<{
         lastProgressInt = p;
         this.emit('thumbnailProgress', this.thumbnailProgress);
       }
-      this.emit('updatePhoto', video);
     }
     this.generatingThumbnails = false;
   }
@@ -818,9 +828,11 @@ class FileStore extends EventEmitter<{
       this.places[this.files[photo].data.location].count -= 1;
     }
     this.files[photo].data.location = location;
-    this.places[location].count += 1;
+    if (this.places[location]) {
+      this.places[location].count += 1;
+    }
     await this.database?.insert(this.files[photo]);
-    this.emit('updatePhoto', photo);
+    this.emit('updatePhoto', this.files[photo]);
     this.emit('updateLocations');
   }
 
