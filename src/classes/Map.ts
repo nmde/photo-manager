@@ -144,76 +144,11 @@ export class Map extends EventEmitter<{
   dblclick: (pos: Position) => void;
   shapeUpdate: (newPath: google.maps.MVCArray<google.maps.LatLng>) => void;
 }> {
-  public static DefaultMap = [];
+  static BlankMap = 'c1707ca92a2f3bcc';
 
-  public static BlankMap = [
-    {
-      elementType: 'labels',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'administrative',
-      elementType: 'geometry',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'administrative.land_parcel',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'administrative.neighborhood',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'poi',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'road',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'road',
-      elementType: 'labels.icon',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-    {
-      featureType: 'transit',
-      stylers: [
-        {
-          visibility: 'off',
-        },
-      ],
-    },
-  ];
+  static DefaultMap = '92b62a7797a48aa';
+
+  private container!: HTMLElement;
 
   private heatmap!: google.maps.visualization.HeatmapLayer;
 
@@ -396,8 +331,10 @@ export class Map extends EventEmitter<{
   /**
    * Initializes the map.
    * @param container - The element to initialize within.
+   * @param style - Map ID style to initialize with.
    */
-  public async initialize(container: HTMLElement) {
+  public async initialize(container: HTMLElement, style = Map.DefaultMap) {
+    this.container = container;
     return new Promise<void>((resolve) => {
       new Loader({
         apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
@@ -415,7 +352,7 @@ export class Map extends EventEmitter<{
 
           this.map = new this.mapsLibrary.Map(container, {
             zoom: 6,
-            mapId: 'DEMO_MAP_ID',
+            mapId: style,
           });
           this.map.setCenter({ lat: 0.0, lng: 0.0 });
           navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
@@ -484,11 +421,15 @@ export class Map extends EventEmitter<{
 
   /**
    * Changes the map style.
-   * @param styles
+   * @param style - The map ID corresponding to the desired style.
    */
-  public setStyle(styles: google.maps.MapTypeStyle[]) {
-    this.map.setOptions({
-      styles,
+  public async setStyle(style: string) {
+    await this.initialize(this.container, style);
+    Object.values(this.markers).forEach((marker) => {
+      marker.el.map = this.map;
+    });
+    Object.values(this.shapes).forEach((shape) => {
+      shape.setMap(this.map);
     });
   }
 }

@@ -208,6 +208,6 @@ onMounted(() => {
 }
 
 .entry-text {
-  white-space: pre;
+  white-space: pre-wrap;
 }
 </style>

@@ -4,6 +4,7 @@ import 'video.js/dist/video-js.css';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
+import type { Person } from '~/classes/Person';
 
 type PeopleEntry = {
   title: string;
@@ -65,19 +66,27 @@ const setPhotoDialog = ref(false);
 const setPhotoTarget = ref('');
 
 const peopleList = computed(() => {
-  let re: PeopleEntry[] = [];
-  Object.entries(peopleMap).forEach(([category, persons]) => {
-    re = re.concat(
-      persons.map((person) => {
-        return {
-          color: peopleCategories[category].data.color,
-          title: person.data.name,
-          value: person.Id,
-        };
-      }),
-    );
+  let flatPeople: Person[] = [];
+  Object.values(peopleMap).forEach((persons) => {
+    flatPeople = flatPeople.concat(persons);
   });
-  return re;
+  return flatPeople
+    .sort((a, b) => {
+      if (a.count < b.count) {
+        return 1;
+      }
+      if (a.count > b.count) {
+        return -1;
+      }
+      return 0;
+    })
+    .map((person) => {
+      return {
+        color: peopleCategories[person.data.category].data.color,
+        title: person.data.name,
+        value: person.Id,
+      };
+    });
 });
 
 const placeList = computed(() => {

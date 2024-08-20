@@ -7,7 +7,7 @@ import { fileStore, formatDate } from '../../stores/fileStore';
 const route = useRoute();
 const router = useRouter();
 
-const { filteredPhotos, filters, setFilter, places, checkFilter, people } = fileStore;
+const { filteredPhotos, filters, setFilter, places, checkFilter, people, files } = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
@@ -17,7 +17,17 @@ const filterByPerson = ref(false);
 const currentDate = ref(new Date());
 
 fileStore.on('updateFilters', () => {
-  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
+  if (
+    !filterByLocation.value &&
+    !filterByDate.value &&
+    !filterByPerson.value &&
+    filters.enabledTags.length === 0 &&
+    filters.disabledTags.length == 0
+  ) {
+    photos.value = Object.values(files);
+  } else {
+    photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);
+  }
 });
 
 fileStore.on('updatePhoto', (photo) => {
