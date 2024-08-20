@@ -1199,6 +1199,52 @@ class FileStore extends EventEmitter<{
   }
 
   /**
+   * Sets a journal entry's mood.
+   * @param date - The date of the entry.
+   * @param mood - The mood to set.
+   */
+  public async setEntryMood(date: string, mood: number) {
+    if (!this.journals[date]) {
+      const entry = new JournalEntry({
+        date,
+        mood,
+        text: '',
+        activities: '',
+        steps: 0,
+      });
+      this.journals[date] = entry;
+      await this.database?.insert(entry);
+    } else {
+      this.journals[date].data.mood = mood;
+      await this.database?.update(this.journals[date]);
+    }
+    return this.journals[date];
+  }
+
+  /**
+   * Sets a journal entry's text.
+   * @param date - The date of the entry.
+   * @param text - The entry text.
+   */
+  public async setEntryText(date: string, text: string) {
+    if (!this.journals[date]) {
+      const entry = new JournalEntry({
+        date,
+        mood: 2,
+        text,
+        activities: '',
+        steps: 0,
+      });
+      this.journals[date] = entry;
+      await this.database?.insert(entry);
+    } else {
+      this.journals[date].data.text = text;
+      await this.database?.update(this.journals[date]);
+    }
+    return this.journals[date];
+  }
+
+  /**
    * Creates a new activity.
    * @param name - The name of the activity.
    * @param icon - The icon for the activity.

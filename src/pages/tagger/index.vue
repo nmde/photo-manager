@@ -7,7 +7,18 @@ import { fileStore, formatDate } from '../../stores/fileStore';
 const route = useRoute();
 const router = useRouter();
 
-const { filteredPhotos, filters, setFilter, places, checkFilter, people, files } = fileStore;
+const {
+  filteredPhotos,
+  filters,
+  setFilter,
+  places,
+  checkFilter,
+  people,
+  files,
+  setEntryMood,
+  setEntryText,
+  journals,
+} = fileStore;
 
 const selected = ref<Photo[]>([]);
 const photos = ref<Photo[]>([]);
@@ -15,6 +26,23 @@ const filterByLocation = ref(false);
 const filterByDate = ref(false);
 const filterByPerson = ref(false);
 const currentDate = ref(new Date());
+
+// Journal editor
+const mood = ref(2);
+const entryText = ref('');
+
+function setDate(date: Date) {
+  currentDate.value = date;
+  const d = currentDate.value.toISOString();
+  setFilter('filterDate', d);
+  if (journals[d]) {
+    mood.value = journals[d].data.mood;
+    entryText.value = journals[d].data.text;
+  } else {
+    mood.value = 2;
+    entryText.value = '';
+  }
+}
 
 fileStore.on('updateFilters', () => {
   if (
@@ -50,10 +78,8 @@ onMounted(() => {
     filterByLocation.value = true;
   }
   if (route.query.date) {
-    const d = formatDate(new Date(route.query.date as string));
-    setFilter('filterDate', d);
+    setDate(moment(route.query.date as string).toDate());
     filterByDate.value = true;
-    currentDate.value = new Date(Date.parse(filters.filterDate));
   }
   if (route.query.person) {
     setFilter('filterPerson', route.query.person as string);
@@ -124,26 +150,12 @@ onMounted(() => {
               <v-btn
                 icon
                 flat
-                @click="
-                  () => {
-                    currentDate = moment(currentDate).subtract(1, 'day').toDate();
-                    setFilter('filterDate', formatDate(currentDate));
-                  }
-                "
+                @click="() => setDate(moment(currentDate).subtract(1, 'day').toDate())"
               >
                 <v-icon>mdi-arrow-left</v-icon>
               </v-btn>
               {{ formatDate(currentDate) }}
-              <v-btn
-                icon
-                flat
-                @click="
-                  () => {
-                    currentDate = moment(currentDate).add(1, 'day').toDate();
-                    setFilter('filterDate', formatDate(currentDate));
-                  }
-                "
-              >
+              <v-btn icon flat @click="() => setDate(moment(currentDate).add(1, 'day').toDate())">
                 <v-icon>mdi-arrow-right</v-icon>
               </v-btn>
               <v-btn
@@ -157,6 +169,26 @@ onMounted(() => {
             </div>
           </div>
           <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>
+          <div v-if="filterByDate">
+            <mood-icon
+              :mood="mood"
+              @selected="
+                async (newMood) => {
+                  await setEntryMood(currentDate.toISOString(), newMood);
+                  mood = newMood;
+                }
+              "
+            ></mood-icon>
+            <autosave-text
+              :value="entryText"
+              @save="
+                async (text) => {
+                  await setEntryText(currentDate.toISOString(), text);
+                  entryText = text;
+                }
+              "
+            ></autosave-text>
+          </div>
         </v-col>
         <v-col cols="6">
           <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"

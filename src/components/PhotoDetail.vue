@@ -226,11 +226,11 @@ onMounted(initialize);
     v-model="title"
     @update:model-value="emit('update:title', title)"
   ></v-text-field>
-  <v-textarea
+  <autosave-text
     label="Description"
-    v-model="description"
-    @update:model-value="emit('update:description', description)"
-  ></v-textarea>
+    :value="description"
+    @save="(description) => emit('update:description', description)"
+  ></autosave-text>
   <v-date-input
     label="Date"
     v-model="date"

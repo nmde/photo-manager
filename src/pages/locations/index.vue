@@ -408,15 +408,15 @@ onMounted(async () => {
                           }
                         "
                       ></tag-input>
-                      <v-textarea
+                      <autosave-text
                         label="Notes"
-                        v-model="place.data.notes"
-                        @update:model-value="
-                          async () => {
-                            await setPlaceNotes(place.Id, place.data.notes);
+                        :value="place.data.notes"
+                        @save="
+                          async (notes) => {
+                            await setPlaceNotes(place.Id, notes);
                           }
                         "
-                      ></v-textarea>
+                      ></autosave-text>
                     </v-expansion-panel-text>
                   </v-expansion-panel>
                   <v-expansion-panel v-for="shape in shapeMap[layer.Id]" :key="shape.Id">
