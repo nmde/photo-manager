@@ -214,10 +214,10 @@ onMounted(initialize);
     "
   >
     <template v-slot:item="{ item, props }">
-      <v-list-item v-bind="props" :style="{ color: item.raw.color }"></v-list-item>
+      <v-list-item v-bind="props" :style="{ color: item.raw.color }" :prepend-avatar="people[item.raw.value].data.photo"></v-list-item>
     </template>
     <template v-slot:chip="{ item, props }">
-      <v-chip v-bind="props" :color="item.raw.color"></v-chip>
+      <v-chip v-bind="props" :color="item.raw.color" :prepend-avatar="people[item.raw.value].data.photo"></v-chip>
     </template>
   </v-combobox>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>

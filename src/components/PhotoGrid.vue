@@ -19,7 +19,6 @@ const selected = ref<Photo[]>([]);
 const searchDialog = ref(false);
 const itemsPerRow = ref(4);
 const size = ref(0);
-const rows = ref(0);
 const gridCol = ref<any>();
 const sortBy = ref(0);
 const sortDir = ref(1);
@@ -29,8 +28,11 @@ const sortDir = ref(1);
  */
 function resizeGrid() {
   size.value = gridCol.value?.$el.getBoundingClientRect().width / itemsPerRow.value - 8;
-  rows.value = window.innerHeight / size.value;
 }
+
+const rows = computed(() => {
+  return Math.min(8, Math.ceil(props.photos.length % size.value));
+});
 
 type GridRow = Photo[];
 
@@ -316,7 +318,12 @@ onUnmounted(() => {
     </v-menu>
   </div>
   Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
-  <v-virtual-scroll :height="rows * size" :item-height="size" :items="filteredPhotos" ref="gridCol">
+  <v-virtual-scroll
+    :height="rows * size + 8"
+    :item-height="size"
+    :items="filteredPhotos"
+    ref="gridCol"
+  >
     <template v-slot:default="{ item }">
       <photo-icon
         v-for="(photo, i) in item"
