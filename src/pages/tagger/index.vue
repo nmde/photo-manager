@@ -34,7 +34,7 @@ const entryText = ref('');
 function setDate(date: Date) {
   currentDate.value = date;
   const d = currentDate.value.toISOString();
-  setFilter('filterDate', d);
+  setFilter('filterDate', formatDate(currentDate.value));
   if (journals[d]) {
     mood.value = journals[d].data.mood;
     entryText.value = journals[d].data.text;
@@ -45,13 +45,17 @@ function setDate(date: Date) {
 }
 
 fileStore.on('updateFilters', () => {
+  console.log('Updating filters');
   if (
     !filterByLocation.value &&
     !filterByDate.value &&
     !filterByPerson.value &&
     filters.enabledTags.length === 0 &&
-    filters.disabledTags.length == 0
+    filters.disabledTags.length == 0 &&
+    !filters.hideTagged &&
+    !filters.hideLocated
   ) {
+    console.log('Filters all disabled');
     photos.value = Object.values(files);
   } else {
     photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);

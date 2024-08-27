@@ -527,7 +527,6 @@ class FileStore extends EventEmitter<{
    * @param value - The value to set.
    */
   public setFilter(key: keyof typeof this.filters, value: any) {
-    console.log(`Setting filter ${key} to ${value}`);
     this.filters[key] = value;
     this.emit('updateFilters');
   }
@@ -753,26 +752,14 @@ class FileStore extends EventEmitter<{
     const filtered: Photo[] = [];
     const { filterDate, filterPos, filterPerson } = this.filters;
     let files = Object.values(this.files);
-    let dateMapped: Photo[] = [];
-    let locationMapped: Photo[] = [];
-    let personMapped: Photo[] = [];
     if (filterByDate) {
-      dateMapped = this.dateMap[filterDate] || [];
+      files = this.dateMap[filterDate] || [];
     }
     if (filterByLocation) {
-      locationMapped = this.locationMap[filterPos] || [];
+      files = this.locationMap[filterPos] || [];
     }
     if (filterByPerson) {
-      personMapped = this.peoplePhotoMap[filterPerson] || [];
-    }
-    if (dateMapped.length < locationMapped.length && dateMapped.length < personMapped.length) {
-      files = dateMapped;
-    }
-    if (locationMapped.length < dateMapped.length && locationMapped.length < personMapped.length) {
-      files = locationMapped;
-    }
-    if (personMapped.length < dateMapped.length && personMapped.length < locationMapped.length) {
-      files = personMapped;
+      files = this.peoplePhotoMap[filterPerson] || [];
     }
     files
       .filter((file) => !file.hidden)
