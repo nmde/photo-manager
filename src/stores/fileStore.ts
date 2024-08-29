@@ -810,61 +810,75 @@ class FileStore extends EventEmitter<{
       await createDir(projectThumbnailDir);
     }
     const thumbnails = (await readDir(projectThumbnailDir)).map((p) => p.name);
+    const newThumbnails: {
+      type: 'raw' | 'video';
+      raw: string;
+      thumbnailPath: string;
+    }[] = [];
+    // Identify ungenerated thumbnails
     for (const raw of raws) {
       const thumbnailFile = `${clean(raw).replace(/\..*$/, '')}.jpg`;
       const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`; // tauri's join() slowed down this one line by like 10,000%
       if (thumbnails.indexOf(thumbnailFile) < 0) {
-        const convertOutput = await new Command('magick', [raw, thumbnailPath]).execute();
-        if (convertOutput.code !== 0) {
-          console.error(convertOutput.stderr);
+        newThumbnails.push({ raw, thumbnailPath, type: 'raw' });
+      } else {
+        if (this.files[raw].data.thumbnail.length === 0) {
+          await this.setThumbnail(raw, convertFileSrc(thumbnailPath));
+          this.emit('updatePhoto', this.files[raw]);
         }
-        const resizeOutput = await new Command('magick', [
-          thumbnailPath,
-          '-resize',
-          '800x800',
-          thumbnailPath,
-        ]).execute();
-        if (resizeOutput.code !== 0) {
-          console.error(resizeOutput.stderr);
-        }
-      }
-      if (this.files[raw].data.thumbnail.length === 0) {
-        await this.setThumbnail(raw, convertFileSrc(thumbnailPath));
-        this.emit('updatePhoto', this.files[raw]);
-      }
-      this.files[raw].awaitingThumbnail = false;
-      progress += 1;
-      const p = Math.round((progress / total) * 100);
-      if (p > lastProgressInt) {
-        this.thumbnailProgress = p;
-        lastProgressInt = p;
-        this.emit('thumbnailProgress', this.thumbnailProgress);
+        this.files[raw].awaitingThumbnail = false;
       }
     }
     for (const video of videos) {
       const thumbnailFile = `${clean(video).replace(/\..*$/, '')}.png`;
       const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`;
       if (thumbnails.indexOf(thumbnailFile) < 0) {
+        newThumbnails.push({ raw: video, thumbnailPath, type: 'video' });
+      } else {
+        if (this.files[video].data.thumbnail.length === 0) {
+          await this.setThumbnail(video, convertFileSrc(thumbnailPath));
+          this.emit('updatePhoto', this.files[video]);
+        }
+        this.files[video].awaitingThumbnail = false;
+      }
+    }
+    // Generate new thumbnails
+    for (const data of newThumbnails) {
+      if (data.type === 'raw') {
+        const convertOutput = await new Command('magick', [data.raw, data.thumbnailPath]).execute();
+        if (convertOutput.code !== 0) {
+          console.error(convertOutput.stderr);
+        }
+        const resizeOutput = await new Command('magick', [
+          data.thumbnailPath,
+          '-resize',
+          '800x800',
+          data.thumbnailPath,
+        ]).execute();
+        if (resizeOutput.code !== 0) {
+          console.error(resizeOutput.stderr);
+        }
+      } else {
         const convertOutput = await new Command('ffmpeg', [
           '-i',
-          video,
+          data.raw,
           '-ss',
           '00:00:01.00',
           '-vframes',
           '1',
-          thumbnailPath,
+          data.thumbnailPath,
         ]).execute();
         if (convertOutput.code !== 0) {
           console.error(convertOutput.stderr);
         }
       }
-      if (this.files[video].data.thumbnail.length === 0) {
-        await this.setThumbnail(video, convertFileSrc(thumbnailPath));
-        this.emit('updatePhoto', this.files[video]);
+      if (this.files[data.raw].data.thumbnail.length === 0) {
+        await this.setThumbnail(data.raw, convertFileSrc(data.thumbnailPath));
+        this.emit('updatePhoto', this.files[data.raw]);
       }
-      this.files[video].awaitingThumbnail = false;
+      this.files[data.raw].awaitingThumbnail = false;
       progress += 1;
-      const p = Math.round((progress / total) * 100);
+      const p = Math.round((progress / newThumbnails.length) * 100);
       if (p > lastProgressInt) {
         this.thumbnailProgress = p;
         lastProgressInt = p;
