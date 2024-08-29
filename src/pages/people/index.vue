@@ -31,7 +31,18 @@ const categoryList = computed(() =>
 
 onMounted(() => {
   localCategories.value = peopleCategories;
-  localPeople.value = peopleMap;
+  localPeople.value = {};
+  Object.entries(peopleMap).forEach(([category, people]) => {
+    localPeople.value[category] = people.sort((a, b) => {
+      if (a.count < b.count) {
+        return 1;
+      }
+      if (a.count > b.count) {
+        return -1;
+      }
+      return 0;
+    });
+  });
 });
 </script>
 

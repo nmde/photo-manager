@@ -217,7 +217,7 @@ onMounted(initialize);
       <v-list-item v-bind="props" :style="{ color: item.raw.color }" :prepend-avatar="people[item.raw.value].data.photo"></v-list-item>
     </template>
     <template v-slot:chip="{ item, props }">
-      <v-chip v-bind="props" :color="item.raw.color" :prepend-avatar="people[item.raw.value].data.photo"></v-chip>
+      <v-chip v-bind="props" size="x-large" :color="item.raw.color" :prepend-avatar="people[item.raw.value].data.photo"></v-chip>
     </template>
   </v-combobox>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
@@ -301,6 +301,14 @@ onMounted(initialize);
     <v-card>
       <v-card-title>Set Profile Photo</v-card-title>
       <v-card-text>
+        Preview:
+        <v-avatar size="128">
+          <v-img :src="photoPath"></v-img>
+        </v-avatar>
+        <v-avatar size="48">
+          <v-img :src="photoPath"></v-img>
+        </v-avatar>
+        <br />
         Set as profile photo for:
         <v-select :items="peopleList" v-model="setPhotoTarget">
           <template v-slot:item="{ props, item }">

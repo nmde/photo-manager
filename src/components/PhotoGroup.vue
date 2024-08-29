@@ -65,8 +65,20 @@ watch(
     "
     @update:tags="
       (tags) => {
+        let expandedTags: string[] = [];
+        tags.forEach((tag) => {
+          if (tag.indexOf(',') > 0) {
+            tag.split(',').forEach((s) => {
+              if (expandedTags.indexOf(s) < 0) {
+                expandedTags.push(s);
+              }
+            });
+          } else if (expandedTags.indexOf(s) < 0) {
+            expandedTags.push(tag);
+          }
+        });
         props.photos.forEach((photo) => {
-          updateTagsForGroup(photo.data.name, tags);
+          updateTagsForGroup(photo.data.name, expandedTags);
         });
       }
     "
@@ -93,10 +105,12 @@ watch(
           setLocation(photo.data.name, location);
         })
     "
-    @update:people="(people) => {
-      props.photos.forEach((photo) => {
-        setPeople(photo.data.name, people);
-      });
-    }"
+    @update:people="
+      (people) => {
+        props.photos.forEach((photo) => {
+          setPeople(photo.data.name, people);
+        });
+      }
+    "
   ></photo-detail>
 </template>
