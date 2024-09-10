@@ -31,7 +31,7 @@ function resizeGrid() {
 }
 
 const rows = computed(() => {
-  return Math.min(8, Math.ceil(props.photos.length % size.value));
+  return 8;
 });
 
 type GridRow = Photo[];

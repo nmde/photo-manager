@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Photo } from '../classes/Photo';
+import hiddenPng from '../assets/hidden.png';
 
 const props = defineProps<{
   photo: Photo;
@@ -19,6 +20,9 @@ const hasThumbnail = computed(() => {
 });
 
 const photoPath = computed(() => {
+  if (props.photo.data.hideThumbnail) {
+    return hiddenPng;
+  }
   if (hasThumbnail.value) {
     return props.photo.data.thumbnail;
   }

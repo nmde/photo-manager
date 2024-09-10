@@ -15,6 +15,8 @@ export interface PhotoData {
   date: string;
   raw: boolean;
   people: string;
+  hideThumbnail: boolean;
+  photographer: string;
 }
 
 export class Photo extends Entity<PhotoData> {
@@ -111,5 +113,6 @@ export function createPhoto(name: string, path: string): Photo {
     date: '',
     raw: false,
     people: '',
+    hideThumbnail: false,
   });
 }

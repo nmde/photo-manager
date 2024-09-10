@@ -17,6 +17,8 @@ const {
   setDate,
   setLocation,
   setPeople,
+  setHideThumbnail,
+  setPhotographer,
 } = fileStore;
 
 const current = ref(0);
@@ -109,6 +111,20 @@ watch(
       (people) => {
         props.photos.forEach((photo) => {
           setPeople(photo.data.name, people);
+        });
+      }
+    "
+    @update:photographer="
+      (value) => {
+        props.photos.forEach((photo) => {
+          setPhotographer(photo.data.name, value);
+        });
+      }
+    "
+    @update:hide-thumbnail="
+      (value) => {
+        props.photos.forEach((photo) => {
+          setHideThumbnail(photo.data.name, value);
         });
       }
     "

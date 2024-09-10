@@ -783,7 +783,6 @@ class FileStore extends EventEmitter<{
     const { Command } = await import('@tauri-apps/api/shell');
     this.generatingThumbnails = true;
     this.thumbnailProgress = 0;
-    const total = raws.length + videos.length;
     let progress = 0;
     let lastProgressInt = 0;
     /**
@@ -1317,6 +1316,28 @@ class FileStore extends EventEmitter<{
     this.peopleCategories[c.Id] = c;
     this.peopleMap[c.Id] = [];
     return c;
+  }
+
+  /**
+   * Hides a photo's thumbnail.
+   * @param photo - The target photo.
+   * @param value - If the thumbnail should be shown.
+   */
+  public async setHideThumbnail(photo: string, value: boolean) {
+    this.files[photo].data.hideThumbnail = value;
+    await this.database?.update(this.files[photo]);
+    this.emit('updatePhoto', this.files[photo]);
+  }
+
+  /**
+   * Sets a photo's photographer
+   * @param photo - The target photo.
+   * @param value - The target person.
+   */
+  public async setPhotographer(photo: string, value: string) {
+    this.files[photo].data.photographer = value;
+    await this.database?.update(this.files[photo]);
+    this.emit('updatePhoto', this.files[photo]);
   }
 }
 

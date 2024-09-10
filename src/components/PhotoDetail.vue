@@ -4,25 +4,8 @@ import 'video.js/dist/video-js.css';
 import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
-import type { Person } from '~/classes/Person';
 
-type PeopleEntry = {
-  title: string;
-  value: string;
-  color: string;
-};
-
-const {
-  groupNames,
-  addGroup,
-  removeGroup,
-  places,
-  layers,
-  peopleCategories,
-  people,
-  peopleMap,
-  setPersonPhoto,
-} = fileStore;
+const { groupNames, addGroup, removeGroup, places, layers, setPersonPhoto } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -34,6 +17,8 @@ const emit = defineEmits<{
   (e: 'update:date', date: string): void;
   (e: 'update:location', location: string): void;
   (e: 'update:people', people: string[]): void;
+  (e: 'update:photographer', photographer: string): void;
+  (e: 'update:hideThumbnail', value: boolean): void;
 }>();
 
 const props = defineProps<{
@@ -60,34 +45,13 @@ const date = ref<Date>(new Date());
 const closeUp = ref(false);
 const location = ref('');
 const showRaw = ref(false);
-const photoPeople = ref<PeopleEntry[]>([]);
+const photoPeople = ref<string[]>([]);
+const photographer = ref<string[]>([]);
+const hideThumbnail = ref(false);
 
 const setPhotoDialog = ref(false);
-const setPhotoTarget = ref('');
-
-const peopleList = computed(() => {
-  let flatPeople: Person[] = [];
-  Object.values(peopleMap).forEach((persons) => {
-    flatPeople = flatPeople.concat(persons);
-  });
-  return flatPeople
-    .sort((a, b) => {
-      if (a.count < b.count) {
-        return 1;
-      }
-      if (a.count > b.count) {
-        return -1;
-      }
-      return 0;
-    })
-    .map((person) => {
-      return {
-        color: peopleCategories[person.data.category].data.color,
-        title: person.data.name,
-        value: person.Id,
-      };
-    });
-});
+const setPhotoTarget = ref<string[]>([]);
+const viewConfirmation = ref(false);
 
 const placeList = computed(() => {
   return Object.values(places)
@@ -108,7 +72,7 @@ const placeList = computed(() => {
     })
     .map((p) => ({
       color: layers[p.data.layer]?.data.color,
-      title: p.data.name,
+      title: `${p.data.name} (${p.count})`,
       value: p.Id,
     }));
 });
@@ -122,13 +86,13 @@ function initialize() {
   description.value = props.photo.data.description;
   date.value = props.photo.date;
   location.value = props.photo.data.location;
-  photoPeople.value = props.photo.people.map((person) => {
-    return {
-      title: people[person].data.name,
-      value: person,
-      color: peopleCategories[people[person].data.category].data.color,
-    };
-  });
+  hideThumbnail.value = props.photo.data.hideThumbnail;
+  photoPeople.value = props.photo.people;
+  if (props.photo.data.photographer) {
+    photographer.value = [props.photo.data.photographer];
+  } else {
+    photographer.value = [];
+  }
 }
 
 watch(() => props.photo, initialize);
@@ -137,17 +101,27 @@ onMounted(initialize);
 </script>
 
 <template>
-  <video-player
-    v-if="photo.data.video"
-    :src="photo.data.path"
-    :poster="photo.data.thumbnail"
-    controls
-    :width="700"
-    :height="400"
-  ></video-player>
-  <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true"></v-img>
-  <v-img v-if="showRaw" max-height="600" :src="photo.rawFile"></v-img>
-  <v-btn v-if="photo.rawFile.length > 0" @click="showRaw = !showRaw">RAW</v-btn>
+  <div v-if="photo.data.hideThumbnail && !viewConfirmation">
+    <v-btn @click="viewConfirmation = true">Show Image</v-btn>
+  </div>
+  <div v-if="!photo.data.hideThumbnail || viewConfirmation">
+    <video-player
+      v-if="photo.data.video"
+      :src="photo.data.path"
+      :poster="photo.data.thumbnail"
+      controls
+      :width="700"
+      :height="400"
+    ></video-player>
+    <v-img
+      v-if="!photo.data.video"
+      max-height="600"
+      :src="photoPath"
+      @click="closeUp = true"
+    ></v-img>
+    <v-img v-if="showRaw" max-height="600" :src="photo.rawFile"></v-img>
+    <v-btn v-if="photo.rawFile.length > 0" @click="showRaw = !showRaw">RAW</v-btn>
+  </div>
   <tag-input
     advanced
     :label="`Photo Tags (${photoTags.length})`"
@@ -196,30 +170,12 @@ onMounted(initialize);
       <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
     </template>
   </v-select>
-  <v-combobox
+  <people-input
     label="People"
-    :items="peopleList"
+    :value="photoPeople"
+    @update="emit('update:people', photoPeople)"
     multiple
-    chips
-    clearable
-    item-value="value"
-    v-model="photoPeople"
-    @update:model-value="
-      () => {
-        emit(
-          'update:people',
-          photoPeople.map((p) => p.value),
-        );
-      }
-    "
-  >
-    <template v-slot:item="{ item, props }">
-      <v-list-item v-bind="props" :style="{ color: item.raw.color }" :prepend-avatar="people[item.raw.value].data.photo"></v-list-item>
-    </template>
-    <template v-slot:chip="{ item, props }">
-      <v-chip v-bind="props" size="x-large" :color="item.raw.color" :prepend-avatar="people[item.raw.value].data.photo"></v-chip>
-    </template>
-  </v-combobox>
+  ></people-input>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-text-field
     label="Title"
@@ -236,6 +192,19 @@ onMounted(initialize);
     v-model="date"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
+  <people-input
+    label="Taken by"
+    :value="photographer"
+    @update="
+      (value) => {
+        if (value[0] === undefined) {
+          emit('update:photographer', '');
+        } else {
+          emit('update:photographer', value[0]);
+        }
+      }
+    "
+  ></people-input>
   <v-select
     label="Group"
     :items="groupNames"
@@ -262,6 +231,11 @@ onMounted(initialize);
     >Remove Location</v-btn
   >
   <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
+  <v-checkbox
+    label="Hide Thumbnail"
+    v-model="hideThumbnail"
+    @update:model-value="emit('update:hideThumbnail', hideThumbnail)"
+  ></v-checkbox>
   <div v-if="showAddGroup">
     <v-text-field label="New Group Name" v-model="newGroupName"></v-text-field>
     <v-btn
@@ -309,12 +283,11 @@ onMounted(initialize);
           <v-img :src="photoPath"></v-img>
         </v-avatar>
         <br />
-        Set as profile photo for:
-        <v-select :items="peopleList" v-model="setPhotoTarget">
-          <template v-slot:item="{ props, item }">
-            <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
-          </template>
-        </v-select>
+        <people-input
+          :value="setPhotoTarget"
+          label="Set as profile photo for"
+          @update="(value: string[]) => (setPhotoTarget = value)"
+        ></people-input>
       </v-card-text>
       <v-card-actions>
         <v-btn @click="setPhotoDialog = false">Cancel</v-btn>
@@ -322,9 +295,9 @@ onMounted(initialize);
           color="primary"
           @click="
             async () => {
-              await setPersonPhoto(setPhotoTarget, photoPath);
+              await setPersonPhoto(setPhotoTarget[0], photoPath);
               setPhotoDialog = false;
-              setPhotoTarget = '';
+              setPhotoTarget = [];
             }
           "
           >Save</v-btn
