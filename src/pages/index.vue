@@ -5,8 +5,15 @@ import { fileStore } from '../stores/fileStore';
 import { Photo, createPhoto } from '~/classes/Photo';
 
 const router = useRouter();
-const { setWorkingDir, loadPhotos, setFiles, generateThumbnails, groupRaws, removeDeleted } =
-  fileStore;
+const {
+  setWorkingDir,
+  loadPhotos,
+  setFiles,
+  generateThumbnails,
+  groupRaws,
+  removeDeleted,
+  setFolderStructure,
+} = fileStore;
 
 const loading = ref(false);
 const deletedDialog = ref(false);
@@ -26,11 +33,11 @@ async function readDir(path: string, top = true) {
   console.log(`Reading ${path}`);
   reading.value = path;
   let files: string[] = [];
+  let dirs: string[] = [];
   const output = await new Command('cmd', ['/C', 'dir', path]).execute();
   if (output.stderr.length > 0) {
     console.error(output.stderr);
   } else {
-    const dirs: string[] = [];
     const it = output.stdout.matchAll(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}.*$/gm);
     let curr = it.next();
     while (!curr.done) {
@@ -40,7 +47,7 @@ async function readDir(path: string, top = true) {
           '',
         );
         if (['.', '..'].indexOf(dir) < 0) {
-          dirs.push(dir);
+          dirs.push(await join(path, dir));
         }
       } else {
         files.push(
@@ -59,13 +66,15 @@ async function readDir(path: string, top = true) {
       fileCount.value += dirs.length;
     }
     for (const dir of dirs) {
-      files = files.concat(await readDir(await join(path, dir), false));
+      const r = await readDir(dir, false);
+      files = files.concat(r.files);
+      dirs = dirs.concat(r.dirs);
     }
   }
   if (top) {
     initializingProgress.value += 1;
   }
-  return files;
+  return { dirs, files };
 }
 
 /**
@@ -88,7 +97,9 @@ async function openFolder() {
     let raws: string[] = [];
     let videos: string[] = [];
     console.log('Loaded photos');
-    fullFileList = await readDir(selected);
+    const folder = await readDir(selected);
+    setFolderStructure(folder);
+    fullFileList = folder.files;
     console.log('Read dir');
     const rawPhotos: Photo[] = [];
     fullFileList.forEach(async (file) => {

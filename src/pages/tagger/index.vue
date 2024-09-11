@@ -18,6 +18,8 @@ const {
   setEntryMood,
   setEntryText,
   journals,
+  folder,
+  workingDir,
 } = fileStore;
 
 const selected = ref<Photo[]>([]);
@@ -26,6 +28,7 @@ const filterByLocation = ref(false);
 const filterByDate = ref(false);
 const filterByPerson = ref(false);
 const currentDate = ref(new Date());
+const viewMode = ref(1);
 
 // Journal editor
 const mood = ref(2);
@@ -43,6 +46,41 @@ function setDate(date: Date) {
     entryText.value = '';
   }
 }
+
+type Folder = {
+  files: string[];
+  children: Record<string, Folder>;
+};
+
+// Folder view
+const folderStructure = computed(() => {
+  const structure: Folder = {
+    files: [],
+    children: {},
+  };
+  folder.dirs.forEach((dir) => {
+    const split = dir.replace(workingDir, '').split(/[/\\]/).slice(1);
+    let curr = structure;
+    split.forEach((seg) => {
+      if (!curr.children[seg]) {
+        curr.children[seg] = {
+          files: [],
+          children: {},
+        };
+      }
+      curr = curr.children[seg];
+    });
+  });
+  folder.files.forEach((file) => {
+    const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
+    let curr = structure;
+    for (let i = 0; i <= split.length - 2; i += 1) {
+      curr = curr.children[split[i]];
+    }
+    curr.files.push(file);
+  });
+  return structure;
+});
 
 fileStore.on('updateFilters', () => {
   console.log('Updating filters');
@@ -108,6 +146,8 @@ onMounted(() => {
                 }
               "
             ></tag-input>
+            <v-btn v-if="viewMode === 0" @click="viewMode = 1">View Folders</v-btn>
+            <v-btn v-if="viewMode === 1" @click="viewMode = 0">View Grid</v-btn>
             <div v-if="filterByLocation">
               <v-btn
                 icon
@@ -172,7 +212,14 @@ onMounted(() => {
               >
             </div>
           </div>
-          <photo-grid :photos="photos" @select="(s) => (selected = s)"></photo-grid>
+          <photo-grid
+            v-if="viewMode === 0"
+            :photos="photos"
+            @select="(s) => (selected = s)"
+          ></photo-grid>
+          <div v-if="viewMode === 1">
+            <directory-panels :folder-structure="folderStructure" @select="(s) => (selected = s)"></directory-panels>
+          </div>
           <div v-if="filterByDate">
             <mood-icon
               :mood="mood"

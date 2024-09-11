@@ -15,6 +15,11 @@ import { Activity } from '~/classes/Activity';
 import { Person } from '~/classes/Person';
 import { PersonCategory } from '~/classes/PersonCategory';
 
+export type FolderStructure = {
+  dirs: string[];
+  files: string[];
+};
+
 export const moods = [
   {
     color: '#F44336',
@@ -121,6 +126,11 @@ class FileStore extends EventEmitter<{
   public locationMap: Record<string, Photo[]> = {};
 
   public peoplePhotoMap: Record<string, Photo[]> = {};
+
+  public folder: FolderStructure = {
+    dirs: [],
+    files: [],
+  };
 
   /**
    * Sets the working dir name.
@@ -843,32 +853,37 @@ class FileStore extends EventEmitter<{
     }
     // Generate new thumbnails
     for (const data of newThumbnails) {
-      if (data.type === 'raw') {
-        const convertOutput = await new Command('magick', [data.raw, data.thumbnailPath]).execute();
-        if (convertOutput.code !== 0) {
-          console.error(convertOutput.stderr);
-        }
-        const resizeOutput = await new Command('magick', [
-          data.thumbnailPath,
-          '-resize',
-          '800x800',
-          data.thumbnailPath,
-        ]).execute();
-        if (resizeOutput.code !== 0) {
-          console.error(resizeOutput.stderr);
-        }
-      } else {
-        const convertOutput = await new Command('ffmpeg', [
-          '-i',
-          data.raw,
-          '-ss',
-          '00:00:01.00',
-          '-vframes',
-          '1',
-          data.thumbnailPath,
-        ]).execute();
-        if (convertOutput.code !== 0) {
-          console.error(convertOutput.stderr);
+      if (!(await exists(data.thumbnailPath))) {
+        if (data.type === 'raw') {
+          const convertOutput = await new Command('magick', [
+            data.raw,
+            data.thumbnailPath,
+          ]).execute();
+          if (convertOutput.code !== 0) {
+            console.error(convertOutput.stderr);
+          }
+          const resizeOutput = await new Command('magick', [
+            data.thumbnailPath,
+            '-resize',
+            '800x800',
+            data.thumbnailPath,
+          ]).execute();
+          if (resizeOutput.code !== 0) {
+            console.error(resizeOutput.stderr);
+          }
+        } else {
+          const convertOutput = await new Command('ffmpeg', [
+            '-i',
+            data.raw,
+            '-ss',
+            '00:00:01.00',
+            '-vframes',
+            '1',
+            data.thumbnailPath,
+          ]).execute();
+          if (convertOutput.code !== 0) {
+            console.error(convertOutput.stderr);
+          }
         }
       }
       if (this.files[data.raw].data.thumbnail.length === 0) {
@@ -1338,6 +1353,14 @@ class FileStore extends EventEmitter<{
     this.files[photo].data.photographer = value;
     await this.database?.update(this.files[photo]);
     this.emit('updatePhoto', this.files[photo]);
+  }
+
+  /**
+   * Sets the folder structure.
+   * @param structure - The folder structure.
+   */
+  public setFolderStructure(structure: FolderStructure) {
+    this.folder = structure;
   }
 }
 

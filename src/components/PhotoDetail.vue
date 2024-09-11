@@ -173,8 +173,21 @@ onMounted(initialize);
   <people-input
     label="People"
     :value="photoPeople"
-    @update="emit('update:people', photoPeople)"
+    @update="(people) => emit('update:people', people)"
     multiple
+  ></people-input>
+  <people-input
+    label="Taken by"
+    :value="photographer"
+    @update="
+      (value) => {
+        if (value[0] === undefined) {
+          emit('update:photographer', '');
+        } else {
+          emit('update:photographer', value[0]);
+        }
+      }
+    "
   ></people-input>
   <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-text-field
@@ -192,19 +205,6 @@ onMounted(initialize);
     v-model="date"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
-  <people-input
-    label="Taken by"
-    :value="photographer"
-    @update="
-      (value) => {
-        if (value[0] === undefined) {
-          emit('update:photographer', '');
-        } else {
-          emit('update:photographer', value[0]);
-        }
-      }
-    "
-  ></people-input>
   <v-select
     label="Group"
     :items="groupNames"

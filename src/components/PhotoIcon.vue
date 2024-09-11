@@ -76,6 +76,7 @@ const displayName = computed(() => {
             <v-icon v-if="props.photo.data.isDuplicate">mdi-content-duplicate</v-icon>
             <v-icon v-if="props.photo.data.video">mdi-video-outline</v-icon>
             <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
+            <v-icon v-if="props.photo.data.photographer !== undefined">mdi-photo</v-icon>
           </div>
         </div>
       </v-img>
