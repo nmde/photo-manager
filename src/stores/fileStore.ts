@@ -132,6 +132,10 @@ class FileStore extends EventEmitter<{
     files: [],
   };
 
+  public viewMode = 0;
+
+  public sort = [0, 1];
+
   /**
    * Sets the working dir name.
    * @param path - The path to the working dir.
@@ -407,6 +411,9 @@ class FileStore extends EventEmitter<{
           }
           this.peoplePhotoMap[id].push(photo);
         });
+        if (photo.data.photographer !== undefined && this.people[photo.data.photographer]) {
+          this.people[photo.data.photographer].photographerCount += 1;
+        }
         if (photo.data.date.length > 0) {
           const date = formatDate(photo.date);
           if (!this.dateMap[date]) {
@@ -1350,7 +1357,12 @@ class FileStore extends EventEmitter<{
    * @param value - The target person.
    */
   public async setPhotographer(photo: string, value: string) {
+    const old = this.files[photo].data.photographer;
+    if (old && this.people[old]) {
+      this.people[old].photographerCount -= 1;
+    }
     this.files[photo].data.photographer = value;
+    this.people[value].photographerCount += 1;
     await this.database?.update(this.files[photo]);
     this.emit('updatePhoto', this.files[photo]);
   }
@@ -1361,6 +1373,23 @@ class FileStore extends EventEmitter<{
    */
   public setFolderStructure(structure: FolderStructure) {
     this.folder = structure;
+  }
+
+  /**
+   * Sets the view mode.
+   * @param mode - The view mode.
+   */
+  public setViewMode(mode: number) {
+    this.viewMode = mode;
+  }
+
+  /**
+   * Sets the sort mode.
+   * @param mode - The sort mode.
+   * @param dir - The sort direction.
+   */
+  public setSortMode(mode: number, dir: number) {
+    this.sort = [mode, dir];
   }
 }
 

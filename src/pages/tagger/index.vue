@@ -20,6 +20,8 @@ const {
   journals,
   folder,
   workingDir,
+  viewMode,
+  setViewMode,
 } = fileStore;
 
 const selected = ref<Photo[]>([]);
@@ -28,7 +30,8 @@ const filterByLocation = ref(false);
 const filterByDate = ref(false);
 const filterByPerson = ref(false);
 const currentDate = ref(new Date());
-const viewMode = ref(1);
+const localViewMode = ref(0);
+const spacer = ref(false);
 
 // Journal editor
 const mood = ref(2);
@@ -71,14 +74,16 @@ const folderStructure = computed(() => {
       curr = curr.children[seg];
     });
   });
-  folder.files.forEach((file) => {
-    const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
-    let curr = structure;
-    for (let i = 0; i <= split.length - 2; i += 1) {
-      curr = curr.children[split[i]];
-    }
-    curr.files.push(file);
-  });
+  photos.value
+    .map((p) => p.data.name)
+    .forEach((file) => {
+      const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
+      let curr = structure;
+      for (let i = 0; i <= split.length - 2; i += 1) {
+        curr = curr.children[split[i]];
+      }
+      curr.files.push(file);
+    });
   return structure;
 });
 
@@ -128,6 +133,11 @@ onMounted(() => {
     filterByPerson.value = true;
   }
   photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);
+  localViewMode.value = viewMode;
+});
+
+window.addEventListener('scroll', () => {
+  spacer.value = window.scrollY < 100;
 });
 </script>
 
@@ -146,8 +156,22 @@ onMounted(() => {
                 }
               "
             ></tag-input>
-            <v-btn v-if="viewMode === 0" @click="viewMode = 1">View Folders</v-btn>
-            <v-btn v-if="viewMode === 1" @click="viewMode = 0">View Grid</v-btn>
+            <v-btn
+              v-if="localViewMode === 0"
+              @click="
+                localViewMode = 1;
+                setViewMode(1);
+              "
+              >View Folders</v-btn
+            >
+            <v-btn
+              v-if="localViewMode === 1"
+              @click="
+                localViewMode = 0;
+                setViewMode(0);
+              "
+              >View Grid</v-btn
+            >
             <div v-if="filterByLocation">
               <v-btn
                 icon
@@ -213,12 +237,15 @@ onMounted(() => {
             </div>
           </div>
           <photo-grid
-            v-if="viewMode === 0"
+            v-if="localViewMode === 0"
             :photos="photos"
             @select="(s) => (selected = s)"
           ></photo-grid>
-          <div v-if="viewMode === 1">
-            <directory-panels :folder-structure="folderStructure" @select="(s) => (selected = s)"></directory-panels>
+          <div v-if="localViewMode === 1">
+            <directory-panels
+              :folder-structure="folderStructure"
+              @select="(s) => (selected = s)"
+            ></directory-panels>
           </div>
           <div v-if="filterByDate">
             <mood-icon
@@ -242,14 +269,28 @@ onMounted(() => {
           </div>
         </v-col>
         <v-col cols="6">
-          <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
-            >Clear Selection ({{ selected.length }})</v-btn
-          >
-          <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>
+          <div class="details" :class="{ 'spacer': spacer }">
+            <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
+              >Clear Selection ({{ selected.length }})</v-btn
+            >
+            <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>
+          </div>
         </v-col>
       </v-row>
     </v-container>
   </v-main>
 </template>
 
-<style scoped></style>
+<style scoped>
+.details {
+  position: fixed;
+  height: 100%;
+  overflow: scroll;
+  top: 6px;
+  width: -webkit-fill-available;
+}
+
+.details.spacer {
+  top: 80px;
+}
+</style>

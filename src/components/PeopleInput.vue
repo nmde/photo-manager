@@ -18,6 +18,7 @@ const props = defineProps<{
   label: string;
   multiple?: boolean;
   value: string[];
+  sort: 'count' | 'photographer';
 }>();
 
 const peopleList = computed(() => {
@@ -27,18 +28,22 @@ const peopleList = computed(() => {
   });
   return flatPeople
     .sort((a, b) => {
-      if (a.count < b.count) {
-        return 1;
+      let x = a.count;
+      let y = b.count;
+      if (props.sort === 'photographer') {
+        x = a.photographerCount;
+        y = b.photographerCount;
       }
-      if (a.count > b.count) {
-        return -1;
-      }
-      return 0;
+      return y - x;
     })
     .map((person) => {
+      let count = person.count;
+      if (props.sort === 'photographer') {
+        count = person.photographerCount;
+      }
       return {
         color: peopleCategories[person.data.category].data.color,
-        title: `${person.data.name} (${person.count})`,
+        title: `${person.data.name} (${count})`,
         value: person.Id,
       };
     });
@@ -51,9 +56,13 @@ watch(
   () => {
     tempPeople.value = props.value.map((id) => {
       const p = people[id];
+      let count = p.count;
+      if (props.sort === 'photographer') {
+        count = p.photographerCount;
+      }
       return {
         color: peopleCategories[p.data.category].data.color,
-        title: `${p.data.name} (${p.count})`,
+        title: `${p.data.name} (${count})`,
         value: p.Id,
       };
     });
@@ -72,7 +81,10 @@ watch(
     v-model="tempPeople"
     @update:model-value="
       () => {
-        emit('update', tempPeople.map((p) => p.value));
+        emit(
+          'update',
+          tempPeople.map((p) => p.value),
+        );
       }
     "
   >

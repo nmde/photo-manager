@@ -25,7 +25,10 @@ const emit = defineEmits<{
     <v-expansion-panel v-for="dir in Object.keys(folderStructure.children)" :key="dir" :title="dir">
       <v-expansion-panel-text>
         <div v-if="Object.keys(folderStructure.children[dir]).length > 0">
-          <directory-panels :folder-structure="folderStructure.children[dir]"></directory-panels>
+          <directory-panels
+            :folder-structure="folderStructure.children[dir]"
+            @select="(s) => emit('select', s)"
+          ></directory-panels>
         </div>
         <photo-grid
           :photos="folderStructure.children[dir].files.map((s) => files[s])"

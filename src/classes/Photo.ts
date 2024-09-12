@@ -114,5 +114,6 @@ export function createPhoto(name: string, path: string): Photo {
     raw: false,
     people: '',
     hideThumbnail: false,
+    photographer: '',
   });
 }

@@ -109,6 +109,8 @@ onMounted(() => {
               <v-card-text>
                 Photo count: {{ person.count }}
                 <br />
+                Photos taken: {{ person.photographerCount }}
+                <br />
                 <p class="notes">{{ person.data.notes }}</p>
               </v-card-text>
             </v-card>

@@ -175,7 +175,9 @@ onMounted(initialize);
     :value="photoPeople"
     @update="(people) => emit('update:people', people)"
     multiple
+    sort="count"
   ></people-input>
+  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <people-input
     label="Taken by"
     :value="photographer"
@@ -188,8 +190,8 @@ onMounted(initialize);
         }
       }
     "
+    sort="photographer"
   ></people-input>
-  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)"></v-rating>
   <v-text-field
     label="Title"
     v-model="title"
@@ -229,6 +231,14 @@ onMounted(initialize);
       }
     "
     >Remove Location</v-btn
+  >
+  <v-btn
+    @click="
+      async () => {
+        emit('update:date', '');
+      }
+    "
+    >Remove Date</v-btn
   >
   <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
   <v-checkbox
@@ -287,6 +297,7 @@ onMounted(initialize);
           :value="setPhotoTarget"
           label="Set as profile photo for"
           @update="(value: string[]) => (setPhotoTarget = value)"
+          sort="count"
         ></people-input>
       </v-card-text>
       <v-card-actions>

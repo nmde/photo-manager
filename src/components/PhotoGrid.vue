@@ -11,8 +11,17 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const { getByGroup, addGroup, setGroup, photoCount, filters, setFilter, updateTagsForGroup } =
-  fileStore;
+const {
+  getByGroup,
+  addGroup,
+  setGroup,
+  photoCount,
+  filters,
+  setFilter,
+  updateTagsForGroup,
+  sort,
+  setSortMode,
+} = fileStore;
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
@@ -166,6 +175,8 @@ onMounted(() => {
   hideLocated.value = fileStore.filters.hideLocated;
   onlyError.value = fileStore.filters.onlyError;
   hideDuplicates.value = fileStore.filters.hideDuplicates;
+  sortBy.value = sort[0];
+  sortDir.value = sort[1];
   resizeGrid();
   window.addEventListener('resize', resizeGrid);
 });
@@ -192,6 +203,7 @@ onUnmounted(() => {
             () => {
               sortBy = 0;
               sortDir = 1;
+              setSortMode(0, 1);
             }
           "
           >Sort by name (asc)</v-list-item
@@ -201,6 +213,7 @@ onUnmounted(() => {
             () => {
               sortBy = 0;
               sortDir = -1;
+              setSortMode(0, -1);
             }
           "
           >Sort by name (desc)</v-list-item
@@ -210,6 +223,7 @@ onUnmounted(() => {
             () => {
               sortBy = 1;
               sortDir = 1;
+              setSortMode(1, 1);
             }
           "
           >Sort by rating (asc)</v-list-item
@@ -219,6 +233,7 @@ onUnmounted(() => {
             () => {
               sortBy = 1;
               sortDir = -1;
+              setSortMode(1, -1);
             }
           "
           >Sort by rating (desc)</v-list-item
@@ -227,6 +242,7 @@ onUnmounted(() => {
           @click="
             sortBy = 2;
             sortDir = 1;
+            setSortMode(2, 1);
           "
         >
           Sort by date
@@ -336,6 +352,21 @@ onUnmounted(() => {
       ></photo-icon>
     </template>
   </v-virtual-scroll>
+  <v-checkbox
+    color="primary"
+    class="collection-control"
+    density="compact"
+    v-model="selectMultiple"
+    label="Select Multiple"
+    @update:model-value="
+      () => {
+        if (!selectMultiple) {
+          selected = [];
+          $emit('select', selected);
+        }
+      }
+    "
+  ></v-checkbox>
   <v-dialog v-model="searchDialog">
     <v-card>
       <v-card-text>
