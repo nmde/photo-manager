@@ -22,8 +22,14 @@ Organize photos and videos with an advanced tagging system and geolocation.
 - View a heatmap of where your photos are most commonly taken
 - Draw on the map with lines and polygons
 
-## Calendar View
+## Calendar / Journal View
 - View photos taken each day on the calendar
+- Keep journal entries including mood, activities, and steps taken
+
+## People Tagging
+- Tag people in photos
+- Tag who took a photo
+- View photos of or taken by a particular person
 
 # Installation
 - Install [Rust](https://www.rust-lang.org/learn/get-started)
