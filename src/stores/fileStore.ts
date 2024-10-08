@@ -75,6 +75,7 @@ class FileStore extends EventEmitter<{
     filterPos: '',
     filterDate: '',
     filterPerson: '',
+    filterPhotographer: '',
     hideDuplicates: true,
     hideLocated: false,
     hideTagged: false,
@@ -126,6 +127,8 @@ class FileStore extends EventEmitter<{
   public locationMap: Record<string, Photo[]> = {};
 
   public peoplePhotoMap: Record<string, Photo[]> = {};
+
+  public photographerMap: Record<string, Photo[]> = {};
 
   public folder: FolderStructure = {
     dirs: [],
@@ -413,6 +416,10 @@ class FileStore extends EventEmitter<{
         });
         if (photo.data.photographer !== undefined && this.people[photo.data.photographer]) {
           this.people[photo.data.photographer].photographerCount += 1;
+          if (!this.photographerMap[photo.data.photographer]) {
+            this.photographerMap[photo.data.photographer] = [];
+          }
+          this.photographerMap[photo.data.photographer].push(photo);
         }
         if (photo.data.date.length > 0) {
           const date = formatDate(photo.date);
@@ -689,6 +696,7 @@ class FileStore extends EventEmitter<{
     filterByLocation = false,
     filterByDate = false,
     filterByPerson = false,
+    filterByPhotographer = false,
   ) {
     const {
       filterMode,
@@ -703,6 +711,7 @@ class FileStore extends EventEmitter<{
       filterPos,
       filterDate,
       filterPerson,
+      filterPhotographer,
     } = this.filters;
     let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
     if (
@@ -757,6 +766,11 @@ class FileStore extends EventEmitter<{
         satisfiesTags = false;
       }
     }
+    if (satisfiesTags && filterByPhotographer) {
+      if (file.data.photographer !== filterPhotographer) {
+        satisfiesTags = false;
+      }
+    }
     return satisfiesTags;
   }
 
@@ -765,9 +779,14 @@ class FileStore extends EventEmitter<{
    * @param filterByLocation
    * @param filterByDate
    */
-  public filteredPhotos(filterByLocation = false, filterByDate = false, filterByPerson = false) {
+  public filteredPhotos(
+    filterByLocation = false,
+    filterByDate = false,
+    filterByPerson = false,
+    filterByPhotographer = false,
+  ) {
     const filtered: Photo[] = [];
-    const { filterDate, filterPos, filterPerson } = this.filters;
+    const { filterDate, filterPos, filterPerson, filterPhotographer } = this.filters;
     let files = Object.values(this.files);
     if (filterByDate) {
       files = this.dateMap[filterDate] || [];
@@ -777,6 +796,9 @@ class FileStore extends EventEmitter<{
     }
     if (filterByPerson) {
       files = this.peoplePhotoMap[filterPerson] || [];
+    }
+    if (filterByPhotographer) {
+      files = this.photographerMap[filterPhotographer] || [];
     }
     files
       .filter((file) => !file.hidden)
@@ -1361,8 +1383,18 @@ class FileStore extends EventEmitter<{
     if (old && this.people[old]) {
       this.people[old].photographerCount -= 1;
     }
+    if (this.photographerMap[old]) {
+      const idx = this.photographerMap[old].findIndex((p) => p.data.name === photo);
+      if (idx >= 0) {
+        this.photographerMap[old].splice(idx, 1);
+      }
+    }
     this.files[photo].data.photographer = value;
     this.people[value].photographerCount += 1;
+    if (!this.photographerMap[value]) {
+      this.photographerMap[value] = [];
+    }
+    this.photographerMap[value].push(this.files[photo]);
     await this.database?.update(this.files[photo]);
     this.emit('updatePhoto', this.files[photo]);
   }

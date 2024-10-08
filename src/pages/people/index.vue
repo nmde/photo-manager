@@ -103,6 +103,14 @@ onMounted(() => {
                     >
                       View Photos
                     </v-list-item>
+                    <v-list-item
+                      @click="
+                        () => {
+                          router.push(`/tagger?photographer=${person.Id}`);
+                        }
+                      "
+                      >View Photos Taken By</v-list-item
+                    >
                   </v-list>
                 </v-menu>
               </v-card-title>

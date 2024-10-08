@@ -121,9 +121,6 @@ async function openFolder() {
       }
     });
     deleted.value = Object.keys(existing);
-    for (let i = 0; i < deleted.value.length; i += 1) {
-      await removeDeleted(deleted.value[i]);
-    }
     setFiles(files);
     groupRaws(rawPhotos);
     if (raws.length > 0 || videos.length > 0) {
@@ -167,7 +164,19 @@ async function openFolder() {
           </ul>
         </v-card-text>
         <v-card-actions>
-          <v-btn color="primary" @click="router.push('/tagger')">Continue</v-btn>
+          <v-btn
+            color="primary"
+            @click="
+              async () => {
+                for (let i = 0; i < deleted.length; i += 1) {
+                  removeDeleted(deleted[i]);
+                }
+                router.push('/tagger');
+              }
+            "
+            >Remove Records &amp; Continue</v-btn
+          >
+          <v-btn color="primary" @click="router.push('/tagger')">Continue Without Removing</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

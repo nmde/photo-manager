@@ -29,6 +29,7 @@ const photos = ref<Photo[]>([]);
 const filterByLocation = ref(false);
 const filterByDate = ref(false);
 const filterByPerson = ref(false);
+const filterByPhotographer = ref(false);
 const currentDate = ref(new Date());
 const localViewMode = ref(0);
 const spacer = ref(false);
@@ -101,7 +102,12 @@ fileStore.on('updateFilters', () => {
     console.log('Filters all disabled');
     photos.value = Object.values(files);
   } else {
-    photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);
+    photos.value = filteredPhotos(
+      filterByLocation.value,
+      filterByDate.value,
+      filterByPerson.value,
+      filterByPhotographer.value,
+    );
   }
 });
 
@@ -132,7 +138,16 @@ onMounted(() => {
     setFilter('filterPerson', route.query.person as string);
     filterByPerson.value = true;
   }
-  photos.value = filteredPhotos(filterByLocation.value, filterByDate.value, filterByPerson.value);
+  if (route.query.photographer) {
+    setFilter('filterPhotographer', route.query.photographer as string);
+    filterByPhotographer.value = true;
+  }
+  photos.value = filteredPhotos(
+    filterByLocation.value,
+    filterByDate.value,
+    filterByPerson.value,
+    filterByPhotographer.value,
+  );
   localViewMode.value = viewMode;
 });
 
@@ -269,7 +284,7 @@ window.addEventListener('scroll', () => {
           </div>
         </v-col>
         <v-col cols="6">
-          <div class="details" :class="{ 'spacer': spacer }">
+          <div class="details" :class="{ spacer: spacer }">
             <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
               >Clear Selection ({{ selected.length }})</v-btn
             >
