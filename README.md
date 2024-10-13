@@ -25,6 +25,7 @@ Organize photos and videos with an advanced tagging system and geolocation.
 ## Calendar / Journal View
 - View photos taken each day on the calendar
 - Keep journal entries including mood, activities, and steps taken
+- Encrypt journal entries in the database and application memory
 
 ## People Tagging
 - Tag people in photos
