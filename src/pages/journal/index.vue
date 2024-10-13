@@ -11,6 +11,8 @@ const {
   createActivity,
   setCalendarViewDate,
   calendarViewDate,
+  encrypted,
+  decryptJournalEntries,
 } = fileStore;
 
 function simplifyDate(date: Date) {
@@ -52,6 +54,16 @@ const activityName = ref('');
 const activityIcon = ref('');
 const localActivities = ref<Activity[]>([]);
 
+const decryptDialog = ref(false);
+const password = ref('');
+const decrypting = ref(false);
+const encryptionBlock = ref(false);
+
+fileStore.on('decrypted', () => {
+  encryptionBlock.value = false;
+  text.value = journals[date.value.toISOString()].data.text;
+});
+
 onMounted(() => {
   if (typeof route.query.date === 'string') {
     date.value = simplifyDate(new Date(route.query.date));
@@ -60,6 +72,9 @@ onMounted(() => {
   }
   setDate(date.value);
   localActivities.value = Object.values(activities);
+  if (encrypted) {
+    encryptionBlock.value = true;
+  }
 });
 </script>
 
@@ -109,7 +124,11 @@ onMounted(() => {
       :prepend-icon="activity.data.icon"
     ></v-chip>
     {{ steps }} Steps<br />
-    <p class="entry-text">{{ text }}</p>
+    <div v-if="encryptionBlock">
+      <h3>Journal entries are encrypted!</h3>
+      <v-btn @click="decryptDialog = true" color="primary">Decrypt Entries</v-btn>
+    </div>
+    <p v-else class="entry-text">{{ text }}</p>
   </v-main>
   <v-dialog v-model="createDialog">
     <v-card>
@@ -192,6 +211,30 @@ onMounted(() => {
           "
           color="primary"
           >Save</v-btn
+        >
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="decryptDialog" :persistent="decrypting">
+    <v-card>
+      <v-card-title>Decrypt Journal Entries</v-card-title>
+      <v-card-text>
+        <v-text-field label="Enter password" type="password" v-model="password"></v-text-field>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn @click="decryptDialog = false" :disabled="decrypting">Cancel</v-btn>
+        <v-btn
+          color="primary"
+          :loading="decrypting"
+          @click="
+            async () => {
+              decrypting = true;
+              decryptJournalEntries(password);
+              decryptDialog = false;
+              decrypting = false;
+            }
+          "
+          >Decrypt</v-btn
         >
       </v-card-actions>
     </v-card>

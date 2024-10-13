@@ -14,6 +14,7 @@ import { JournalEntry } from '~/classes/JournalEntry';
 import { Activity } from '~/classes/Activity';
 import { Person } from '~/classes/Person';
 import { PersonCategory } from '~/classes/PersonCategory';
+import { Setting, type SettingKey } from '~/classes/Setting';
 
 export type FolderStructure = {
   dirs: string[];
@@ -48,6 +49,14 @@ export const moods = [
   },
 ];
 
+function ab2b64(arrayBuffer: ArrayBuffer) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+}
+
+function b642ab(base64string: string) {
+  return Uint8Array.from(atob(base64string), (c) => c.charCodeAt(0));
+}
+
 export function formatDate(date: Date) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
@@ -59,6 +68,8 @@ class FileStore extends EventEmitter<{
   saveError(): void;
   thumbnailProgress(progress: number): void;
   validationUpdate(photo: string): void;
+  encryptionProgress(progress: number): void;
+  decrypted(): void;
 }> {
   public activities: Record<string, Activity> = {};
 
@@ -138,6 +149,17 @@ class FileStore extends EventEmitter<{
   public viewMode = 0;
 
   public sort = [0, 1];
+
+  public settings: {
+    [key in SettingKey]: boolean | string;
+  } = {
+    encrypt: false,
+    iv: '',
+  };
+
+  public encrypted = false;
+
+  private key!: CryptoKey;
 
   /**
    * Sets the working dir name.
@@ -444,6 +466,12 @@ class FileStore extends EventEmitter<{
       });
       (await this.database.selectAll(Activity)).forEach((activity) => {
         this.activities[activity.Id] = activity;
+      });
+      (await this.database.selectAll(Setting)).forEach((setting) => {
+        this.settings[setting.data.setting] = setting.data.value;
+        if (setting.data.setting === 'encrypt') {
+          this.encrypted = setting.data.value;
+        }
       });
       (await this.database.selectAll(JournalEntry)).forEach((entry) => {
         this.journals[entry.data.date] = entry;
@@ -1239,6 +1267,12 @@ class FileStore extends EventEmitter<{
       this.journals[date].activities = activities;
       await this.database?.update(this.journals[date]);
     }
+    if (this.settings.encrypt) {
+      await this.encryptJournalEntry(date);
+      if (!this.encrypted) {
+        this.journals[date].data.text = text;
+      }
+    }
     return this.journals[date];
   }
 
@@ -1422,6 +1456,103 @@ class FileStore extends EventEmitter<{
    */
   public setSortMode(mode: number, dir: number) {
     this.sort = [mode, dir];
+  }
+
+  /**
+   * Encrypts a single journal entry.
+   * @param entry - The target entry.
+   */
+  public async encryptJournalEntry(entry: string) {
+    this.journals[entry].data.text = ab2b64(
+      await crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv: b642ab(this.settings.iv),
+        },
+        this.key,
+        new TextEncoder().encode(this.journals[entry].data.text),
+      ),
+    );
+    await this.database?.update(this.journals[entry]);
+  }
+
+  /**
+   * Encrypts all existing journal entries in the state & database.
+   * @param password - The encryption password.
+   */
+  public async encryptJournalEntries(password: string) {
+    if (!this.settings.encrypt) {
+      await this.database?.insert(
+        new Setting({
+          setting: 'encrypt',
+          value: true,
+        }),
+      );
+      this.settings.encrypt = true;
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      await this.database?.insert(
+        new Setting({
+          setting: 'iv',
+          value: ab2b64(iv),
+        }),
+      );
+      this.settings.iv = ab2b64(iv);
+      const total = Object.values(this.journals).length;
+      let done = 0;
+      let pw = password;
+      if (pw.length < 128) {
+        for (let i = pw.length; i < 16; i += 1) {
+          pw += '0';
+        }
+      }
+      this.key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(pw),
+        'AES-GCM',
+        false,
+        ['encrypt', 'decrypt'],
+      );
+      for (const entry of Object.values(this.journals)) {
+        await this.encryptJournalEntry(entry.data.date);
+        done += 1;
+        this.emit('encryptionProgress', (done / total) * 100);
+      }
+      this.encrypted = true;
+    }
+  }
+
+  /**
+   * Decrypts all journal entries in the state (not the database)
+   * @param password - The password to use.
+   */
+  public async decryptJournalEntries(password: string) {
+    let pw = password;
+    if (pw.length < 128) {
+      for (let i = pw.length; i < 16; i += 1) {
+        pw += '0';
+      }
+    }
+    this.key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(pw),
+      'AES-GCM',
+      false,
+      ['encrypt', 'decrypt'],
+    );
+    for (const entry of Object.values(this.journals)) {
+      this.journals[entry.data.date].data.text = new TextDecoder().decode(
+        await crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv: b642ab(this.settings.iv),
+          },
+          this.key,
+          b642ab(entry.data.text),
+        ),
+      );
+    }
+    this.encrypted = false;
+    this.emit('decrypted');
   }
 }
 
