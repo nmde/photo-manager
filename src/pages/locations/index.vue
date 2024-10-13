@@ -69,6 +69,7 @@ const categories = computed(() => Object.keys(icons));
 
 const map = new Map();
 const newPlaceMap = new Map();
+let lastChangedIndex = -1;
 
 async function openCreateDialog(layer: string) {
   targetLayer.value = layer;
@@ -192,7 +193,11 @@ onMounted(async () => {
   map.on('shapeUpdate', (pos) => {
     if (drawMode.value) {
       pos.forEach((item, i) => {
-        tmpShape.value[i] = item.toJSON();
+        const x = item.toJSON();
+        if (locToString(tmpShape.value[i]) !== locToString(x)) {
+          lastChangedIndex = i;
+        }
+        tmpShape.value[i] = x;
       });
     }
   });
@@ -514,6 +519,44 @@ onMounted(async () => {
             >Save Shape</v-btn
           >
           <v-btn
+            v-if="drawMode"
+            color="primary"
+            @click="
+              async () => {
+                if (lastChangedIndex > 0 && lastChangedIndex < tmpShape.length - 1) {
+                  const split1 = tmpShape.slice(0, lastChangedIndex);
+                  const split2 = tmpShape.slice(lastChangedIndex + 1, tmpShape.length);
+                  await setShapePath(targetShape, split1);
+                  map.removeShape(targetShape);
+                  map.createShape(
+                    shapes[targetShape].data.type,
+                    split1,
+                    layers[targetLayer].data.color,
+                    targetShape,
+                  );
+                  const newShape = await createShape(
+                    tmpShapeType,
+                    split2,
+                    targetLayer,
+                    `${shapes[targetShape].data.name} - Split`,
+                  );
+                  if (!shapeMap[targetLayer]) {
+                    shapeMap[targetLayer] = [];
+                  }
+                  shapeMap[targetLayer].push(newShape);
+                  map.createShape(
+                    tmpShapeType,
+                    split2,
+                    layers[targetLayer].data.color,
+                    newShape.Id,
+                  );
+                  drawMode = false;
+                }
+              }
+            "
+            >Splt Shape</v-btn
+          >
+          <v-btn
             v-if="!hideMarkers"
             @click="
               () => {
@@ -539,6 +582,9 @@ onMounted(async () => {
               () => {
                 map.setStyle(Map.BlankMap);
                 hideLabels = true;
+                if (hideMarkers) {
+                  map.hideAllMarkers();
+                }
               }
             "
             >Hide Labels</v-btn
@@ -549,6 +595,9 @@ onMounted(async () => {
               () => {
                 map.setStyle(Map.DefaultMap);
                 hideLabels = false;
+                if (hideMarkers) {
+                  map.hideAllMarkers();
+                }
               }
             "
             >Show Labels</v-btn

@@ -227,7 +227,9 @@ export class Map extends EventEmitter<{
           const countEl = document.createElement('div');
           countEl.innerText = `${count}`;
           countEl.style.backgroundColor = 'red';
-          if (count >= 100) {
+          if (count >= 1000) {
+            countEl.style.width = '25px';
+          } else if (count >= 100) {
             countEl.style.width = '20px';
           } else if (count >= 10) {
             countEl.style.width = '14px';
@@ -283,6 +285,7 @@ export class Map extends EventEmitter<{
         path: points,
         geodesic: true,
         strokeColor: color,
+        strokeWeight: 2,
         editable,
       });
     } else {
@@ -295,6 +298,10 @@ export class Map extends EventEmitter<{
       });
     }
     shape.setMap(this.map);
+    shape.addListener('click', () => {
+      console.log(id);
+      // TODO: expand this functionality
+    });
     if (editable) {
       shape.getPath().addListener('set_at', () => {
         this.emit('shapeUpdate', shape.getPath());
