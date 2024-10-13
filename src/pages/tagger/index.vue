@@ -33,6 +33,7 @@ const filterByPhotographer = ref(false);
 const currentDate = ref(new Date());
 const localViewMode = ref(0);
 const spacer = ref(false);
+const prevDate = ref<Date>(new Date());
 
 // Journal editor
 const mood = ref(2);
@@ -217,6 +218,26 @@ window.addEventListener('scroll', () => {
               </v-btn>
               {{ people[route.query.person as string].data.name }}
             </div>
+            <div v-if="filterByPhotographer">
+              <v-btn
+                icon
+                flat
+                @click="
+                  () => {
+                    filterByPhotographer = false;
+                    photos = filteredPhotos(
+                      filterByLocation,
+                      filterByDate,
+                      filterByPerson,
+                      filterByPhotographer,
+                    );
+                  }
+                "
+              >
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+              {{ people[route.query.photographer as string].data.name }}
+            </div>
             <div v-if="filterByDate">
               <v-btn
                 icon
@@ -288,7 +309,16 @@ window.addEventListener('scroll', () => {
             <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
               >Clear Selection ({{ selected.length }})</v-btn
             >
-            <photo-group v-if="selected.length > 0" :photos="selected"></photo-group>
+            <photo-group
+              :prev-date="prevDate"
+              v-if="selected.length > 0"
+              :photos="selected"
+              @update-date="
+                (date) => {
+                  prevDate = date;
+                }
+              "
+            ></photo-group>
           </div>
         </v-col>
       </v-row>

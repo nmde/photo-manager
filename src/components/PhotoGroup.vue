@@ -5,6 +5,11 @@ import { fileStore } from '~/stores/fileStore';
 
 const props = defineProps<{
   photos: Photo[];
+  prevDate: Date;
+}>();
+
+const emit = defineEmits<{
+  (e: 'updateDate', date: Date): void;
 }>();
 
 const {
@@ -61,6 +66,7 @@ watch(
   </div>
   <photo-detail
     :photo="props.photos[current]"
+    :prev-date="prevDate"
     @update:title="(title) => setTitle(props.photos[current].data.name, title)"
     @update:description="
       (description) => setDescription(props.photos[current].data.name, description)
@@ -75,7 +81,7 @@ watch(
                 expandedTags.push(s);
               }
             });
-          } else if (expandedTags.indexOf(s) < 0) {
+          } else if (expandedTags.indexOf(tag) < 0) {
             expandedTags.push(tag);
           }
         });
@@ -96,10 +102,12 @@ watch(
       }
     "
     @update:date="
-      (date) =>
+      (date) => {
         props.photos.forEach((photo) => {
           setDate(photo.data.name, date);
-        })
+        });
+        emit('updateDate', new Date(date));
+      }
     "
     @update:location="
       (location) =>

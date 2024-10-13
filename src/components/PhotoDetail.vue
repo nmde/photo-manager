@@ -23,6 +23,7 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   photo: Photo;
+  prevDate: Date;
 }>();
 
 const photoPath = computed(() => {
@@ -48,6 +49,7 @@ const showRaw = ref(false);
 const photoPeople = ref<string[]>([]);
 const photographer = ref<string[]>([]);
 const hideThumbnail = ref(false);
+const focusDate = ref<Date>(new Date());
 
 const setPhotoDialog = ref(false);
 const setPhotoTarget = ref<string[]>([]);
@@ -88,6 +90,11 @@ function initialize() {
   location.value = props.photo.data.location;
   hideThumbnail.value = props.photo.data.hideThumbnail;
   photoPeople.value = props.photo.people;
+  if (props.photo.data.date.length > 0) {
+    focusDate.value = props.photo.date;
+  } else {
+    focusDate.value = props.prevDate;
+  }
   if (props.photo.data.photographer) {
     photographer.value = [props.photo.data.photographer];
   } else {
@@ -205,6 +212,8 @@ onMounted(initialize);
   <v-date-input
     label="Date"
     v-model="date"
+    :year="focusDate.getFullYear()"
+    :month="focusDate.getMonth()"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
   <v-select
