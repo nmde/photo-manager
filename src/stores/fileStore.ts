@@ -15,6 +15,7 @@ import { Activity } from '~/classes/Activity';
 import { Person } from '~/classes/Person';
 import { PersonCategory } from '~/classes/PersonCategory';
 import { Setting, type SettingKey } from '~/classes/Setting';
+import { Camera } from '~/classes/Camera';
 
 export type FolderStructure = {
   dirs: string[];
@@ -160,6 +161,8 @@ class FileStore extends EventEmitter<{
   public encrypted = false;
 
   private key!: CryptoKey;
+
+  public cameras: Record<string, Camera> = {};
 
   /**
    * Sets the working dir name.
@@ -395,6 +398,9 @@ class FileStore extends EventEmitter<{
       (await this.database.selectAll(Person)).forEach((person) => {
         this.peopleMap[person.data.category].push(person);
         this.people[person.Id] = person;
+      });
+      (await this.database.selectAll(Camera)).forEach((camera) => {
+        this.cameras[camera.Id] = camera;
       });
       const raws: Photo[] = [];
       (await this.database.selectAll(Photo)).forEach((photo) => {
@@ -1553,6 +1559,26 @@ class FileStore extends EventEmitter<{
     }
     this.encrypted = false;
     this.emit('decrypted');
+  }
+
+  /**
+   * Adds a new camera.
+   * @param name - The name of the camera.
+   */
+  public async addCamera(name: string) {
+    const c = new Camera({ name });
+    this.cameras[c.Id] = c;
+    await this.database?.insert(c);
+  }
+
+  /**
+   * Sets a photo's camera.
+   * @param photo - The target photo.
+   * @param camera - The camera to set.
+   */
+  public async setCamera(photo: string, camera: string) {
+    this.files[photo].data.camera = camera;
+    await this.database?.insert(this.files[photo]);
   }
 }
 

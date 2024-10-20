@@ -95,6 +95,7 @@ fileStore.on('updateFilters', () => {
     !filterByLocation.value &&
     !filterByDate.value &&
     !filterByPerson.value &&
+    !filterByPhotographer.value &&
     filters.enabledTags.length === 0 &&
     filters.disabledTags.length == 0 &&
     !filters.hideTagged &&

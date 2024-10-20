@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
 
-const { groupNames, addGroup, removeGroup, places, layers, setPersonPhoto } = fileStore;
+const { groupNames, addGroup, removeGroup, places, layers, setPersonPhoto, cameras } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update:title', title: string): void;
@@ -19,6 +19,7 @@ const emit = defineEmits<{
   (e: 'update:people', people: string[]): void;
   (e: 'update:photographer', photographer: string): void;
   (e: 'update:hideThumbnail', value: boolean): void;
+  (e: 'update:camera', value: string): void;
 }>();
 
 const props = defineProps<{
@@ -50,6 +51,7 @@ const photoPeople = ref<string[]>([]);
 const photographer = ref<string[]>([]);
 const hideThumbnail = ref(false);
 const focusDate = ref<Date>(new Date());
+const camera = ref<string>('');
 
 const setPhotoDialog = ref(false);
 const setPhotoTarget = ref<string[]>([]);
@@ -79,6 +81,13 @@ const placeList = computed(() => {
     }));
 });
 
+const cameraList = computed(() => {
+  return Object.values(cameras).map((x) => ({
+    title: x.data.name,
+    value: x.Id,
+  }));
+});
+
 function initialize() {
   rating.value = props.photo.data.rating;
   isDuplicate.value = props.photo.data.isDuplicate;
@@ -90,6 +99,7 @@ function initialize() {
   location.value = props.photo.data.location;
   hideThumbnail.value = props.photo.data.hideThumbnail;
   photoPeople.value = props.photo.people;
+  camera.value = props.photo.data.camera;
   if (props.photo.data.date.length > 0) {
     focusDate.value = props.photo.date;
   } else {
@@ -199,6 +209,12 @@ onMounted(initialize);
     "
     sort="photographer"
   ></people-input>
+  <v-select
+    :items="cameraList"
+    label="Camera"
+    v-model="camera"
+    @update:model-value="emit('update:camera', camera)"
+  ></v-select>
   <v-text-field
     label="Title"
     v-model="title"
@@ -248,6 +264,14 @@ onMounted(initialize);
       }
     "
     >Remove Date</v-btn
+  >
+  <v-btn
+    @click="
+      async () => {
+        emit('update:rating', '');
+      }
+    "
+    >Remove Rating</v-btn
   >
   <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
   <v-checkbox

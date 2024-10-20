@@ -24,6 +24,7 @@ const {
   setPeople,
   setHideThumbnail,
   setPhotographer,
+  setCamera,
 } = fileStore;
 
 const current = ref(0);
@@ -133,6 +134,13 @@ watch(
       (value) => {
         props.photos.forEach((photo) => {
           setHideThumbnail(photo.data.name, value);
+        });
+      }
+    "
+    @update:camera="
+      (value) => {
+        props.photos.forEach((photo) => {
+          setCamera(photo.data.name, value);
         });
       }
     "
