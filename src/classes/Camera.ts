@@ -5,6 +5,8 @@ type CameraData = {
 };
 
 export class Camera extends Entity<CameraData> {
+  public count = 0;
+
   public constructor(data: CameraData) {
     super('Camera', data);
   }

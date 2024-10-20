@@ -66,13 +66,7 @@ const placeList = computed(() => {
       if (b.isNewestPlace) {
         return 1;
       }
-      if (a.count < b.count) {
-        return 1;
-      }
-      if (a.count > b.count) {
-        return -1;
-      }
-      return 0;
+      return b.count - a.count;
     })
     .map((p) => ({
       color: layers[p.data.layer]?.data.color,
@@ -82,10 +76,12 @@ const placeList = computed(() => {
 });
 
 const cameraList = computed(() => {
-  return Object.values(cameras).map((x) => ({
-    title: x.data.name,
-    value: x.Id,
-  }));
+  return Object.values(cameras)
+    .sort((a, b) => b.count - a.count)
+    .map((x) => ({
+      title: `${x.data.name} (${x.count})`,
+      value: x.Id,
+    }));
 });
 
 function initialize() {

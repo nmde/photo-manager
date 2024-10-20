@@ -456,6 +456,9 @@ class FileStore extends EventEmitter<{
           }
           this.dateMap[date].push(photo);
         }
+        if (photo.data.camera && photo.data.camera.length > 0 && this.cameras[photo.data.camera]) {
+          this.cameras[photo.data.camera].count += 1;
+        }
         this.validateTags(photo.data.name);
         if (photo.data.raw) {
           raws.push(photo);
@@ -1577,7 +1580,12 @@ class FileStore extends EventEmitter<{
    * @param camera - The camera to set.
    */
   public async setCamera(photo: string, camera: string) {
+    const old = this.files[photo].data.camera;
+    if (old && old.length > 0 && this.cameras[old]) {
+      this.cameras[old].count -= 1;
+    }
     this.files[photo].data.camera = camera;
+    this.cameras[camera].count += 1;
     await this.database?.insert(this.files[photo]);
   }
 }

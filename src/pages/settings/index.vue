@@ -12,7 +12,7 @@ const encryptionProgress = ref(0);
 const cameraDialog = ref(false);
 const cameraName = ref('');
 const cameraList = computed(() => {
-  return Object.values(cameras);
+  return Object.values(cameras).sort((a, b) => b.count - a.count);
 });
 
 fileStore.on('encryptionProgress', (amount) => {
@@ -24,7 +24,7 @@ fileStore.on('encryptionProgress', (amount) => {
   <v-main class="main">
     <h3>Cameras</h3>
     <v-btn color="primary" @click="cameraDialog = true">Add Camera</v-btn>
-    <div v-for="camera in cameraList" :key="camera.Id">{{ camera.data.name }}</div>
+    <div v-for="camera in cameraList" :key="camera.Id">{{ camera.data.name }} ({{ camera.count }})</div>
     <h3>Encrypt Journal Entries</h3>
     <div v-if="settings.encrypt">Journal entries are encrypted.</div>
     <v-btn
