@@ -71,6 +71,7 @@ class FileStore extends EventEmitter<{
   validationUpdate(photo: string): void;
   encryptionProgress(progress: number): void;
   decrypted(): void;
+  toggleTheme(): void;
 }> {
   public activities: Record<string, Activity> = {};
 
@@ -151,11 +152,14 @@ class FileStore extends EventEmitter<{
 
   public sort = [0, 1];
 
+  private settingsRecord: Record<string, Setting> = {};
+
   public settings: {
     [key in SettingKey]: boolean | string;
   } = {
     encrypt: false,
     iv: '',
+    theme: false,
   };
 
   public encrypted = false;
@@ -163,6 +167,8 @@ class FileStore extends EventEmitter<{
   private key!: CryptoKey;
 
   public cameras: Record<string, Camera> = {};
+
+  public theme = false;
 
   /**
    * Sets the working dir name.
@@ -478,8 +484,14 @@ class FileStore extends EventEmitter<{
       });
       (await this.database.selectAll(Setting)).forEach((setting) => {
         this.settings[setting.data.setting] = setting.data.value;
+        this.settingsRecord[setting.data.setting] = setting;
         if (setting.data.setting === 'encrypt') {
           this.encrypted = setting.data.value;
+        } else if (setting.data.setting === 'theme') {
+          this.theme = setting.data.value;
+          if (this.theme) {
+            this.emit('toggleTheme');
+          }
         }
       });
       (await this.database.selectAll(JournalEntry)).forEach((entry) => {
@@ -1587,6 +1599,22 @@ class FileStore extends EventEmitter<{
     this.files[photo].data.camera = camera;
     this.cameras[camera].count += 1;
     await this.database?.insert(this.files[photo]);
+  }
+
+  /**
+   * Toggles light/dark mode.
+   */
+  public async toggleTheme() {
+    this.theme = !this.theme;
+    this.emit('toggleTheme');
+    if (this.settingsRecord.theme) {
+      this.settingsRecord.theme.data.value = this.theme;
+      await this.database?.update(this.settingsRecord.theme);
+    } else {
+      const s = new Setting({ setting: 'theme', value: this.theme });
+      this.settingsRecord.theme = s;
+      await this.database?.insert(this.settingsRecord.theme);
+    }
   }
 }
 

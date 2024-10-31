@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { fileStore } from '../stores/fileStore';
 
-const { workingDir } = fileStore;
+const { workingDir, theme } = fileStore;
 
 const saving = ref(false);
 const saveError = ref(false);
 const generatingThumbnails = ref(false);
 const thumbnailProgress = ref(0);
 const drawer = ref(false);
+const darkMode = ref(false);
+
+fileStore.on('toggleTheme', () => {
+  darkMode.value = !darkMode.value;
+});
 
 fileStore.on('saving', (state) => {
   saving.value = state;
@@ -26,10 +31,14 @@ fileStore.on('thumbnailProgress', (progress) => {
     generatingThumbnails.value = false;
   }
 });
+
+onMounted(() => {
+  darkMode.value = theme;
+});
 </script>
 
 <template>
-  <v-app>
+  <v-app :theme="darkMode ? 'dark' : 'default'">
     <v-layout>
       <v-app-bar>
         <v-btn icon @click="drawer = true">

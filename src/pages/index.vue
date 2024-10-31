@@ -154,7 +154,7 @@ async function openFolder() {
         <v-col cols="4"></v-col>
       </v-row>
     </v-container>
-    <v-dialog v-model="deletedDialog">
+    <v-dialog v-model="deletedDialog" persistent>
       <v-card>
         <v-card-title>Missing Files</v-card-title>
         <v-card-text>
