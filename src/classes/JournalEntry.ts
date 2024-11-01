@@ -7,6 +7,7 @@ type JournalData = {
   text: string;
   activities: string;
   steps: number;
+  iv: string;
 };
 
 export class JournalEntry extends Entity<JournalData> {

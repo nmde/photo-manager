@@ -1,6 +1,6 @@
 import { Entity } from './Entity';
 
-export type SettingKey = 'encrypt' | 'iv' | 'theme';
+export type SettingKey = 'encrypt' | 'theme';
 
 type SettingData = {
   setting: SettingKey;

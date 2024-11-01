@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { fileStore } from '~/stores/fileStore';
 
-const { encryptJournalEntries, settings, addCamera, cameras, theme, toggleTheme } = fileStore;
+const {
+  encryptJournalEntries,
+  settings,
+  addCamera,
+  cameras,
+  theme,
+  toggleTheme,
+  encrypted,
+  completeDecrypt,
+} = fileStore;
 
 const encryptDialog = ref(false);
 const password = ref('');
@@ -26,7 +35,9 @@ fileStore.on('encryptionProgress', (amount) => {
     <v-btn @click="toggleTheme()">{{ theme ? 'Dark Mode' : 'Light Mode' }}</v-btn>
     <h3>Cameras</h3>
     <v-btn color="primary" @click="cameraDialog = true">Add Camera</v-btn>
-    <div v-for="camera in cameraList" :key="camera.Id">{{ camera.data.name }} ({{ camera.count }})</div>
+    <div v-for="camera in cameraList" :key="camera.Id">
+      {{ camera.data.name }} ({{ camera.count }})
+    </div>
     <h3>Encrypt Journal Entries</h3>
     <div v-if="settings.encrypt">Journal entries are encrypted.</div>
     <v-btn

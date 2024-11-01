@@ -158,7 +158,6 @@ class FileStore extends EventEmitter<{
     [key in SettingKey]: boolean | string;
   } = {
     encrypt: false,
-    iv: '',
     theme: false,
   };
 
@@ -1273,6 +1272,7 @@ class FileStore extends EventEmitter<{
         text,
         activities: activities.map((a) => a.Id).join(','),
         steps,
+        iv: '',
       });
       entry.activities = activities;
       this.journals[date] = entry;
@@ -1284,6 +1284,7 @@ class FileStore extends EventEmitter<{
         date,
         activities: activities.map((a) => a.Id).join(','),
         steps,
+        iv: this.journals[date].data.iv,
       };
       this.journals[date].activities = activities;
       await this.database?.update(this.journals[date]);
@@ -1310,6 +1311,7 @@ class FileStore extends EventEmitter<{
         text: '',
         activities: '',
         steps: 0,
+        iv: '',
       });
       this.journals[date] = entry;
       await this.database?.insert(entry);
@@ -1333,6 +1335,7 @@ class FileStore extends EventEmitter<{
         text,
         activities: '',
         steps: 0,
+        iv: '',
       });
       this.journals[date] = entry;
       await this.database?.insert(entry);
@@ -1484,16 +1487,18 @@ class FileStore extends EventEmitter<{
    * @param entry - The target entry.
    */
   public async encryptJournalEntry(entry: string) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
     this.journals[entry].data.text = ab2b64(
       await crypto.subtle.encrypt(
         {
           name: 'AES-GCM',
-          iv: b642ab(this.settings.iv),
+          iv,
         },
         this.key,
         new TextEncoder().encode(this.journals[entry].data.text),
       ),
     );
+    this.journals[entry].data.iv = ab2b64(iv);
     await this.database?.update(this.journals[entry]);
   }
 
@@ -1510,14 +1515,6 @@ class FileStore extends EventEmitter<{
         }),
       );
       this.settings.encrypt = true;
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      await this.database?.insert(
-        new Setting({
-          setting: 'iv',
-          value: ab2b64(iv),
-        }),
-      );
-      this.settings.iv = ab2b64(iv);
       const total = Object.values(this.journals).length;
       let done = 0;
       let pw = password;
@@ -1545,8 +1542,9 @@ class FileStore extends EventEmitter<{
   /**
    * Decrypts all journal entries in the state (not the database)
    * @param password - The password to use.
+   * @param save - If the decrypted entry should be written to the database.
    */
-  public async decryptJournalEntries(password: string) {
+  public async decryptJournalEntries(password: string, save = false) {
     let pw = password;
     if (pw.length < 128) {
       for (let i = pw.length; i < 16; i += 1) {
@@ -1565,14 +1563,21 @@ class FileStore extends EventEmitter<{
         await crypto.subtle.decrypt(
           {
             name: 'AES-GCM',
-            iv: b642ab(this.settings.iv),
+            iv: b642ab(entry.data.iv),
           },
           this.key,
           b642ab(entry.data.text),
         ),
       );
+      if (save) {
+        await this.database?.update(this.journals[entry.data.date]);
+      }
     }
     this.encrypted = false;
+    if (save) {
+      this.settingsRecord.encrypted.data.value = false;
+      await this.database?.update(this.settingsRecord.encrypted);
+    }
     this.emit('decrypted');
   }
 
