@@ -169,6 +169,10 @@ class FileStore extends EventEmitter<{
 
   public theme = false;
 
+  public firstDate = new Date();
+
+  public lastDate = new Date();
+
   /**
    * Sets the working dir name.
    * @param path - The path to the working dir.
@@ -460,6 +464,12 @@ class FileStore extends EventEmitter<{
             this.dateMap[date] = [];
           }
           this.dateMap[date].push(photo);
+          if (photo.date < this.firstDate) {
+            this.firstDate = photo.date;
+          }
+          if (photo.date > this.lastDate) {
+            this.lastDate = photo.date;
+          }
         }
         if (photo.data.camera && photo.data.camera.length > 0 && this.cameras[photo.data.camera]) {
           this.cameras[photo.data.camera].count += 1;
@@ -572,6 +582,12 @@ class FileStore extends EventEmitter<{
     const d = formatDate(this.files[photo].date);
     if (!this.dateMap[d]) {
       this.dateMap[d] = [];
+    }
+    if (this.files[photo].date < this.firstDate) {
+      this.firstDate = this.files[photo].date;
+    }
+    if (this.files[photo].date > this.lastDate) {
+      this.lastDate = this.files[photo].date;
     }
     this.dateMap[d].push(this.files[photo]);
     await this.database?.insert(this.files[photo]);

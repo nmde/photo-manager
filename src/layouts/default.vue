@@ -62,6 +62,7 @@ onMounted(() => {
           <v-list-item prepend-icon="mdi-calendar" title="Calendar" to="/calendar"></v-list-item>
           <v-list-item prepend-icon="mdi-account" title="People" to="/people"></v-list-item>
           <v-list-item prepend-icon="mdi-notebook" title="Journal" to="/journal"></v-list-item>
+          <v-list-item prepend-icon="mdi-chart-line" title="Statistics" to="/stats"></v-list-item>
           <v-list-item prepend-icon="mdi-music" title="Music" to="/music"></v-list-item>
           <v-list-item prepend-icon="mdi-cog" title="Settings" to="/settings"></v-list-item>
         </v-list>

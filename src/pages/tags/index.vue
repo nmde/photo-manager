@@ -25,7 +25,6 @@ const {
   tagCounts,
   advTags,
   files,
-  tags,
 } = fileStore;
 
 const cutoff = ref(1);
