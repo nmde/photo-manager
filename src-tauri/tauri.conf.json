@@ -2,86 +2,45 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:3000",
-    "distDir": "../.output",
-    "withGlobalTauri": false
+    "frontendDist": "../.output",
+    "devUrl": "http://localhost:3000"
   },
-  "package": {
-    "productName": "photo-manager",
-    "version": "0.0.0"
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "targets": "all"
   },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": true,
-        "ask": true,
-        "confirm": true,
-        "message": true,
-        "open": true,
-        "save": true
-      },
-      "fs": {
-        "all": true,
-        "scope": ["**"]
-      },
-      "path": {
-        "all": true
-      },
-      "protocol": {
-        "all": true,
-        "asset": true,
-        "assetScope": ["**"]
-      },
-      "shell": {
-        "all": false,
-        "execute": true,
-        "open": true,
-        "scope": [
-          {
-            "name": "magick",
-            "cmd": "magick",
-            "args": true
-          },
-          {
-            "name": "ffmpeg",
-            "cmd": "ffmpeg",
-            "args": true
-          },
-          {
-            "name": "cmd",
-            "cmd": "cmd",
-            "args": true
-          }
-        ]
-      }
-    },
-    "bundle": {
-      "active": true,
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "identifier": "net.nmde.photo-manager",
-      "targets": "all"
-    },
-    "security": {
-      "csp": null
-    },
-    "updater": {
-      "active": false
-    },
+  "productName": "photo-manager",
+  "mainBinaryName": "photo-manager",
+  "version": "0.0.0",
+  "identifier": "net.nmde.photo-manager",
+  "plugins": {},
+  "app": {
+    "withGlobalTauri": false,
     "windows": [
       {
         "fullscreen": false,
         "resizable": true,
         "title": "photo-manager",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "useHttpsScheme": true
       }
-    ]
+    ],
+    "security": {
+      "assetProtocol": {
+        "scope": [
+          "**"
+        ],
+        "enable": true
+      },
+      "csp": null
+    }
   }
 }

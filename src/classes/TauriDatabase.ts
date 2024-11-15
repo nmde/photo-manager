@@ -1,5 +1,5 @@
 import { EventEmitter } from 'ee-ts';
-import Database from 'tauri-plugin-sql-api';
+import Database from '@tauri-apps/plugin-sql';
 import { Entity } from './Entity';
 import { type Constructor } from '../types/Constructor';
 
