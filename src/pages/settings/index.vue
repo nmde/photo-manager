@@ -8,8 +8,6 @@ const {
   cameras,
   theme,
   toggleTheme,
-  encrypted,
-  completeDecrypt,
 } = fileStore;
 
 const encryptDialog = ref(false);

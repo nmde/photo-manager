@@ -29,12 +29,12 @@ const reading = ref('');
  */
 async function readDir(path: string, top = true) {
   const { join } = await import('@tauri-apps/api/path');
-  const { Command } = await import('@tauri-apps/api/shell');
+  const { Command } = await import('@tauri-apps/plugin-shell');
   console.log(`Reading ${path}`);
   reading.value = path;
   let files: string[] = [];
   let dirs: string[] = [];
-  const output = await new Command('cmd', ['/C', 'dir', path]).execute();
+  const output = await Command.create('cmd', ['/C', 'dir', path]).execute();
   if (output.stderr.length > 0) {
     console.error(output.stderr);
   } else {
@@ -82,8 +82,8 @@ async function readDir(path: string, top = true) {
  */
 async function openFolder() {
   loading.value = true;
-  const { open } = await import('@tauri-apps/api/dialog');
-  const { convertFileSrc } = await import('@tauri-apps/api/tauri');
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const { convertFileSrc } = await import('@tauri-apps/api/core');
   const selected = await open({
     directory: true,
     multiple: false,

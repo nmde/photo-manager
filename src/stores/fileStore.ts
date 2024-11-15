@@ -880,10 +880,10 @@ class FileStore extends EventEmitter<{
    * @param videos - Video files to generate thumbnails for.
    */
   public async generateThumbnails(raws: string[], videos: string[]) {
-    const { readDir, exists, createDir } = await import('@tauri-apps/api/fs');
+    const { readDir, exists, mkdir } = await import('@tauri-apps/plugin-fs');
     const { join, appDataDir } = await import('@tauri-apps/api/path');
-    const { convertFileSrc } = await import('@tauri-apps/api/tauri');
-    const { Command } = await import('@tauri-apps/api/shell');
+    const { convertFileSrc } = await import('@tauri-apps/api/core');
+    const { Command } = await import('@tauri-apps/plugin-shell');
     this.generatingThumbnails = true;
     this.thumbnailProgress = 0;
     let progress = 0;
@@ -898,18 +898,18 @@ class FileStore extends EventEmitter<{
     };
     const dir = await appDataDir();
     if (!(await exists(dir))) {
-      await createDir(dir);
+      await mkdir(dir);
     }
     const thumbnailDir = await join(dir, 'thumbnails');
     if (!(await exists(thumbnailDir))) {
-      await createDir(thumbnailDir);
+      await mkdir(thumbnailDir);
     }
     const projectThumbnailDir = await join(
       thumbnailDir,
       this.workingDir.replace(/[/\\]/g, '-').replace(':', ''),
     );
     if (!(await exists(projectThumbnailDir))) {
-      await createDir(projectThumbnailDir);
+      await mkdir(projectThumbnailDir);
     }
     const thumbnails = (await readDir(projectThumbnailDir)).map((p) => p.name);
     const newThumbnails: {
@@ -948,14 +948,14 @@ class FileStore extends EventEmitter<{
     for (const data of newThumbnails) {
       if (!(await exists(data.thumbnailPath))) {
         if (data.type === 'raw') {
-          const convertOutput = await new Command('magick', [
+          const convertOutput = await Command.create('magick', [
             data.raw,
             data.thumbnailPath,
           ]).execute();
           if (convertOutput.code !== 0) {
             console.error(convertOutput.stderr);
           }
-          const resizeOutput = await new Command('magick', [
+          const resizeOutput = await Command.create('magick', [
             data.thumbnailPath,
             '-resize',
             '800x800',
@@ -965,7 +965,7 @@ class FileStore extends EventEmitter<{
             console.error(resizeOutput.stderr);
           }
         } else {
-          const convertOutput = await new Command('ffmpeg', [
+          const convertOutput = await Command.create('ffmpeg', [
             '-i',
             data.raw,
             '-ss',
