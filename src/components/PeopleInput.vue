@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Person } from '~/classes/Person';
 import { fileStore } from '~/stores/fileStore';
 
 type PeopleEntry = {
@@ -8,7 +7,7 @@ type PeopleEntry = {
   color: string;
 };
 
-const { people, peopleMap, peopleCategories } = fileStore;
+const { people, peopleCategories } = fileStore;
 
 const emit = defineEmits<{
   (e: 'update', value: string[]): void;
@@ -21,34 +20,32 @@ const props = defineProps<{
   sort: 'count' | 'photographer';
 }>();
 
+const counts = ref<Record<string, number[]>>({});
+
 const peopleList = computed(() => {
-  let flatPeople: Person[] = [];
-  Object.values(peopleMap).forEach((persons) => {
-    flatPeople = flatPeople.concat(persons);
-  });
-  return flatPeople
-    .sort((a, b) => {
-      let x = a.count;
-      let y = b.count;
+  return Object.entries(counts.value).sort((a, b) => {
+      let x = a[1][0];
+      let y = b[1][0];
       if (props.sort === 'photographer') {
-        x = a.photographerCount;
-        y = b.photographerCount;
+        x = a[1][1];
+        y = b[1][1];
       }
       return y - x;
     })
-    .map((person) => {
-      let count = person.count;
+    .map((entry) => {
+      let count = entry[1][0];
       if (props.sort === 'photographer') {
-        count = person.photographerCount;
+        count = entry[1][1];
       }
       return {
-        color: peopleCategories[person.data.category].data.color,
-        title: `${person.data.name} (${count})`,
-        value: person.Id,
+        color: peopleCategories[people[entry[0]].data.category].data.color,
+        title: `${people[entry[0]].data.name} (${count})`,
+        value: entry[0],
       };
     });
 });
 
+const prevPeople = ref<PeopleEntry[]>([]);
 const tempPeople = ref<PeopleEntry[]>([]);
 
 watch(
@@ -60,17 +57,26 @@ watch(
       if (props.sort === 'photographer') {
         count = p.photographerCount;
       }
+      counts.value[id] = [p.count, p.photographerCount];
       return {
         color: peopleCategories[p.data.category].data.color,
         title: `${p.data.name} (${count})`,
         value: p.Id,
       };
     });
+    prevPeople.value = tempPeople.value;
   },
 );
+
+onMounted(() => {
+  Object.values(people).forEach((person) => {
+    counts.value[person.Id] = [person.count, person.photographerCount];
+  });
+});
 </script>
 
 <template>
+  {{ counts }}
   <v-combobox
     :label="props.label"
     :items="peopleList"
@@ -80,11 +86,30 @@ watch(
     item-value="value"
     v-model="tempPeople"
     @update:model-value="
-      () => {
+      (value) => {
+        value.forEach((person) => {
+          if (prevPeople.find((p) => p.value === person.value) === undefined) {
+            if (sort === 'count') {
+              counts[person.value][0] += 1;
+            } else {
+              counts[person.value][1] += 1;
+            }
+          }
+        });
+        prevPeople.forEach((person) => {
+          if (value.find((p) => p.value === person.value) === undefined) {
+            if (sort === 'count') {
+              counts[person.value][0] -= 1;
+            } else {
+              counts[person.value][1] -= 1;
+            }
+          }
+        });
         emit(
           'update',
           tempPeople.map((p) => p.value),
         );
+        prevPeople = value;
       }
     "
   >
