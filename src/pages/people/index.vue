@@ -29,6 +29,25 @@ const categoryList = computed(() =>
   })),
 );
 
+const personCardWidth = 64;
+const personCardHeight = 212;
+const peopleRows = computed(() => {
+  const re: Record<string, Person[][]> = {};
+  Object.entries(localPeople.value).forEach(([c, category]) => {
+    re[c] = [[]];
+    let x = 0;
+    category.forEach((person) => {
+      re[c][re[c].length - 1].push(person);
+      x += 1;
+      if (x > window.innerWidth / personCardWidth) {
+        x = 0;
+        re[c].push([]);
+      }
+    });
+  });
+  return re;
+});
+
 onMounted(() => {
   localCategories.value = peopleCategories;
   localPeople.value = {};
@@ -65,64 +84,72 @@ onMounted(() => {
           category.data.name
         }}</v-expansion-panel-title>
         <v-expansion-panel-text>
-          <div class="people-grid">
-            <v-card class="person-card" v-for="person in localPeople[category.Id]" :key="person.Id">
-              <template v-slot:prepend v-if="person.data.photo.length > 0">
-                <v-avatar size="128">
-                  <v-img :src="person.data.photo"></v-img>
-                </v-avatar>
-              </template>
-              <v-card-title
-                >{{ person.data.name }}
-                <v-menu>
-                  <template v-slot:activator="{ props }">
-                    <v-btn icon flat v-bind="props">
-                      <v-icon>mdi-menu</v-icon>
-                    </v-btn>
+          <v-virtual-scroll
+            :height="640"
+            :item-height="personCardHeight"
+            :items="peopleRows[category.Id]"
+          >
+            <template v-slot:default="{ item }">
+              <div class="people-grid">
+                <v-card class="person-card" v-for="person in item" :key="person.Id">
+                  <template v-slot:prepend v-if="person.data.photo.length > 0">
+                    <v-avatar size="128">
+                      <v-img :src="person.data.photo"></v-img>
+                    </v-avatar>
                   </template>
-                  <v-list>
-                    <v-list-item
-                      @click="
-                        () => {
-                          editing = true;
-                          editTarget = person.Id;
-                          addName = person.data.name;
-                          addNotes = person.data.notes;
-                          addCategory = person.data.category;
-                          addDialog = true;
-                        }
-                      "
-                      >Edit</v-list-item
-                    >
-                    <v-list-item
-                      @click="
-                        () => {
-                          router.push(`/tagger?person=${person.Id}`);
-                        }
-                      "
-                    >
-                      View Photos
-                    </v-list-item>
-                    <v-list-item
-                      @click="
-                        () => {
-                          router.push(`/tagger?photographer=${person.Id}`);
-                        }
-                      "
-                      >View Photos Taken By</v-list-item
-                    >
-                  </v-list>
-                </v-menu>
-              </v-card-title>
-              <v-card-text>
-                Photo count: {{ person.count }}
-                <br />
-                Photos taken: {{ person.photographerCount }}
-                <br />
-                <p class="notes">{{ person.data.notes }}</p>
-              </v-card-text>
-            </v-card>
-          </div>
+                  <v-card-title
+                    >{{ person.data.name }}
+                    <v-menu>
+                      <template v-slot:activator="{ props }">
+                        <v-btn icon flat v-bind="props">
+                          <v-icon>mdi-menu</v-icon>
+                        </v-btn>
+                      </template>
+                      <v-list>
+                        <v-list-item
+                          @click="
+                            () => {
+                              editing = true;
+                              editTarget = person.Id;
+                              addName = person.data.name;
+                              addNotes = person.data.notes;
+                              addCategory = person.data.category;
+                              addDialog = true;
+                            }
+                          "
+                          >Edit</v-list-item
+                        >
+                        <v-list-item
+                          @click="
+                            () => {
+                              router.push(`/tagger?person=${person.Id}`);
+                            }
+                          "
+                        >
+                          View Photos
+                        </v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              router.push(`/tagger?photographer=${person.Id}`);
+                            }
+                          "
+                          >View Photos Taken By</v-list-item
+                        >
+                      </v-list>
+                    </v-menu>
+                  </v-card-title>
+                  <v-card-text>
+                    Photo count: {{ person.count }}
+                    <br />
+                    Photos taken: {{ person.photographerCount }}
+                    <br />
+                    <p class="notes">{{ person.data.notes }}</p>
+                  </v-card-text>
+                </v-card>
+              </div>
+            </template>
+          </v-virtual-scroll>
         </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
