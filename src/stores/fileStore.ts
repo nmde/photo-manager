@@ -394,6 +394,7 @@ class FileStore extends EventEmitter<{
       const encounteredGroups: string[] = [];
       (await this.database.selectAll(Place)).forEach((place) => {
         this.places[place.Id] = place;
+        this.locationMap[place.Id] = [];
         place.tags.forEach((tag) => {
           if (tagList.indexOf(tag) < 0) {
             tagList.push(tag);

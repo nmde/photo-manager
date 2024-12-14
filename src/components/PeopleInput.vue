@@ -76,7 +76,6 @@ onMounted(() => {
 </script>
 
 <template>
-  {{ counts }}
   <v-combobox
     :label="props.label"
     :items="peopleList"
