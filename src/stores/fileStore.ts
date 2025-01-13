@@ -95,6 +95,7 @@ class FileStore extends EventEmitter<{
     onlyError: false,
     onlyLocated: false,
     onlyTagged: false,
+    onlyVideo: false,
   };
 
   public generatingThumbnails = false;
@@ -383,6 +384,10 @@ class FileStore extends EventEmitter<{
     this.tags = tagGraph.sort();
   }
 
+  private normalizeJournalDate(date: string) {
+    return formatDate(new Date(date));
+  }
+
   /**
    * Loads photos from the database.
    */
@@ -505,9 +510,10 @@ class FileStore extends EventEmitter<{
         }
       });
       (await this.database.selectAll(JournalEntry)).forEach((entry) => {
-        this.journals[entry.data.date] = entry;
+        const d = this.normalizeJournalDate(entry.data.date);
+        this.journals[d] = entry;
         if (entry.data.activities.length > 0) {
-          this.journals[entry.data.date].activities = entry.data.activities
+          this.journals[d].activities = entry.data.activities
             .split(',')
             .map((a) => this.activities[a]);
         }
@@ -1576,7 +1582,8 @@ class FileStore extends EventEmitter<{
       ['encrypt', 'decrypt'],
     );
     for (const entry of Object.values(this.journals)) {
-      this.journals[entry.data.date].data.text = new TextDecoder().decode(
+      const d = this.normalizeJournalDate(entry.data.date);
+      this.journals[d].data.text = new TextDecoder().decode(
         await crypto.subtle.decrypt(
           {
             name: 'AES-GCM',
@@ -1587,7 +1594,7 @@ class FileStore extends EventEmitter<{
         ),
       );
       if (save) {
-        await this.database?.update(this.journals[entry.data.date]);
+        await this.database?.update(this.journals[d]);
       }
     }
     this.encrypted = false;

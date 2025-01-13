@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { fileStore, moods } from '../../stores/fileStore';
+import { fileStore, moods, formatDate } from '../../stores/fileStore';
 import { Photo } from '../../classes/Photo';
 import type { Place } from '~/classes/Place';
 
@@ -143,9 +143,9 @@ onMounted(() => {
             <template v-slot:event="{ day, event }">
               <div
                 class="event-bg"
-                v-if="journals[day.date.toISOString()]"
+                v-if="journals[formatDate(day.date)]"
                 :style="{
-                  backgroundColor: moods[journals[day.date.toISOString()].data.mood].color,
+                  backgroundColor: moods[journals[formatDate(day.date)].data.mood].color,
                 }"
                 @click="
                   () => {
@@ -170,7 +170,7 @@ onMounted(() => {
                 ></photo-icon>
               </div>
               <div
-                v-if="event.photos.length === 0 && !journals[day.date.toISOString()]"
+                v-if="event.photos.length === 0 && !journals[formatDate(day.date)]"
                 class="focus"
                 @click="
                   () => {
@@ -189,8 +189,8 @@ onMounted(() => {
         <v-card-title
           >{{ dialogDate.toDateString() }}
           <mood-icon
-            v-if="journals[dialogDate.toISOString()]"
-            :mood="journals[dialogDate.toISOString()].data.mood"
+            v-if="journals[formatDate(dialogDate)]"
+            :mood="journals[formatDate(dialogDate)].data.mood"
           ></mood-icon
         ></v-card-title>
         <v-card-text>

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { Activity } from '~/classes/Activity';
-import { fileStore, moods } from '../../stores/fileStore';
+import { fileStore, formatDate, moods } from '../../stores/fileStore';
 
 const route = useRoute();
 
@@ -34,8 +34,8 @@ const steps = ref(0);
 
 function setDate(d: Date) {
   date.value = simplifyDate(d);
-  if (journals[date.value.toISOString()]) {
-    const entry = journals[date.value.toISOString()];
+  if (journals[formatDate(date.value)]) {
+    const entry = journals[formatDate(date.value)];
     mood.value = entry.data.mood;
     text.value = entry.data.text;
     entryActivities.value = entry.activities;
@@ -61,7 +61,7 @@ const encryptionBlock = ref(false);
 
 fileStore.on('decrypted', () => {
   encryptionBlock.value = false;
-  text.value = journals[date.value.toISOString()].data.text;
+  text.value = journals[formatDate(date.value)].data.text;
 });
 
 onMounted(() => {
@@ -166,7 +166,7 @@ onMounted(() => {
           @click="
             async () => {
               const j = await createJournalEntry(
-                createDate.toISOString(),
+                formatDate(createDate),
                 createMood,
                 createText,
                 createActivities.map((i) => Object.values(activities)[i]),

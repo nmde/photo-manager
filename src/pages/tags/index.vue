@@ -35,6 +35,7 @@ const coreqTags = ref<string[]>([]);
 const incompatibleTags = ref<string[]>([]);
 const filterColor = ref('');
 const relative = ref(false);
+const showGraphs = ref(false);
 
 const avgRating = computed(() => {
   let sum = 0;
@@ -236,23 +237,26 @@ const tagRatingData = computed(() => {
           </div>
         </v-col>
         <v-col cols="6">
-          <!-- TODO: this should be one graph with multiple bars / sorting options -->
-          <Bar
-            :options="{
-              indexAxis: 'y',
-            }"
-            :data="tagChartData"
-          ></Bar>
-          <Bar
-            :options="{
-              indexAxis: 'y',
-            }"
-            :data="tagRatingData"
-          ></Bar>
-          <v-checkbox label="Show relative rating impact" v-model="relative"></v-checkbox>
-          Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
-          Filter by color:
-          <color-options @select="(color) => (filterColor = color)"></color-options>
+          <div v-if="showGraphs">
+            <!-- TODO: this should be one graph with multiple bars / sorting options -->
+            <Bar
+              :options="{
+                indexAxis: 'y',
+              }"
+              :data="tagChartData"
+            ></Bar>
+            <Bar
+              :options="{
+                indexAxis: 'y',
+              }"
+              :data="tagRatingData"
+            ></Bar>
+            <v-checkbox label="Show relative rating impact" v-model="relative"></v-checkbox>
+            Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
+            Filter by color:
+            <color-options @select="(color) => (filterColor = color)"></color-options>
+          </div>
+          <v-btn v-if="!showGraphs" @click="showGraphs = true">Show Graphs</v-btn>
           Average tags per photo: {{ avgTags.toPrecision(3) }}<br />
           Overall average rating: {{ avgRating.toPrecision(3) }}
         </v-col>

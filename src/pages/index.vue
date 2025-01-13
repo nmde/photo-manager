@@ -35,6 +35,7 @@ async function readDir(path: string, top = true) {
   let files: string[] = [];
   let dirs: string[] = [];
   const output = await Command.create('cmd', ['/C', 'dir', path]).execute();
+  console.log(output.stdout);
   if (output.stderr.length > 0) {
     console.error(output.stderr);
   } else {

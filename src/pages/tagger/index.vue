@@ -289,7 +289,7 @@ window.addEventListener('scroll', () => {
               :mood="mood"
               @selected="
                 async (newMood) => {
-                  await setEntryMood(currentDate.toISOString(), newMood);
+                  await setEntryMood(formatDate(currentDate), newMood);
                   mood = newMood;
                 }
               "
@@ -298,7 +298,7 @@ window.addEventListener('scroll', () => {
               :value="entryText"
               @save="
                 async (text) => {
-                  await setEntryText(currentDate.toISOString(), text);
+                  await setEntryText(formatDate(currentDate), text);
                   entryText = text;
                 }
               "

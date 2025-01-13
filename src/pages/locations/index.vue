@@ -374,6 +374,14 @@ onMounted(async () => {
                             "
                             >Move Icon</v-list-item
                           >
+                          <v-list-item
+                            @click="
+                              () => {
+                                router.push(`/tagger?place=${place.Id}`);
+                              }
+                            "
+                            >View Photos</v-list-item
+                          >
                         </v-list>
                       </v-menu>
                       <v-text-field
