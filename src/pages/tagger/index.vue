@@ -5,15 +5,9 @@ import { Photo } from '../../classes/Photo';
 import { fileStore, formatDate } from '../../stores/fileStore';
 
 const route = useRoute();
-const router = useRouter();
 
 const {
-  filteredPhotos,
-  filters,
-  setFilter,
-  places,
   checkFilter,
-  people,
   files,
   setEntryMood,
   setEntryText,
@@ -22,6 +16,8 @@ const {
   workingDir,
   viewMode,
   setViewMode,
+  search,
+  query
 } = fileStore;
 
 const selected = ref<Photo[]>([]);
@@ -39,10 +35,10 @@ const prevDate = ref<Date>(new Date());
 const mood = ref(2);
 const entryText = ref('');
 
-function setDate(date: Date) {
+async function setDate(date: Date) {
   currentDate.value = date;
   const d = currentDate.value.toISOString();
-  setFilter('filterDate', formatDate(currentDate.value));
+  await search(`date=${formatDate(currentDate.value)}`);
   if (journals[d]) {
     mood.value = journals[d].data.mood;
     entryText.value = journals[d].data.text;
@@ -89,33 +85,13 @@ const folderStructure = computed(() => {
   return structure;
 });
 
-fileStore.on('updateFilters', () => {
-  console.log('Updating filters');
-  if (
-    !filterByLocation.value &&
-    !filterByDate.value &&
-    !filterByPerson.value &&
-    !filterByPhotographer.value &&
-    filters.enabledTags.length === 0 &&
-    filters.disabledTags.length == 0 &&
-    !filters.hideTagged &&
-    !filters.hideLocated
-  ) {
-    console.log('Filters all disabled');
-    photos.value = Object.values(files);
-  } else {
-    photos.value = filteredPhotos(
-      filterByLocation.value,
-      filterByDate.value,
-      filterByPerson.value,
-      filterByPhotographer.value,
-    );
-  }
+fileStore.on('search', (results) => {
+  photos.value = results;
 });
 
 fileStore.on('updatePhoto', (photo) => {
   const idx = photos.value.findIndex((p) => p.data.name === photo.data.name);
-  if (checkFilter(photo, filterByLocation.value, filterByDate.value, filterByPerson.value)) {
+  if (checkFilter(photo)) {
     if (idx < 0) {
       photos.value.push(photo);
     }
@@ -127,15 +103,19 @@ fileStore.on('updatePhoto', (photo) => {
   // photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
-onMounted(() => {
+onMounted(async () => {
+  /*
   if (route.query.place) {
     setFilter('filterPos', route.query.place as string);
     filterByLocation.value = true;
   }
+    */
   if (route.query.date) {
     setDate(moment(route.query.date as string).toDate());
-    filterByDate.value = true;
+  } else {
+    await search();
   }
+  /*
   if (route.query.person) {
     setFilter('filterPerson', route.query.person as string);
     filterByPerson.value = true;
@@ -144,12 +124,7 @@ onMounted(() => {
     setFilter('filterPhotographer', route.query.photographer as string);
     filterByPhotographer.value = true;
   }
-  photos.value = filteredPhotos(
-    filterByLocation.value,
-    filterByDate.value,
-    filterByPerson.value,
-    filterByPhotographer.value,
-  );
+    */
   localViewMode.value = viewMode;
 });
 
@@ -164,15 +139,7 @@ window.addEventListener('scroll', () => {
       <v-row>
         <v-col cols="6" ref="gridCol">
           <div class="flex">
-            <tag-input
-              label="Tags to include"
-              :value="filters.enabledTags"
-              @update="
-                (tags) => {
-                  setFilter('enabledTags', tags);
-                }
-              "
-            ></tag-input>
+            <search-input :value="query"></search-input>
             <v-btn
               v-if="localViewMode === 0"
               @click="
@@ -189,89 +156,6 @@ window.addEventListener('scroll', () => {
               "
               >View Grid</v-btn
             >
-            <div v-if="filterByLocation">
-              <v-btn
-                icon
-                flat
-                @click="
-                  () => {
-                    filterByLocation = false;
-                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
-                  }
-                "
-              >
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-              {{ places[route.query.place as string].data.name }}
-            </div>
-            <div v-if="filterByPerson">
-              <v-btn
-                icon
-                flat
-                @click="
-                  () => {
-                    filterByPerson = false;
-                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
-                  }
-                "
-              >
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-              {{ people[route.query.person as string].data.name }}
-            </div>
-            <div v-if="filterByPhotographer">
-              <v-btn
-                icon
-                flat
-                @click="
-                  () => {
-                    filterByPhotographer = false;
-                    photos = filteredPhotos(
-                      filterByLocation,
-                      filterByDate,
-                      filterByPerson,
-                      filterByPhotographer,
-                    );
-                  }
-                "
-              >
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-              {{ people[route.query.photographer as string].data.name }}
-            </div>
-            <div v-if="filterByDate">
-              <v-btn
-                icon
-                flat
-                @click="
-                  () => {
-                    filterByDate = false;
-                    photos = filteredPhotos(filterByLocation, filterByDate, filterByPerson);
-                  }
-                "
-              >
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-              <v-btn
-                icon
-                flat
-                @click="() => setDate(moment(currentDate).subtract(1, 'day').toDate())"
-              >
-                <v-icon>mdi-arrow-left</v-icon>
-              </v-btn>
-              {{ formatDate(currentDate) }}
-              <v-btn icon flat @click="() => setDate(moment(currentDate).add(1, 'day').toDate())">
-                <v-icon>mdi-arrow-right</v-icon>
-              </v-btn>
-              <v-btn
-                @click="
-                  () => {
-                    router.push(`/journal?date=${currentDate.toISOString()}`);
-                  }
-                "
-                >Open in Journal</v-btn
-              >
-            </div>
           </div>
           <photo-grid
             v-if="localViewMode === 0"

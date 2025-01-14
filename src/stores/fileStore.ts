@@ -1,5 +1,4 @@
 import { EventEmitter } from 'ee-ts';
-import moment from 'moment';
 import { Group } from '../classes/Group';
 import { Photo } from '../classes/Photo';
 import { TauriDatabase } from '@/classes/TauriDatabase';
@@ -20,6 +19,14 @@ import { Camera } from '~/classes/Camera';
 export type FolderStructure = {
   dirs: string[];
   files: string[];
+};
+
+type SearchTerm = {
+  type: 'rule' | 'tag';
+  target?: string;
+  comparison?: string;
+  value: string;
+  negated: boolean;
 };
 
 export const moods = [
@@ -62,7 +69,6 @@ export function formatDate(date: Date) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 class FileStore extends EventEmitter<{
-  updateFilters(): void;
   updatePhoto(photo: Photo): void;
   updateLocations(): void;
   saving(value: boolean): void;
@@ -72,6 +78,7 @@ class FileStore extends EventEmitter<{
   encryptionProgress(progress: number): void;
   decrypted(): void;
   toggleTheme(): void;
+  search(results: Photo[]): void;
 }> {
   public activities: Record<string, Activity> = {};
 
@@ -80,23 +87,6 @@ class FileStore extends EventEmitter<{
   public database: TauriDatabase | null = null;
 
   public files: Record<string, Photo> = {};
-
-  public readonly filters = {
-    disabledTags: [],
-    enabledTags: [],
-    filterMode: 'AND',
-    filterPos: '',
-    filterDate: '',
-    filterPerson: '',
-    filterPhotographer: '',
-    hideDuplicates: true,
-    hideLocated: false,
-    hideTagged: false,
-    onlyError: false,
-    onlyLocated: false,
-    onlyTagged: false,
-    onlyVideo: false,
-  };
 
   public generatingThumbnails = false;
 
@@ -173,6 +163,8 @@ class FileStore extends EventEmitter<{
   public firstDate = new Date();
 
   public lastDate = new Date();
+
+  public query: string[] = [];
 
   /**
    * Sets the working dir name.
@@ -617,16 +609,6 @@ class FileStore extends EventEmitter<{
   }
 
   /**
-   * Sets a filter's value.
-   * @param key - The filter key to set.
-   * @param value - The value to set.
-   */
-  public setFilter(key: keyof typeof this.filters, value: any) {
-    this.filters[key] = value;
-    this.emit('updateFilters');
-  }
-
-  /**
    * Sets a tag's color.
    * @param tag - The target tag.
    * @param color - The color to set.
@@ -757,128 +739,62 @@ class FileStore extends EventEmitter<{
   }
 
   /**
-   * Checks a single photo to see if it matches the current filters.
+   * Checks a single photo to see if it matches the current search query.
    * @param photo - The photo to check.
-   * @param filterByLocation
-   * @param filterByDate
    */
-  public checkFilter(
-    file: Photo,
-    filterByLocation = false,
-    filterByDate = false,
-    filterByPerson = false,
-    filterByPhotographer = false,
-  ) {
-    const {
-      filterMode,
-      disabledTags,
-      enabledTags,
-      hideDuplicates,
-      hideLocated,
-      hideTagged,
-      onlyError,
-      onlyLocated,
-      onlyTagged,
-      filterPos,
-      filterDate,
-      filterPerson,
-      filterPhotographer,
-    } = this.filters;
-    let satisfiesTags = filterMode === 'AND' || enabledTags.length === 0;
-    if (
-      (hideTagged && file.tags.length > 0) ||
-      (onlyTagged && file.tags.length === 0) ||
-      (hideLocated && file.hasLocation) ||
-      (onlyLocated && !file.hasLocation) ||
-      (onlyError && file.valid) ||
-      (hideDuplicates && file.data.isDuplicate)
-    ) {
-      satisfiesTags = false;
-    }
-    if (satisfiesTags) {
-      enabledTags.forEach((tag) => {
-        if (filterMode === 'OR' && file.tags.indexOf(tag) >= 0) {
-          satisfiesTags = true;
-        } else if (filterMode === 'AND' && file.tags.indexOf(tag) < 0) {
-          satisfiesTags = false;
+  public checkFilter(photo: Photo) {
+    const terms = this.parseSearchTerms();
+    let satisfiesRules = true;
+    const rules = terms.filter((t) => t.type === 'rule');
+    rules.forEach((rule) => {
+      if (rule.comparison === 'is') {
+        if (rule.value === 'video') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && !photo.data.video;
+          } else {
+            satisfiesRules = satisfiesRules && photo.data.video;
+          }
         }
-      });
-      disabledTags.forEach((tag) => {
-        if (file.tags.indexOf(tag) >= 0) {
-          satisfiesTags = false;
+      } else if (rule.comparison === 'of') {
+        const mappedPeople = photo.people.map((p) => this.people[p].data.name);
+        if (rule.negated) {
+          satisfiesRules = satisfiesRules && mappedPeople.indexOf(rule.value) < 0;
+        } else {
+          satisfiesRules = satisfiesRules && mappedPeople.indexOf(rule.value) >= 0;
         }
-      });
-    }
-    if (satisfiesTags && filterByLocation) {
-      if (file.hasLocation && this.places[file.data.location]) {
-        if (file.data.location !== filterPos) {
-          satisfiesTags = false;
+      } else if (rule.comparison === 'by') {
+        if (photo.data.photographer.length > 0) {
+          const name = this.people[photo.data.photographer].data.name;
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && name !== rule.value;
+          } else {
+            satisfiesRules = satisfiesRules && name === rule.value;
+          }
+        } else {
+          if (!rule.negated) {
+            satisfiesRules = false;
+          }
         }
+      } else if (rule.target === 'date') {
+        if (rule.comparison === '=') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && formatDate(photo.date) !== rule.value;
+          } else {
+            satisfiesRules = satisfiesRules && formatDate(photo.date) === rule.value;
+          }
+        }
+      }
+    });
+    const tags = terms.filter((t) => t.type === 'tag');
+    let hasAllTags = true;
+    tags.forEach((tag) => {
+      if (tag.negated) {
+        hasAllTags = hasAllTags && !photo.hasTag(tag.value);
       } else {
-        satisfiesTags = false;
+        hasAllTags = hasAllTags && photo.hasTag(tag.value);
       }
-    }
-    if (satisfiesTags && filterByDate) {
-      const d1 = moment(filterDate).toDate();
-      if (file.data.date.length > 0) {
-        if (
-          d1.getFullYear() !== file.date.getFullYear() ||
-          d1.getMonth() !== file.date.getMonth() ||
-          d1.getDate() !== file.date.getDate()
-        ) {
-          satisfiesTags = false;
-        }
-      } else {
-        satisfiesTags = false;
-      }
-    }
-    if (satisfiesTags && filterByPerson) {
-      if (file.people.indexOf(filterPerson) < 0) {
-        satisfiesTags = false;
-      }
-    }
-    if (satisfiesTags && filterByPhotographer) {
-      if (file.data.photographer !== filterPhotographer) {
-        satisfiesTags = false;
-      }
-    }
-    return satisfiesTags;
-  }
-
-  /**
-   * A list of photos, with the filter options applied.
-   * @param filterByLocation
-   * @param filterByDate
-   */
-  public filteredPhotos(
-    filterByLocation = false,
-    filterByDate = false,
-    filterByPerson = false,
-    filterByPhotographer = false,
-  ) {
-    const filtered: Photo[] = [];
-    const { filterDate, filterPos, filterPerson, filterPhotographer } = this.filters;
-    let files = Object.values(this.files);
-    if (filterByDate) {
-      files = this.dateMap[filterDate] || [];
-    }
-    if (filterByLocation) {
-      files = this.locationMap[filterPos] || [];
-    }
-    if (filterByPerson) {
-      files = this.peoplePhotoMap[filterPerson] || [];
-    }
-    if (filterByPhotographer) {
-      files = this.photographerMap[filterPhotographer] || [];
-    }
-    files
-      .filter((file) => !file.hidden)
-      .forEach((file) => {
-        if (this.checkFilter(file, filterByLocation, filterByDate, filterByPerson)) {
-          filtered.push(file);
-        }
-      });
-    return filtered;
+    });
+    return satisfiesRules && hasAllTags;
   }
 
   /**
@@ -1644,6 +1560,84 @@ class FileStore extends EventEmitter<{
       this.settingsRecord.theme = s;
       await this.database?.insert(this.settingsRecord.theme);
     }
+  }
+
+  private parseSearchTerms() {
+    const terms: SearchTerm[] = [];
+    this.query.forEach((term) => {
+      let matched = false;
+      let negated = false;
+      if (term[0] === '-') {
+        negated = true;
+        term = term.substring(1);
+      }
+      if (term.includes('=')) {
+        const split = term.split('=');
+        if (split[0] === 'date') {
+          terms.push({
+            type: 'rule',
+            target: 'date',
+            comparison: '=',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        }
+      } else if (term.includes(':')) {
+        const split = term.split(':');
+        if (split[0] === 'is') {
+          if (split[1] === 'video') {
+            terms.push({
+              type: 'rule',
+              comparison: 'is',
+              value: 'video',
+              negated,
+            });
+            matched = true;
+          }
+        } else if (split[0] === 'of') {
+          terms.push({
+            type: 'rule',
+            comparison: 'of',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        } else if (split[0] === 'by') {
+          terms.push({
+            type: 'rule',
+            comparison: 'by',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        }
+      }
+      if (!matched) {
+        // Fallback to tag search
+        terms.push({
+          type: 'tag',
+          value: term,
+          negated,
+        });
+      }
+    });
+    return terms;
+  }
+
+  /**
+   * Performs a search.
+   * @param query - The query terms.
+   */
+  public async search(...query: string[]) {
+    if (query !== undefined) {
+      this.query = query;
+    }
+    // TODO: Perform SELECT using non-tag fields
+    let results = Object.values(this.files);
+    // Filter results by tags
+    results = results.filter((photo) => this.checkFilter(photo));
+    this.emit('search', results);
   }
 }
 

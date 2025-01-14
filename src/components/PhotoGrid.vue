@@ -16,8 +16,6 @@ const {
   addGroup,
   setGroup,
   photoCount,
-  filters,
-  setFilter,
   updateTagsForGroup,
   sort,
   setSortMode,
@@ -25,7 +23,6 @@ const {
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
-const searchDialog = ref(false);
 const itemsPerRow = ref(4);
 const size = ref(0);
 const gridCol = ref<any>();
@@ -156,25 +153,7 @@ const tagAction = ref<'remove' | 'replace'>('remove');
 const replacementTag = ref<string[]>([]);
 const loading = ref(false);
 
-// Filter controls
-const enabledTags = ref([]);
-const disabledTags = ref([]);
-const onlyTagged = ref(false);
-const hideTagged = ref(false);
-const onlyLocated = ref(false);
-const hideLocated = ref(false);
-const onlyError = ref(false);
-const hideDuplicates = ref(true);
-
 onMounted(() => {
-  enabledTags.value = fileStore.filters.enabledTags;
-  disabledTags.value = fileStore.filters.disabledTags;
-  onlyTagged.value = fileStore.filters.onlyTagged;
-  hideTagged.value = fileStore.filters.hideTagged;
-  onlyLocated.value = fileStore.filters.onlyLocated;
-  hideLocated.value = fileStore.filters.hideLocated;
-  onlyError.value = fileStore.filters.onlyError;
-  hideDuplicates.value = fileStore.filters.hideDuplicates;
   sortBy.value = sort[0];
   sortDir.value = sort[1];
   resizeGrid();
@@ -188,9 +167,6 @@ onUnmounted(() => {
 
 <template>
   <div class="controls">
-    <v-btn icon @click="searchDialog = true" flat>
-      <v-icon>mdi-filter</v-icon>
-    </v-btn>
     <v-menu>
       <template v-slot:activator="{ props }">
         <v-btn v-bind="props" icon flat>
@@ -367,85 +343,6 @@ onUnmounted(() => {
       }
     "
   ></v-checkbox>
-  <v-dialog v-model="searchDialog">
-    <v-card>
-      <v-card-text>
-        <tag-input
-          label="Tags to include"
-          :value="enabledTags"
-          @update="(tags) => setFilter('enabledTags', tags)"
-        ></tag-input>
-        <v-select :items="['AND', 'OR']" label="Mode" v-model="filters.filterMode"></v-select>
-        <tag-input
-          label="Tags to exclude"
-          :value="disabledTags"
-          @update="(tags) => setFilter('disabledTags', tags)"
-        ></tag-input>
-        <v-checkbox
-          v-model="onlyTagged"
-          label="Only Show Tagged"
-          @update:model-value="
-            () => {
-              if (onlyTagged) {
-                hideTagged = false;
-                setFilter('hideTagged', false);
-              }
-              setFilter('onlyTagged', onlyTagged);
-            }
-          "
-        ></v-checkbox>
-        <v-checkbox
-          v-model="hideTagged"
-          label="Hide Tagged"
-          @update:model-value="
-            () => {
-              if (hideTagged) {
-                onlyTagged = false;
-                setFilter('onlyTagged', false);
-              }
-              setFilter('hideTagged', hideTagged);
-            }
-          "
-        ></v-checkbox>
-        <v-checkbox
-          v-model="onlyLocated"
-          label="Show Only Located"
-          @update:model-value="
-            () => {
-              if (onlyLocated) {
-                hideLocated = false;
-                setFilter('hideLocated', false);
-              }
-              setFilter('onlyLocated', onlyLocated);
-            }
-          "
-        ></v-checkbox>
-        <v-checkbox
-          v-model="hideLocated"
-          label="Hide Located"
-          @update:model-value="
-            () => {
-              if (hideLocated) {
-                onlyLocated = false;
-                setFilter('onlyLocated', false);
-              }
-              setFilter('hideLocated', hideLocated);
-            }
-          "
-        ></v-checkbox>
-        <v-checkbox
-          v-model="onlyError"
-          label="Show Only Photos With Errors"
-          @update:model-value="() => setFilter('onlyError', onlyError)"
-        ></v-checkbox>
-        <v-checkbox
-          v-model="hideDuplicates"
-          label="Hide Duplicates"
-          @update:model-value="() => setFilter('hideDuplicates', hideDuplicates)"
-        ></v-checkbox>
-      </v-card-text>
-    </v-card>
-  </v-dialog>
   <v-dialog v-model="tagAddDialog">
     <v-card>
       <v-card-title>Add Tags</v-card-title>
