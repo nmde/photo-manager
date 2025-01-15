@@ -104,27 +104,21 @@ fileStore.on('updatePhoto', (photo) => {
 });
 
 onMounted(async () => {
-  /*
   if (route.query.place) {
-    setFilter('filterPos', route.query.place as string);
+    await search(`at=${route.query.place}`);
     filterByLocation.value = true;
-  }
-    */
-  if (route.query.date) {
+  } else if (route.query.date) {
     setDate(moment(route.query.date as string).toDate());
-  } else {
-    await search();
-  }
-  /*
-  if (route.query.person) {
-    setFilter('filterPerson', route.query.person as string);
+    filterByDate.value = true;
+  } else if (route.query.person) {
+    await search(`of=${route.query.person}`);
     filterByPerson.value = true;
-  }
-  if (route.query.photographer) {
-    setFilter('filterPhotographer', route.query.photographer as string);
+  } else if (route.query.photographer) {
+    await search(`by=${route.query.photographer}`);
     filterByPhotographer.value = true;
+  } else {
+    await search(...query);
   }
-    */
   localViewMode.value = viewMode;
 });
 

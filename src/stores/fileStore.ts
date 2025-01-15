@@ -743,6 +743,9 @@ class FileStore extends EventEmitter<{
    * @param photo - The photo to check.
    */
   public checkFilter(photo: Photo) {
+    if (photo.hidden || photo.data.isDuplicate) {
+      return false;
+    }
     const terms = this.parseSearchTerms();
     let satisfiesRules = true;
     const rules = terms.filter((t) => t.type === 'rule');
@@ -775,12 +778,77 @@ class FileStore extends EventEmitter<{
             satisfiesRules = false;
           }
         }
-      } else if (rule.target === 'date') {
-        if (rule.comparison === '=') {
+      } else if (rule.comparison === 'at') {
+        if (photo.hasLocation) {
+          const name = this.places[photo.data.location].data.name;
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && name !== rule.value;
+          } else {
+            satisfiesRules = satisfiesRules && name === rule.value;
+          }
+        } else if (!rule.negated) {
+          satisfiesRules = false;
+        }
+      } else if (rule.comparison === 'has') {
+        if (rule.value === 'location') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && !photo.hasLocation;
+          } else {
+            satisfiesRules = satisfiesRules && photo.hasLocation;
+          }
+        } else if (rule.value === 'rating') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && !photo.hasRating;
+          } else {
+            satisfiesRules = satisfiesRules && photo.hasRating;
+          }
+        } else if (rule.value === 'photographer') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && photo.data.photographer.length === 0;
+          } else {
+            satisfiesRules = satisfiesRules && photo.data.photographer.length > 0;
+          }
+        } else if (rule.value === 'date') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && photo.data.date.length === 0;
+          } else {
+            satisfiesRules = satisfiesRules && photo.data.date.length > 0;
+          }
+        }
+      } else if (rule.comparison === '=') {
+        if (rule.target === 'date') {
           if (rule.negated) {
             satisfiesRules = satisfiesRules && formatDate(photo.date) !== rule.value;
           } else {
             satisfiesRules = satisfiesRules && formatDate(photo.date) === rule.value;
+          }
+        } else if (rule.target === 'at') {
+          if (photo.hasLocation) {
+            if (rule.negated) {
+              satisfiesRules = satisfiesRules && photo.data.location !== rule.value;
+            } else {
+              satisfiesRules = satisfiesRules && photo.data.location === rule.value;
+            }
+          } else if (!rule.negated) {
+            satisfiesRules = false;
+          }
+        } else if (rule.target === 'of') {
+          if (rule.negated) {
+            satisfiesRules = satisfiesRules && photo.people.indexOf(rule.value) < 0;
+          } else {
+            satisfiesRules = satisfiesRules && photo.people.indexOf(rule.value) >= 0;
+          }
+        } else if (rule.target === 'by') {
+          if (photo.data.photographer.length > 0) {
+            if (rule.negated) {
+              satisfiesRules = satisfiesRules && photo.data.photographer !== rule.value;
+            } else {
+              satisfiesRules = satisfiesRules && photo.data.photographer === rule.value;
+            }
+          } else {
+            if (!rule.negated) {
+              satisfiesRules = false;
+            }
           }
         }
       }
@@ -1573,10 +1641,10 @@ class FileStore extends EventEmitter<{
       }
       if (term.includes('=')) {
         const split = term.split('=');
-        if (split[0] === 'date') {
+        if (['date', 'at', 'of', 'by'].indexOf(split[0]) >= 0) {
           terms.push({
             type: 'rule',
-            target: 'date',
+            target: split[0],
             comparison: '=',
             value: split[1],
             negated,
@@ -1607,6 +1675,24 @@ class FileStore extends EventEmitter<{
           terms.push({
             type: 'rule',
             comparison: 'by',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        } else if (split[0] === 'has') {
+          if (['location', 'rating', 'photographer', 'date'].indexOf(split[1]) >= 0) {
+            terms.push({
+              type: 'rule',
+              comparison: 'has',
+              value: split[1],
+              negated,
+            });
+            matched = true;
+          }
+        } else if (split[0] === 'at') {
+          terms.push({
+            type: 'rule',
+            comparison: 'at',
             value: split[1],
             negated,
           });
