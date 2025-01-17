@@ -329,6 +329,14 @@ onMounted(async () => {
                         <v-list>
                           <v-list-item
                             @click="
+                              () => {
+                                map.setCenter(place.posObj.lat, place.posObj.lng);
+                              }
+                            "
+                            >Find On Map</v-list-item
+                          >
+                          <v-list-item
+                            @click="
                               async () => {
                                 await deletePlace(place.Id);
                                 if (place.data.shape.length > 0) {

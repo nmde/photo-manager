@@ -7,424 +7,326 @@ import {
   PointElement,
   Tooltip,
   Title,
+  BarElement,
 } from 'chart.js';
-import { Scatter, Line } from 'vue-chartjs';
+import { Scatter, Line, Bar } from 'vue-chartjs';
 import { fileStore, formatDate } from '../../stores/fileStore';
+import SearchInput from '~/components/SearchInput.vue';
+import type { Photo } from '~/classes/Photo';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, BarElement);
 
 const {
   people,
   peopleCategories,
-  firstDate,
-  lastDate,
   dateMap,
   places,
   layers,
   tags,
   getTagColor,
   journals,
+  query,
+  search,
 } = fileStore;
 
-const graphType = ref('');
-const graphOptions = ref([
+let targetFiles: Photo[] = [];
+
+const targetFileCount = ref(0);
+const targetOptions = ref([
   {
     title: 'People',
     value: 'people',
   },
+]);
+const typeOptions = ref({
+  people: [
+    {
+      title: 'Count',
+      value: 'count',
+    },
+    {
+      title: 'Timeline',
+      value: 'timeline',
+    },
+  ],
+});
+const precisionOptions = ref([
   {
-    title: 'Photographers',
-    value: 'photographers',
+    title: 'Year',
+    value: 0,
   },
   {
-    title: 'Places',
-    value: 'places',
+    title: 'Month',
+    value: 1,
   },
   {
-    title: 'Tags',
-    value: 'tags',
-  },
-  {
-    title: 'Moods',
-    value: 'moods',
+    title: 'Day',
+    value: 2,
   },
 ]);
 
-const enabledPeople = ref<Record<string, boolean>>({});
-const enabledPlaces = ref<Record<string, boolean>>({});
+const graphTarget = ref('');
+const graphType = ref('');
+const precision = ref(0);
+const running = ref(false);
+const hasResults = ref(false);
 
-const peopleTimeline = computed(() => {
-  const labels: string[] = [];
-  const datasets: any[] = [];
-  const totals: Record<string, number> = {};
-  Object.entries(people).forEach(([id, person]) => {
-    if (enabledPeople.value[id]) {
-      totals[id] = 0;
-      datasets.push({
-        label: person.data.name,
-        data: [],
-        backgroundColor: peopleCategories[person.data.category].data.color,
-        borderColor: peopleCategories[person.data.category].data.color,
-        spanGaps: true,
+fileStore.on('search', (results) => {
+  targetFiles = results;
+  targetFileCount.value = results.length;
+});
+
+const chartData = ref<{
+  labels: string[];
+  datasets: any[];
+}>({
+  labels: [],
+  datasets: [],
+});
+
+function runCount() {
+  const keyMap: Record<string, number> = {};
+  // Collect data
+  targetFiles.forEach((photo) => {
+    if (graphTarget.value === 'people') {
+      photo.people.forEach((person) => {
+        if (!keyMap[person]) {
+          keyMap[person] = 0;
+        }
+        keyMap[person] += 1;
       });
     }
   });
-  let x = 0;
-  for (let year = firstDate.getFullYear(); year <= lastDate.getFullYear(); year += 1) {
-    let month = 0;
-    if (year === firstDate.getFullYear()) {
-      month = firstDate.getMonth();
-    }
-    let stopMonth = 11;
-    if (year === lastDate.getFullYear()) {
-      stopMonth = lastDate.getMonth();
-    }
-    for (month; month <= stopMonth; month += 1) {
-      let day = 1;
-      if (year === firstDate.getFullYear() && month === firstDate.getMonth()) {
-        day = firstDate.getDate();
-      }
-      let stopDay = new Date(year, month + 1, 0).getDate();
-      if (year === lastDate.getFullYear() && month === lastDate.getMonth()) {
-        stopDay = lastDate.getDate();
-      }
-      for (day; day <= stopDay; day += 1) {
-        const d = formatDate(new Date(year, month, day));
-        labels.push(d);
-        if (dateMap[d]) {
-          const photos = dateMap[d];
-          let i = 0;
-          Object.keys(people).forEach((id) => {
-            if (enabledPeople.value[id]) {
-              const count = photos.filter((f) => f.people.indexOf(id) >= 0).length;
-              if (count > 0) {
-                totals[id] += count;
-                datasets[i].data[x] = totals[id];
-              }
-              i += 1;
-            }
-          });
-        }
-        x += 1;
-      }
-    }
-  }
-  return {
-    labels,
-    datasets,
-  };
-});
+  const results = Object.entries(keyMap).sort((a, b) => b[1] - a[1]);
 
-const photographerTimeline = computed(() => {
-  const labels: string[] = [];
-  const datasets: any[] = [];
-  const totals: Record<string, number> = {};
-  Object.entries(people).forEach(([id, person]) => {
-    if (enabledPeople.value[id]) {
-      totals[id] = 0;
-      datasets.push({
-        label: person.data.name,
-        data: [],
-        backgroundColor: peopleCategories[person.data.category].data.color,
-        borderColor: peopleCategories[person.data.category].data.color,
-        spanGaps: true,
-      });
-    }
-  });
-  let x = 0;
-  for (let year = firstDate.getFullYear(); year <= lastDate.getFullYear(); year += 1) {
-    let month = 0;
-    if (year === firstDate.getFullYear()) {
-      month = firstDate.getMonth();
-    }
-    let stopMonth = 11;
-    if (year === lastDate.getFullYear()) {
-      stopMonth = lastDate.getMonth();
-    }
-    for (month; month <= stopMonth; month += 1) {
-      let day = 1;
-      if (year === firstDate.getFullYear() && month === firstDate.getMonth()) {
-        day = firstDate.getDate();
-      }
-      let stopDay = new Date(year, month + 1, 0).getDate();
-      if (year === lastDate.getFullYear() && month === lastDate.getMonth()) {
-        stopDay = lastDate.getDate();
-      }
-      for (day; day <= stopDay; day += 1) {
-        const d = formatDate(new Date(year, month, day));
-        labels.push(d);
-        if (dateMap[d]) {
-          const photos = dateMap[d];
-          let i = 0;
-          Object.keys(people).forEach((id) => {
-            if (enabledPeople.value[id]) {
-              const count = photos.filter((f) => f.data.photographer === id).length;
-              if (count > 0) {
-                totals[id] += count;
-                datasets[i].data[x] = totals[id];
-              }
-              i += 1;
-            }
-          });
-        }
-        x += 1;
-      }
-    }
-  }
-  return {
-    labels,
-    datasets,
-  };
-});
-
-const placesTimeline = computed(() => {
-  const labels: string[] = [];
-  const datasets: any[] = [];
-  const totals: Record<string, number> = {};
-  Object.entries(places).forEach(([id, place]) => {
-    if (enabledPlaces.value[id]) {
-      totals[id] = 0;
-      datasets.push({
-        label: place.data.name,
-        data: [],
-        backgroundColor: layers[place.data.layer].data.color,
-        borderColor: layers[place.data.layer].data.color,
-        spanGaps: true,
-      });
-    }
-  });
-  let x = 0;
-  for (let year = firstDate.getFullYear(); year <= lastDate.getFullYear(); year += 1) {
-    let month = 0;
-    if (year === firstDate.getFullYear()) {
-      month = firstDate.getMonth();
-    }
-    let stopMonth = 11;
-    if (year === lastDate.getFullYear()) {
-      stopMonth = lastDate.getMonth();
-    }
-    for (month; month <= stopMonth; month += 1) {
-      let day = 1;
-      if (year === firstDate.getFullYear() && month === firstDate.getMonth()) {
-        day = firstDate.getDate();
-      }
-      let stopDay = new Date(year, month + 1, 0).getDate();
-      if (year === lastDate.getFullYear() && month === lastDate.getMonth()) {
-        stopDay = lastDate.getDate();
-      }
-      for (day; day <= stopDay; day += 1) {
-        const d = formatDate(new Date(year, month, day));
-        labels.push(d);
-        if (dateMap[d]) {
-          const photos = dateMap[d];
-          let i = 0;
-          Object.keys(places).forEach((id) => {
-            if (enabledPlaces.value[id]) {
-              const count = photos.filter((f) => f.data.location === id).length;
-              if (count > 0) {
-                totals[id] += count;
-                datasets[i].data[x] = totals[id];
-              }
-              i += 1;
-            }
-          });
-        }
-        x += 1;
-      }
-    }
-  }
-  return {
-    labels,
-    datasets,
-  };
-});
-
-const tagsTimeline = computed(() => {
-  const labels: string[] = [];
-  const datasets: any[] = [];
-  const totals: Record<string, number> = {};
-  tags.forEach((tag) => {
-    totals[tag] = 0;
-    const color = getTagColor(tag);
-    datasets.push({
-      label: tag,
-      data: [],
-      backgroundColor: color,
-      borderColor: color,
-      spanGaps: true,
-    });
-  });
-  let x = 0;
-  for (let year = firstDate.getFullYear(); year <= lastDate.getFullYear(); year += 1) {
-    let month = 0;
-    if (year === firstDate.getFullYear()) {
-      month = firstDate.getMonth();
-    }
-    let stopMonth = 11;
-    if (year === lastDate.getFullYear()) {
-      stopMonth = lastDate.getMonth();
-    }
-    for (month; month <= stopMonth; month += 1) {
-      labels.push(`${year}/${month}`);
-      let day = 1;
-      if (year === firstDate.getFullYear() && month === firstDate.getMonth()) {
-        day = firstDate.getDate();
-      }
-      let stopDay = new Date(year, month + 1, 0).getDate();
-      if (year === lastDate.getFullYear() && month === lastDate.getMonth()) {
-        stopDay = lastDate.getDate();
-      }
-      for (day; day <= stopDay; day += 1) {
-        const d = formatDate(new Date(year, month, day));
-        if (dateMap[d]) {
-          const photos = dateMap[d];
-          let i = 0;
-          tags.forEach((tag) => {
-            const count = photos.filter((f) => f.hasTag(tag)).length;
-            if (count > 0) {
-              totals[tag] += count;
-              if (datasets[i].data[x]) {
-                datasets[i].data[x] += count;
-              } else {
-                datasets[i].data[x] = totals[tag];
-              }
-            }
-            i += 1;
-          });
-        }
-        x += 1;
-      }
-    }
-  }
-  return {
-    labels,
-    datasets,
-  };
-});
-
-const moodTimeline = computed(() => {
+  // Generate ChartJS datasets
   const labels: string[] = [];
   const datasets: any[] = [
     {
-      label: 'Awful',
+      label: 'Count',
+      backgroundColor: [],
       data: [],
-      backgroundColor: '#F44336',
-      borderColor: '#F44336',
-    },
-    {
-      label: 'Bad',
-      data: [],
-      backgroundColor: '#FF9800',
-      borderColor: '#FF9800',
-    },
-    {
-      label: 'Meh',
-      data: [],
-      backgroundColor: '#2196F3',
-      borderColor: '#2196F3',
-    },
-    {
-      label: 'Good',
-      data: [],
-      backgroundColor: '#4CAF50',
-      borderColor: '#4CAF50',
-    },
-    {
-      label: 'Awesome',
-      data: [],
-      backgroundColor: '#009688',
-      borderColor: '#009688',
     },
   ];
-  let x = 0;
-  for (let year = firstDate.getFullYear(); year <= lastDate.getFullYear(); year += 1) {
-    let month = 0;
-    if (year === firstDate.getFullYear()) {
-      month = firstDate.getMonth();
+  results.forEach((entry) => {
+    if (graphTarget.value === 'people') {
+      const p = people[entry[0]];
+      labels.push(p.data.name);
+      datasets[0].backgroundColor.push(peopleCategories[p.data.category].data.color);
+      datasets[0].data.push(entry[1]);
     }
-    let stopMonth = 11;
-    if (year === lastDate.getFullYear()) {
-      stopMonth = lastDate.getMonth();
-    }
-    for (month; month <= stopMonth; month += 1) {
-      let day = 1;
-      if (year === firstDate.getFullYear() && month === firstDate.getMonth()) {
-        day = firstDate.getDate();
-      }
-      let stopDay = new Date(year, month + 1, 0).getDate();
-      if (year === lastDate.getFullYear() && month === lastDate.getMonth()) {
-        stopDay = lastDate.getDate();
-      }
-      for (day; day <= stopDay; day += 1) {
-        const d = formatDate(new Date(year, month, day));
-        if (journals[d]) {
-          labels.push(`${year}/${month}/${day}`);
-          datasets[journals[d].data.mood].data.push({
-            x,
-            y: journals[d].data.mood,
-          });
-        }
-        x += 1;
-      }
-    }
-  }
-  return {
+  });
+
+  chartData.value = {
     labels,
     datasets,
   };
-});
+  hasResults.value = true;
+  running.value = false;
+}
 
-onMounted(() => {
-  Object.keys(people).forEach((id) => {
-    enabledPeople.value[id] = true;
+function runTimeline() {
+  // Collect data & determine bounds of timeline
+  let minDate = new Date();
+  let maxDate = new Date(1900, 0, 0);
+  const totals: Record<string, number> = {};
+  const keyMap: Record<string, Record<string, number>> = {};
+  targetFiles
+    .filter((photo) => photo.data.date.length > 0)
+    .sort((a, b) => {
+      if (a.date > b.date) {
+        return 1;
+      }
+      if (a.date < b.date) {
+        return -1;
+      }
+      return 0;
+    })
+    .forEach((photo) => {
+      if (photo.date < minDate) {
+        minDate = photo.date;
+      }
+      if (photo.date > maxDate) {
+        maxDate = photo.date;
+      }
+      const year = photo.date.getFullYear();
+      let key = `${year}`;
+      if (precision.value >= 1) {
+        const month = photo.date.getMonth();
+        key = `${year}/${month}`;
+        if (precision.value >= 2) {
+          key = `${year}/${month}/${photo.date.getDate()}`;
+        }
+      }
+      if (graphTarget.value === 'people') {
+        photo.people.forEach((person) => {
+          if (!keyMap[key]) {
+            keyMap[key] = {};
+          }
+          if (!totals[person]) {
+            totals[person] = 0;
+          }
+          if (!keyMap[key][person]) {
+            keyMap[key][person] = totals[person];
+          }
+          keyMap[key][person] += 1;
+          totals[person] += 1;
+        });
+      }
+    });
+
+  // Fill out timeline
+  const labels: string[] = [];
+  const timeline: Record<string, number[]> = {};
+  let x = 0;
+  for (let year = minDate.getFullYear(); year <= maxDate.getFullYear(); year += 1) {
+    if (precision.value === 0) {
+      const key = `${year}`;
+      labels.push(key);
+      if (keyMap[key]) {
+        Object.entries(keyMap[key]).forEach(([person, value]) => {
+          if (!timeline[person]) {
+            timeline[person] = [];
+          }
+          timeline[person][x] = value;
+        });
+      }
+      x += 1;
+    } else {
+      let month = 0;
+      if (year === minDate.getFullYear()) {
+        month = minDate.getMonth();
+      }
+      let stopMonth = 11;
+      if (year === maxDate.getFullYear()) {
+        stopMonth = maxDate.getMonth();
+      }
+      for (month; month <= stopMonth; month += 1) {
+        if (precision.value === 1) {
+          const key = `${year}/${month}`;
+          labels.push(key);
+          if (keyMap[key]) {
+            Object.entries(keyMap[key]).forEach(([person, value]) => {
+              if (!timeline[person]) {
+                timeline[person] = [];
+              }
+              timeline[person][x] = value;
+            });
+          }
+          x += 1;
+        } else {
+          let day = 1;
+          if (year === minDate.getFullYear() && month === minDate.getMonth()) {
+            day = minDate.getDate();
+          }
+          let stopDay = new Date(year, month + 1, 0).getDate();
+          if (year === maxDate.getFullYear() && month === maxDate.getMonth()) {
+            stopDay = maxDate.getDate();
+          }
+          for (day; day <= stopDay; day += 1) {
+            const key = `${year}/${month}/${day}`;
+            labels.push(key);
+            if (keyMap[key]) {
+              Object.entries(keyMap[key]).forEach(([person, value]) => {
+                if (!timeline[person]) {
+                  timeline[person] = [];
+                }
+                timeline[person][x] = value;
+              });
+            }
+            x += 1;
+          }
+        }
+      }
+    }
+  }
+
+  // Generate datasets from timeline
+  const datasets: any[] = [];
+  console.log(timeline);
+  Object.entries(timeline).forEach(([person, data]) => {
+    datasets.push({
+      label: people[person].data.name,
+      backgroundColor: peopleCategories[people[person].data.category].data.color,
+      borderColor: peopleCategories[people[person].data.category].data.color,
+      data,
+      spanGaps: true,
+    });
   });
-  Object.keys(places).forEach((id) => {
-    enabledPlaces.value[id] = true;
-  });
+
+  chartData.value = {
+    labels,
+    datasets,
+  };
+  hasResults.value = true;
+  running.value = false;
+}
+
+onMounted(async () => {
+  await search();
 });
 </script>
 
 <template>
   <v-main>
-    <v-select :items="graphOptions" v-model="graphType"></v-select>
-    <div v-if="graphType === 'people'">
-      <Line :data="peopleTimeline"></Line>
-      <div>
-        <v-checkbox
-          v-for="person in people"
-          :key="person.Id"
-          :label="person.data.name"
-          v-model="enabledPeople[person.Id]"
-        ></v-checkbox>
-      </div>
-    </div>
-    <div v-if="graphType === 'photographers'">
-      <Line :data="photographerTimeline"></Line>
-      <div>
-        <v-checkbox
-          v-for="person in people"
-          :key="person.Id"
-          :label="person.data.name"
-          v-model="enabledPeople[person.Id]"
-        ></v-checkbox>
-      </div>
-    </div>
-    <div v-if="graphType === 'places'">
-      <Line :data="placesTimeline"></Line>
-      <div>
-        <v-checkbox
-          v-for="place in places"
-          :key="place.Id"
-          :label="place.data.name"
-          v-model="enabledPlaces[place.Id]"
-        ></v-checkbox>
-      </div>
-    </div>
-    <div v-if="graphType === 'tags'">
-      <Line :data="tagsTimeline"></Line>
-    </div>
-    <div v-if="graphType === 'moods'">
-      <Scatter :data="moodTimeline"></Scatter>
-    </div>
+    <v-container fluid class="fill-height">
+      <v-row class="fill-height">
+        <v-col cols="8" class="fill-height">
+          <template v-if="hasResults">
+            <Bar
+              v-if="graphType === 'count'"
+              :data="chartData"
+              :options="{
+                maintainAspectRatio: false,
+              }"
+            ></Bar>
+            <Line v-if="graphType === 'timeline'" :data="chartData"></Line>
+          </template>
+        </v-col>
+        <v-col cols="4">
+          <SearchInput :value="query"></SearchInput> Computing stats for
+          {{ targetFileCount }} photos.
+          <v-select
+            :disabled="running"
+            label="Statistic"
+            v-model="graphTarget"
+            :items="targetOptions"
+          ></v-select>
+          <v-select
+            v-if="typeOptions[graphTarget]"
+            :disabled="running"
+            label="Type"
+            :items="typeOptions[graphTarget]"
+            v-model="graphType"
+          ></v-select>
+          <v-select
+            v-if="graphType === 'timeline'"
+            :items="precisionOptions"
+            v-model="precision"
+            label="Precision"
+          ></v-select>
+          <v-btn
+            :loading="running"
+            @click="
+              async () => {
+                running = true;
+                if (graphType === 'count') {
+                  runCount();
+                } else if (graphType === 'timeline') {
+                  runTimeline();
+                }
+              }
+            "
+            >Run</v-btn
+          >
+        </v-col>
+      </v-row>
+    </v-container>
   </v-main>
 </template>
+
+<style scoped>
+.fill-height {
+  height: 100%;
+}
+</style>

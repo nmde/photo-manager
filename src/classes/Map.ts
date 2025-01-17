@@ -439,4 +439,11 @@ export class Map extends EventEmitter<{
       shape.setMap(this.map);
     });
   }
+
+  public setCenter(lat: number, lng: number) {
+    this.map.setCenter({
+      lat,
+      lng,
+    });
+  }
 }
