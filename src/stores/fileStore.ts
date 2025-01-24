@@ -1,20 +1,20 @@
 import { EventEmitter } from 'ee-ts';
 import { Group } from '../classes/Group';
 import { Photo } from '../classes/Photo';
-import { TauriDatabase } from '@/classes/TauriDatabase';
-import { Tag } from '~/classes/Tag';
-import { Graph } from '~/classes/Graph';
-import { GraphNode } from '~/classes/GraphNode';
-import { Place } from '~/classes/Place';
-import type { PlaceType, Position } from '~/classes/Map';
-import { Layer } from '~/classes/Layer';
-import { Shape, type ShapeType } from '~/classes/Shape';
-import { JournalEntry } from '~/classes/JournalEntry';
-import { Activity } from '~/classes/Activity';
-import { Person } from '~/classes/Person';
-import { PersonCategory } from '~/classes/PersonCategory';
-import { Setting, type SettingKey } from '~/classes/Setting';
-import { Camera } from '~/classes/Camera';
+import { TauriDatabase } from '../classes/TauriDatabase';
+import { Tag } from '../classes/Tag';
+import { Graph } from '../classes/Graph';
+import { GraphNode } from '../classes/GraphNode';
+import { Place } from '../classes/Place';
+import type { PlaceType, Position } from '../classes/Map';
+import { Layer } from '../classes/Layer';
+import { Shape, type ShapeType } from '../classes/Shape';
+import { JournalEntry } from '../classes/JournalEntry';
+import { Activity } from '../classes/Activity';
+import { Person } from '../classes/Person';
+import { PersonCategory } from '../classes/PersonCategory';
+import { Setting, type SettingKey } from '../classes/Setting';
+import { Camera } from '../classes/Camera';
 
 export type FolderStructure = {
   dirs: string[];

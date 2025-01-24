@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { Person } from '../../classes/Person';
-import { PersonCategory } from '../../classes/PersonCategory';
-import { fileStore } from '../../stores/fileStore';
+import { useRouter } from 'vue-router';
+import { Person } from '../classes/Person';
+import { PersonCategory } from '../classes/PersonCategory';
+import { fileStore } from '../stores/fileStore';
+import ColorOptions from '../components/ColorOptions.vue';
 
 const router = useRouter();
 
@@ -158,7 +160,7 @@ onMounted(() => {
         <v-card-title>Add Category</v-card-title>
         <v-card-text>
           <v-text-field label="Name" v-model="addCategoryName"></v-text-field>
-          <color-options @select="(color: string) => (addCategoryColor = color)"></color-options>
+          <color-options @select="(color) => (addCategoryColor = color)"></color-options>
         </v-card-text>
         <v-card-actions>
           <v-btn @click="addCategoryDialog = false">Cancel</v-btn>

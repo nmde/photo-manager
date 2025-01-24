@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Photo } from '~/classes/Photo';
-import { fileStore } from '~/stores/fileStore';
+import { ref, watch } from 'vue';
+import { Photo } from '../classes/Photo';
+import { fileStore } from '../stores/fileStore';
+import PhotoDetail from './PhotoDetail.vue';
 
 const props = defineProps<{
   photos: Photo[];

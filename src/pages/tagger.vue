@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import moment from 'moment';
-import { ref } from 'vue';
-import { Photo } from '../../classes/Photo';
-import { fileStore, formatDate } from '../../stores/fileStore';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { Photo } from '../classes/Photo';
+import { fileStore, formatDate } from '../stores/fileStore';
+import AutosaveText from '../components/AutosaveText.vue';
+import DirectoryPanels from '../components/DirectoryPanels.vue';
+import MoodIcon from '../components/MoodIcon.vue';
+import PhotoGrid from '../components/PhotoGrid.vue';
+import PhotoGroup from '../components/PhotoGroup.vue';
+import SearchInput from '../components/SearchInput.vue';
 
 const route = useRoute();
 

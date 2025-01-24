@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { fileStore } from '../stores/fileStore';
-import { Photo, createPhoto } from '~/classes/Photo';
+import { Photo, createPhoto } from '../classes/Photo';
 
 const router = useRouter();
 const {

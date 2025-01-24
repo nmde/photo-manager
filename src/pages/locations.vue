@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { Map, type Position, locToString, icons } from '../../classes/Map';
-import { fileStore } from '../../stores/fileStore';
-import type { Layer } from '~/classes/Layer';
-import type { Shape, ShapeType } from '~/classes/Shape';
-import type { Place } from '~/classes/Place';
+import { onMounted, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { Map, type Position, locToString, icons } from '../classes/Map';
+import { fileStore } from '../stores/fileStore';
+import type { Layer } from '../classes/Layer';
+import type { Shape, ShapeType } from '../classes/Shape';
+import type { Place } from '../classes/Place';
+import AutosaveText from '../components/AutosaveText.vue';
+import ColorPicker from '../components/ColorPicker.vue';
+import TagInput from '../components/TagInput.vue';
 
 const router = useRouter();
 

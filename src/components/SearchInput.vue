@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
 const { tags, search, query } = fileStore;

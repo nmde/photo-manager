@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
+import PhotoIcon from './PhotoIcon.vue';
+import TagInput from './TagInput.vue';
 
 const props = defineProps<{
   photos: Photo[];

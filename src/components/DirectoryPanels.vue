@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { fileStore } from '~/stores/fileStore';
-import type { Photo } from '~/classes/Photo';
+import { fileStore } from '../stores/fileStore';
+import type { Photo } from '../classes/Photo';
+import PhotoGrid from './PhotoGrid.vue';
 
 const { files } = fileStore;
 
@@ -9,7 +10,7 @@ type Folder = {
   children: Record<string, Folder>;
 };
 
-const props = defineProps<{
+defineProps<{
   folderStructure: Folder;
 }>();
 

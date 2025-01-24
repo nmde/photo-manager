@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { fileStore, moods, formatDate } from '../../stores/fileStore';
-import { Photo } from '../../classes/Photo';
-import type { Place } from '~/classes/Place';
+import { computed, ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { fileStore, moods, formatDate } from '../stores/fileStore';
+import { Photo } from '../classes/Photo';
+import type { Place } from '../classes/Place';
+import MoodIcon from '../components/MoodIcon.vue';
+import PhotoIcon from '../components/PhotoIcon.vue';
 
 const router = useRouter();
 

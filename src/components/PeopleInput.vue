@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { fileStore } from '~/stores/fileStore';
+import { ref, computed, watch, onMounted } from 'vue';
+import { fileStore } from '../stores/fileStore';
 
 type PeopleEntry = {
   title: string;

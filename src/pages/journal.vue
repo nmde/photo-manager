@@ -1,6 +1,9 @@
 <script lang="ts" setup>
-import type { Activity } from '~/classes/Activity';
-import { fileStore, formatDate, moods } from '../../stores/fileStore';
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import type { Activity } from '../classes/Activity';
+import { fileStore, formatDate, moods } from '../stores/fileStore';
+import MoodIcon from '../components/MoodIcon.vue';
 
 const route = useRoute();
 

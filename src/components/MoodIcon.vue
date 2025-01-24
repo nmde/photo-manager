@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { moods } from '../stores/fileStore';
 
-const props = defineProps<{
+defineProps<{
   mood: number;
 }>();
 

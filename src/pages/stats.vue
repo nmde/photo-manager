@@ -10,9 +10,10 @@ import {
   BarElement,
 } from 'chart.js';
 import { Scatter, Line, Bar } from 'vue-chartjs';
-import { fileStore, formatDate } from '../../stores/fileStore';
-import SearchInput from '~/components/SearchInput.vue';
-import type { Photo } from '~/classes/Photo';
+import { ref, onMounted } from 'vue';
+import { fileStore, formatDate } from '../stores/fileStore';
+import SearchInput from '../components/SearchInput.vue';
+import type { Photo } from '../classes/Photo';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, BarElement);
 

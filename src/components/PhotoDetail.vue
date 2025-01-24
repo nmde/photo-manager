@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { VideoPlayer } from '@videojs-player/vue';
 import 'video.js/dist/video-js.css';
-import { computed, ref } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
+import AutosaveText from './AutosaveText.vue';
+import PeopleInput from './PeopleInput.vue';
+import TagInput from './TagInput.vue';
 
 const { groupNames, addGroup, removeGroup, places, layers, setPersonPhoto, cameras } = fileStore;
 

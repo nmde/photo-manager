@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import { Bar } from 'vue-chartjs';
-import { fileStore } from '../../stores/fileStore';
+import { fileStore } from '../stores/fileStore';
 import { computed, ref } from 'vue';
-import { Tag } from '../../classes/Tag';
+import { Tag } from '../classes/Tag';
+import ColorOptions from '../components/ColorOptions.vue';
+import TagInput from '../components/TagInput.vue';
 
 /**
  * TODO:
  * - Delete a tag
  * - View redundant tags
  * - Tag network
- * - Tag influence on rating
  */
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);

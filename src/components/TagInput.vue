@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
 const { getTagColor, validateTags, getFile, tags, advTags } = fileStore;
