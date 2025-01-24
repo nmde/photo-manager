@@ -11,15 +11,8 @@ const emit = defineEmits<{
   (e: 'select', photos: Photo[]): void;
 }>();
 
-const {
-  getByGroup,
-  addGroup,
-  setGroup,
-  photoCount,
-  updateTagsForGroup,
-  sort,
-  setSortMode,
-} = fileStore;
+const { getByGroup, addGroup, setGroup, photoCount, updateTagsForGroup, sort, setSortMode } =
+  fileStore;
 
 const selectMultiple = ref(false);
 const selected = ref<Photo[]>([]);
@@ -240,6 +233,14 @@ onUnmounted(() => {
         }
       "
     ></v-checkbox>
+    <v-btn
+      @click="
+        () => {
+          selected = [...props.photos];
+        }
+      "
+      >Select All</v-btn
+    >
     <v-btn
       icon
       flat

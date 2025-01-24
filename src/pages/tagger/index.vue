@@ -8,7 +8,6 @@ const route = useRoute();
 
 const {
   checkFilter,
-  files,
   setEntryMood,
   setEntryText,
   journals,
@@ -30,6 +29,7 @@ const currentDate = ref(new Date());
 const localViewMode = ref(0);
 const spacer = ref(false);
 const prevDate = ref<Date>(new Date());
+const localQuery = ref<string[]>([]);
 
 // Journal editor
 const mood = ref(2);
@@ -119,6 +119,7 @@ onMounted(async () => {
   } else {
     await search(...query);
   }
+  localQuery.value = query;
   localViewMode.value = viewMode;
 });
 
@@ -133,7 +134,7 @@ window.addEventListener('scroll', () => {
       <v-row>
         <v-col cols="6" ref="gridCol">
           <div class="flex">
-            <search-input :value="query"></search-input>
+            <search-input></search-input>
             <v-btn
               v-if="localViewMode === 0"
               @click="
@@ -151,6 +152,7 @@ window.addEventListener('scroll', () => {
               >View Grid</v-btn
             >
           </div>
+          {{ localQuery }}
           <photo-grid
             v-if="localViewMode === 0"
             :photos="photos"

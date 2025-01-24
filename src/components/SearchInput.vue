@@ -1,18 +1,12 @@
 <script setup lang="ts">
 import { fileStore } from '../stores/fileStore';
 
-const { tags, search } = fileStore;
+const { tags, search, query } = fileStore;
 
-const props = defineProps<{
-  value?: string[];
-}>();
-
-const query = ref<string[]>([]);
+const localQuery = ref<string[]>([]);
 
 onMounted(() => {
-  if (props.value) {
-    query.value = props.value;
-  }
+  localQuery.value = query;
 });
 </script>
 
@@ -23,9 +17,9 @@ onMounted(() => {
     multiple
     chips
     clearable
-    v-model="query"
+    v-model="localQuery"
     @update:model-value="() => {}"
   >
   </v-combobox>
-  <v-btn @click="search(...query)">Search</v-btn>
+  <v-btn @click="search(...localQuery)">Search</v-btn>
 </template>
