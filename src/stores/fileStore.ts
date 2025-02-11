@@ -456,7 +456,7 @@ class FileStore extends EventEmitter<{
           }
           this.photographerMap[photo.data.photographer].push(photo);
         }
-        if (photo.data.date.length > 0) {
+        if (photo.hasDate) {
           const date = formatDate(photo.date);
           if (!this.dateMap[date]) {
             this.dateMap[date] = [];
@@ -765,6 +765,15 @@ class FileStore extends EventEmitter<{
         } else {
           satisfiesRules = satisfiesRules && mappedPeople.indexOf(rule.value) >= 0;
         }
+      } else if (rule.comparison === 'only') {
+        const mappedPeople = photo.people.map((p) => this.people[p].data.name);
+        if (rule.negated) {
+          satisfiesRules =
+            satisfiesRules && (mappedPeople.indexOf(rule.value) < 0 || mappedPeople.length > 1);
+        } else {
+          satisfiesRules =
+            satisfiesRules && mappedPeople.indexOf(rule.value) === 0 && mappedPeople.length === 1;
+        }
       } else if (rule.comparison === 'by') {
         if (photo.data.photographer.length > 0) {
           const name = this.people[photo.data.photographer].data.name;
@@ -810,9 +819,9 @@ class FileStore extends EventEmitter<{
           }
         } else if (rule.value === 'date') {
           if (rule.negated) {
-            satisfiesRules = satisfiesRules && photo.data.date.length === 0;
+            satisfiesRules = satisfiesRules && !photo.hasDate;
           } else {
-            satisfiesRules = satisfiesRules && photo.data.date.length > 0;
+            satisfiesRules = satisfiesRules && photo.hasDate;
           }
         }
       } else if (rule.comparison === '=') {
@@ -849,6 +858,32 @@ class FileStore extends EventEmitter<{
             if (!rule.negated) {
               satisfiesRules = false;
             }
+          }
+        }
+      } else if (rule.comparison === '<') {
+        if (rule.target === 'date') {
+          if (photo.hasDate) {
+            const v = new Date(rule.value);
+            if (rule.negated) {
+              satisfiesRules = satisfiesRules && photo.date > v;
+            } else {
+              satisfiesRules = satisfiesRules && photo.date < v;
+            }
+          } else {
+            satisfiesRules = false;
+          }
+        }
+      } else if (rule.comparison === '>') {
+        if (rule.target === 'date') {
+          if (photo.hasDate) {
+            const v = new Date(rule.value);
+            if (rule.negated) {
+              satisfiesRules = satisfiesRules && photo.date < v;
+            } else {
+              satisfiesRules = satisfiesRules && photo.date > v;
+            }
+          } else {
+            satisfiesRules = false;
           }
         }
       }
@@ -1651,6 +1686,30 @@ class FileStore extends EventEmitter<{
           });
           matched = true;
         }
+      } else if (term.includes('<')) {
+        const split = term.split('<');
+        if (split[0] === 'date') {
+          terms.push({
+            type: 'rule',
+            target: 'date',
+            comparison: '<',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        }
+      } else if (term.includes('>')) {
+        const split = term.split('>');
+        if (split[0] === 'date') {
+          terms.push({
+            type: 'rule',
+            target: 'date',
+            comparison: '>',
+            value: split[1],
+            negated,
+          });
+          matched = true;
+        }
       } else if (term.includes(':')) {
         const split = term.split(':');
         if (split[0] === 'is') {
@@ -1663,18 +1722,10 @@ class FileStore extends EventEmitter<{
             });
             matched = true;
           }
-        } else if (split[0] === 'of') {
+        } else if (['of', 'by', 'at', 'only'].includes(split[0])) {
           terms.push({
             type: 'rule',
-            comparison: 'of',
-            value: split[1],
-            negated,
-          });
-          matched = true;
-        } else if (split[0] === 'by') {
-          terms.push({
-            type: 'rule',
-            comparison: 'by',
+            comparison: split[0],
             value: split[1],
             negated,
           });
@@ -1689,14 +1740,6 @@ class FileStore extends EventEmitter<{
             });
             matched = true;
           }
-        } else if (split[0] === 'at') {
-          terms.push({
-            type: 'rule',
-            comparison: 'at',
-            value: split[1],
-            negated,
-          });
-          matched = true;
         }
       }
       if (!matched) {

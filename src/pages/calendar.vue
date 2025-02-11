@@ -145,7 +145,7 @@ onMounted(() => {
           >
             <template v-slot:event="{ day, event }">
               <div
-                class="event-bg"
+                :class="{ 'event-bg': true, 'event-bg-half': event.photos.length < 3}"
                 v-if="journals[formatDate(day.date)]"
                 :style="{
                   backgroundColor: moods[journals[formatDate(day.date)].data.mood].color,
@@ -255,8 +255,12 @@ onMounted(() => {
 
 .event-bg {
   width: 100%;
-  height: 200px;
+  height: 214px;
   position: absolute;
   opacity: 0.5;
+}
+
+.event-bg-half {
+  height: 118px;
 }
 </style>

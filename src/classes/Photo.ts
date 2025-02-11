@@ -73,6 +73,10 @@ export class Photo extends Entity<PhotoData> {
     return typeof this.data.rating === 'number' && this.data.rating > 0;
   }
 
+  public get hasDate() {
+    return this.data.date.length > 0;
+  }
+
   /**
    * Checks if this photo has the specified tag.
    * @param tag - The tag to check for.
