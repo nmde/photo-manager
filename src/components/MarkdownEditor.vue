@@ -57,7 +57,7 @@ function getName(path: string) {
  */
 function processInnerText(text: string) {
   let blocks: TextBlock[] = [];
-  const nextSymbol = /[^\\](\*\*|\*|_|\n|\[\[|!|##)/.exec(text);
+  const nextSymbol = /([^\\]|^)(\*\*|\*|_|\n|\[\[|!|##)/.exec(text);
   if (nextSymbol == null) {
     blocks.push({
       text,
@@ -84,7 +84,10 @@ function processInnerText(text: string) {
       });
       blocks = blocks.concat(processInnerText(text.substring(nextSymbol.index + 1)));
     } else {
-      let closeSymbol = text.indexOf(nextSymbol[0].substring(1), nextSymbol.index + nextSymbol[0].length);
+      let closeSymbol = text.indexOf(
+        nextSymbol[0].substring(1),
+        nextSymbol.index + nextSymbol[0].length,
+      );
       if (ns === '[[') {
         closeSymbol = text.indexOf(']]', nextSymbol.index + nextSymbol[0].length);
       } else if (ns === '##') {
@@ -107,7 +110,6 @@ function processInnerText(text: string) {
         });
       } else {
         let style = 'i';
-        let symbol = nextSymbol[0];
         let renderedText = text.substring(nextSymbol.index + nextSymbol[0].length, closeSymbol);
         switch (ns) {
           case '**':
@@ -125,7 +127,6 @@ function processInnerText(text: string) {
             break;
           case '[[':
             style = 'RouterLink';
-            symbol = `${renderedText.replace(getName(renderedText), '')}`;
             renderedText = getName(renderedText);
             break;
           default:
@@ -133,8 +134,8 @@ function processInnerText(text: string) {
         blocks.push({
           text: renderedText,
           style,
-          original: text.substring(nextSymbol.index + 1, closeSymbol + nextSymbol[0].length),
-          symbol,
+          original: text.substring(nextSymbol.index + 1, closeSymbol + nextSymbol[0].length - 1),
+          symbol: ns,
         });
         blocks = blocks.concat(
           processInnerText(text.substring(closeSymbol + nextSymbol[0].length - 1)),
@@ -161,13 +162,17 @@ function moveCursor() {
     if (originalText[line].length > cursorPos - offset - 1) {
       reachedCursor = true;
       if (block.style === 'RouterLink') {
-        specialChars[line] += '[[' + block.symbol;
+        specialChars[line] += block.original.substring(
+          0,
+          Math.min(cursorPos - offset - 1, block.original.indexOf(block.text)),
+        );
       } else {
         specialChars[line] += block.symbol;
       }
     } else {
       if (block.style === 'RouterLink') {
-        specialChars[line] += '[[' + block.symbol + ']]';
+        specialChars[line] +=
+          block.original.substring(0, block.original.indexOf(block.text)) + ']]';
       } else {
         specialChars[line] += `${block.symbol}${block.symbol}`;
       }
@@ -272,11 +277,18 @@ function handleKeypress() {
       "
     >
       <template v-for="(block, idx) in textBlocks" :key="idx">
-        <router-link v-if="block.style === 'Date'" :to="`/journal/${block.text}`">{{ block.text }}</router-link>
+        <router-link v-if="block.style === 'Date'" :to="`/journal/${block.text}`">{{
+          block.text
+        }}</router-link>
         <component v-else-if="block.style !== 'RouterLink'" :is="block.style">{{
           block.text
         }}</component>
-        <router-link v-else :to="block.original.substring(2, block.original.length - 3)">{{ block.text }}</router-link>
+        <router-link
+          v-else
+          :to="block.original.substring(2, block.original.length - 3)"
+          :title="block.symbol"
+          >{{ block.text }}</router-link
+        >
       </template>
       <div
         id="fake-cursor"
@@ -302,7 +314,7 @@ function handleKeypress() {
               () => {
                 const cursorPos = currentEditor.selectionStart;
                 const beforeCursor = currentEditor.value.substring(0, linkIndex + 1);
-                const afterCursor = currentEditor.value.substring(cursorPos + 1);
+                const afterCursor = currentEditor.value.substring(cursorPos);
                 currentEditor.value = `${beforeCursor}${page}]]${afterCursor}`;
                 currentEditor.selectionStart = cursorPos + page.length + 4;
                 currentEditor.selectionEnd = currentEditor.selectionStart;
