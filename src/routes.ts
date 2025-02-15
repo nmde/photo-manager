@@ -8,6 +8,7 @@ import People from './pages/people.vue';
 import Locations from './pages/locations.vue';
 import Journal from './pages/journal.vue';
 import Calendar from './pages/calendar.vue';
+import Wiki from './pages/wiki.vue';
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -23,11 +24,19 @@ export const routes: RouteRecordRaw[] = [
     component: Journal,
   },
   {
+    path: '/journal/:date',
+    component: Journal,
+  },
+  {
     path: '/locations',
     component: Locations,
   },
   {
     path: '/people',
+    component: People,
+  },
+  {
+    path: '/people/:person',
     component: People,
   },
   {
@@ -45,5 +54,17 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/tags',
     component: Tags,
+  },
+  {
+    path: '/wiki',
+    redirect: () => {
+      return {
+        path: '/wiki/Home',
+      };
+    },
+  },
+  {
+    path: '/wiki/:page*',
+    component: Wiki,
   },
 ];

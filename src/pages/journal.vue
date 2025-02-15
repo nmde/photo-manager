@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router';
 import type { Activity } from '../classes/Activity';
 import { fileStore, formatDate, moods } from '../stores/fileStore';
 import MoodIcon from '../components/MoodIcon.vue';
+import DecryptionDialog from '../components/DecryptionDialog.vue';
+import MarkdownEditor from '../components/MarkdownEditor.vue';
 
 const route = useRoute();
 
@@ -15,7 +17,6 @@ const {
   setCalendarViewDate,
   calendarViewDate,
   encrypted,
-  decryptJournalEntries,
 } = fileStore;
 
 function simplifyDate(date: Date) {
@@ -58,8 +59,6 @@ const activityIcon = ref('');
 const localActivities = ref<Activity[]>([]);
 
 const decryptDialog = ref(false);
-const password = ref('');
-const decrypting = ref(false);
 const encryptionBlock = ref(false);
 
 fileStore.on('decrypted', () => {
@@ -68,8 +67,9 @@ fileStore.on('decrypted', () => {
 });
 
 onMounted(() => {
-  if (typeof route.query.date === 'string') {
-    date.value = simplifyDate(new Date(route.query.date));
+  if (typeof route.params.date === 'string') {
+    const split = route.params.date.split('-');
+    date.value = simplifyDate(new Date(Number(split[0]), Number(split[1]) - 1, Number(split[2])));
   } else {
     date.value = calendarViewDate;
   }
@@ -131,7 +131,22 @@ onMounted(() => {
       <h3>Journal entries are encrypted!</h3>
       <v-btn @click="decryptDialog = true" color="primary">Decrypt Entries</v-btn>
     </div>
-    <p v-else class="entry-text">{{ text }}</p>
+    <MarkdownEditor
+      v-else
+      :text="text"
+      @save="
+        async (newText) => {
+          await createJournalEntry(
+            formatDate(date),
+            mood,
+            newText,
+            entryActivities,
+            steps,
+          );
+          text = newText;
+        }
+      "
+    ></MarkdownEditor>
   </v-main>
   <v-dialog v-model="createDialog">
     <v-card>
@@ -161,22 +176,22 @@ onMounted(() => {
           </v-btn>
         </v-chip-group>
         <v-text-field v-model="createSteps" label="Steps"></v-text-field>
-        <v-textarea v-model="createText"></v-textarea>
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>
         <v-btn
           @click="
             async () => {
+              // TODO: The way this is set up, when you modify activities after typing in the text area,
+              // the text variable isn't synced and replaces the text with whatever was or was not there before you click save
               const j = await createJournalEntry(
                 formatDate(createDate),
                 createMood,
-                createText,
+                text,
                 createActivities.map((i) => Object.values(activities)[i]),
                 Number(createSteps),
               );
               mood = createMood;
-              text = createText;
               date = createDate;
               steps = Number(createSteps);
               entryActivities = j.activities;
@@ -218,30 +233,7 @@ onMounted(() => {
       </v-card-actions>
     </v-card>
   </v-dialog>
-  <v-dialog v-model="decryptDialog" :persistent="decrypting">
-    <v-card>
-      <v-card-title>Decrypt Journal Entries</v-card-title>
-      <v-card-text>
-        <v-text-field label="Enter password" type="password" v-model="password"></v-text-field>
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="decryptDialog = false" :disabled="decrypting">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          :loading="decrypting"
-          @click="
-            async () => {
-              decrypting = true;
-              decryptJournalEntries(password);
-              decryptDialog = false;
-              decrypting = false;
-            }
-          "
-          >Decrypt</v-btn
-        >
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <DecryptionDialog :value="decryptDialog"></DecryptionDialog>
 </template>
 
 <style scoped>

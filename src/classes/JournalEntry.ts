@@ -13,6 +13,10 @@ type JournalData = {
 export class JournalEntry extends Entity<JournalData> {
   public activities: Activity[] = [];
 
+  public incomingLinks: string[] = [];
+
+  public outgoingLinks: string[] = [];
+
   public constructor(data: JournalData) {
     super('Journal', data);
   }

@@ -15,6 +15,7 @@ import { Person } from '../classes/Person';
 import { PersonCategory } from '../classes/PersonCategory';
 import { Setting, type SettingKey } from '../classes/Setting';
 import { Camera } from '../classes/Camera';
+import { WikiPage } from '../classes/WikiPage';
 
 export type FolderStructure = {
   dirs: string[];
@@ -79,6 +80,7 @@ class FileStore extends EventEmitter<{
   decrypted(): void;
   toggleTheme(): void;
   search(results: Photo[]): void;
+  updateWiki(): void;
 }> {
   public activities: Record<string, Activity> = {};
 
@@ -165,6 +167,8 @@ class FileStore extends EventEmitter<{
   public lastDate = new Date();
 
   public query: string[] = [];
+
+  public wikiPages: Record<string, WikiPage> = {};
 
   /**
    * Sets the working dir name.
@@ -509,6 +513,9 @@ class FileStore extends EventEmitter<{
             .split(',')
             .map((a) => this.activities[a]);
         }
+      });
+      (await this.database.selectAll(WikiPage)).forEach((page) => {
+        this.wikiPages[page.Id] = page;
       });
       this.tags = tagList;
       this.sortTags();
@@ -1525,23 +1532,68 @@ class FileStore extends EventEmitter<{
   }
 
   /**
+   * Encrypts text.
+   * @param text - The text to encrypt.
+   * @param iv - If specified, the IV to use. Otherwise generates and returns a new one.
+   */
+  public async encrypt(text: string, iv = crypto.getRandomValues(new Uint8Array(12))) {
+    return {
+      text: ab2b64(
+        await crypto.subtle.encrypt(
+          {
+            name: 'AES-GCM',
+            iv,
+          },
+          this.key,
+          new TextEncoder().encode(text),
+        ),
+      ),
+      iv,
+    };
+  }
+
+  /**
+   * Decrypts text.
+   * @param text - The encrypted text.
+   * @param iv - The IV
+   * @returns The decrypted text.
+   */
+  public async decrypt(text: string, iv: string) {
+    return new TextDecoder().decode(
+      await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: b642ab(iv),
+        },
+        this.key,
+        b642ab(text),
+      ),
+    );
+  }
+
+  /**
    * Encrypts a single journal entry.
    * @param entry - The target entry.
    */
   public async encryptJournalEntry(entry: string) {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    this.journals[entry].data.text = ab2b64(
-      await crypto.subtle.encrypt(
-        {
-          name: 'AES-GCM',
-          iv,
-        },
-        this.key,
-        new TextEncoder().encode(this.journals[entry].data.text),
-      ),
-    );
-    this.journals[entry].data.iv = ab2b64(iv);
+    const encrypted = await this.encrypt(this.journals[entry].data.text);
+    this.journals[entry].data.text = encrypted.text;
+    this.journals[entry].data.iv = ab2b64(encrypted.iv);
     await this.database?.update(this.journals[entry]);
+  }
+
+  /**
+   * Encrypts a wiki page.
+   * @param page - The target page.
+   */
+  public async encryptWikiPage(page: string) {
+    const encrypted = await this.encrypt(this.wikiPages[page].data.content);
+    this.wikiPages[page].data.content = encrypted.text;
+    this.wikiPages[page].data.iv = ab2b64(encrypted.iv);
+    this.wikiPages[page].data.name = (
+      await this.encrypt(this.wikiPages[page].data.name, encrypted.iv)
+    ).text;;
+    await this.database?.update(this.wikiPages[page]);
   }
 
   /**
@@ -1602,19 +1654,18 @@ class FileStore extends EventEmitter<{
     );
     for (const entry of Object.values(this.journals)) {
       const d = this.normalizeJournalDate(entry.data.date);
-      this.journals[d].data.text = new TextDecoder().decode(
-        await crypto.subtle.decrypt(
-          {
-            name: 'AES-GCM',
-            iv: b642ab(entry.data.iv),
-          },
-          this.key,
-          b642ab(entry.data.text),
-        ),
-      );
+      this.journals[d].data.text = await this.decrypt(entry.data.text, entry.data.iv);
       if (save) {
         await this.database?.update(this.journals[d]);
       }
+    }
+    for (const page of Object.values(this.wikiPages)) {
+      this.wikiPages[page.Id].data.name = await this.decrypt(page.data.name, page.data.iv);;
+      this.wikiPages[page.Id].data.content = await this.decrypt(
+        page.data.content,
+        page.data.iv,
+      );
+      this.emit('updateWiki');
     }
     this.encrypted = false;
     if (save) {
@@ -1767,6 +1818,79 @@ class FileStore extends EventEmitter<{
     // Filter results by tags
     results = results.filter((photo) => this.checkFilter(photo));
     this.emit('search', results);
+  }
+
+  private findWikiPageByName(name: string) {
+    return Object.values(this.wikiPages).find((p) => p.data.name === name);
+  }
+
+  /**
+   * Creates a new wiki page in the given path.
+   * @param path - The path to create the page in.
+   */
+  public async createWikiPage(path: string) {
+    let num = 1;
+    if (path[0] === '/') {
+      path = path.substring(1);
+    }
+    let conflicts = this.findWikiPageByName(`${path}/Untitled ${num}`) != undefined;
+    while (conflicts) {
+      num += 1;
+      conflicts = this.findWikiPageByName(`${path}/Untitled ${num}`) != undefined;
+    }
+    const page = new WikiPage({
+      name: `${path}/Untitled ${num}`,
+      content: '',
+      iv: '',
+    });
+    this.wikiPages[page.Id] = page;
+    await this.database?.insert(page);
+    if (this.settings.encrypt) {
+      await this.encryptWikiPage(page.Id);
+      if (!this.encrypted) {
+        this.wikiPages[page.Id].data.name = `${path}/Untitled ${num}`;
+        this.wikiPages[page.Id].data.content = '';
+      }
+    }
+    this.emit('updateWiki');
+  }
+
+  /**
+   * Update a wiki page's text.
+   * @param path - The page to update.
+   * @param content - The content to set.
+   */
+  public async setWikiPageText(path: string, content: string) {
+    this.wikiPages[path].data.content = content;
+    if (this.settings.encrypt) {
+      const name = this.wikiPages[path].data.name;
+      await this.encryptWikiPage(path);
+      if (!this.encrypted) {
+        this.wikiPages[path].data.name = name;
+        this.wikiPages[path].data.content = content;
+      }
+    } else {
+      await this.database?.update(this.wikiPages[path]);
+    }
+  }
+
+  /**
+   * Sets a wiki page's title.
+   * @param page - The target page.
+   * @param newTitle - The new title.
+   */
+  public async setWikiPageTitle(page: string, newTitle: string) {
+    this.wikiPages[page].data.name = newTitle;
+    if (this.settings.encrypt) {
+      const content = this.wikiPages[page].data.content;
+      await this.encryptWikiPage(page);
+      if (!this.encrypted) {
+        this.wikiPages[page].data.name = newTitle;
+        this.wikiPages[page].data.content = content;
+      }
+    } else {
+      await this.database?.update(this.wikiPages[page]);
+    }
   }
 }
 
