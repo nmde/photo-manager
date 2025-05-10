@@ -283,12 +283,9 @@ function handleKeypress() {
         <component v-else-if="block.style !== 'RouterLink'" :is="block.style">{{
           block.text
         }}</component>
-        <router-link
-          v-else
-          :to="block.original.substring(2, block.original.length - 3)"
-          :title="block.symbol"
-          >{{ block.text }}</router-link
-        >
+        <router-link v-else :to="block.original.substring(2, block.original.length - 3)">{{
+          block.text
+        }}</router-link>
       </template>
       <div
         id="fake-cursor"
@@ -321,6 +318,7 @@ function handleKeypress() {
                 currentEditor.focus();
                 textBlocks = processInnerText(currentEditor.value);
                 startingLink = false;
+                emit('save', currentEditor.value);
               }
             "
             >{{ page }}</v-list-item

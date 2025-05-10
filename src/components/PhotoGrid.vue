@@ -143,7 +143,7 @@ function selectPhoto(photo: Photo) {
 // Tag add/replace dialogs
 const tagReplaceDialog = ref(false);
 const tagAddDialog = ref(false);
-const targetTag = ref<string[]>([]);
+const targetTags = ref<string[]>([]);
 const tagAction = ref<'remove' | 'replace'>('remove');
 const replacementTag = ref<string[]>([]);
 const loading = ref(false);
@@ -353,9 +353,8 @@ onUnmounted(() => {
         Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
         <tag-input
           label="Tag to add"
-          single
           :value="targetTag"
-          @update="(tag) => (targetTag = tag)"
+          @update="(tags) => (targetTags = tags)"
         ></tag-input>
         <v-card-actions>
           <v-btn
@@ -364,7 +363,7 @@ onUnmounted(() => {
               async () => {
                 loading = true;
                 selected.forEach(async (photo) => {
-                  await updateTagsForGroup(photo.data.name, photo.tags.concat(targetTag));
+                  await updateTagsForGroup(photo.data.name, photo.tags.concat(...targetTags));
                 });
                 loading = false;
                 tagAddDialog = false;

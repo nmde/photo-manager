@@ -254,13 +254,34 @@ class FileStore extends EventEmitter<{
     this.files[photo].data.photoGroup = group;
     await this.database?.insert(this.files[photo]);
     const collectedTags: string[] = [];
+    const collectedPeople: string[] = [];
+    let location = this.files[photo].data.location;
+    let photographer = this.files[photo].data.photographer;
     this.getByGroup(group).forEach((photo) => {
       this.files[photo.data.name].tags.forEach((tag) => {
         if (collectedTags.indexOf(tag) < 0) {
           collectedTags.push(tag);
         }
       });
+      this.files[photo.data.name].people.forEach((person) => {
+        if (collectedPeople.indexOf(person) < 0) {
+          collectedPeople.push(person);
+        }
+      });
+      if (location.length === 0 && photo.data.location.length > 0) {
+        location = photo.data.location;
+      }
+      if (photographer.length === 0 && photo.data.photographer.length > 0) {
+        photographer = photo.data.photographer;
+      }
     });
+    if (!this.files[photo].hasLocation) {
+      await this.setLocation(photo, location);
+    }
+    if (this.files[photo].data.photographer.length === 0) {
+      await this.setPhotographer(photo, photographer);
+    }
+    await this.updatePeopleForGroup(photo, collectedPeople);
     await this.updateTagsForGroup(photo, collectedTags);
     this.emit('updatePhoto', this.files[photo]);
   }
@@ -312,6 +333,31 @@ class FileStore extends EventEmitter<{
     this.sortTags();
     this.emit('updatePhoto', this.files[photo]);
     // TODO: inform of newly created tags
+  }
+
+  /**
+   * Updates people for photo groups.
+   * @param photo - The base photo.
+   * @param p - The list of people.
+   */
+  public async updatePeopleForGroup(photo: string, p: string[]) {
+    p.forEach((person) => {
+      if (this.files[photo].group === undefined || this.files[photo].firstInGroup) {
+        if (this.files[photo].people.indexOf(person) < 0) {
+          this.people[person].count += 1;
+        }
+      }
+    });
+    if (this.files[photo].group === undefined || this.files[photo].firstInGroup) {
+      this.files[photo].people.forEach((person) => {
+        if (p.indexOf(person) < 0) {
+          this.people[person].count -= 1;
+        }
+      });
+    }
+    this.files[photo].people = p;
+    await this.database?.insert(this.files[photo]);
+    this.emit('updatePhoto', this.files[photo]);
   }
 
   /**
@@ -750,13 +796,14 @@ class FileStore extends EventEmitter<{
    * @param photo - The photo to check.
    */
   public checkFilter(photo: Photo) {
-    if (photo.hidden || photo.data.isDuplicate) {
+    if (photo.hidden) {
       return false;
     }
     const terms = this.parseSearchTerms();
     let satisfiesRules = true;
     const rules = terms.filter((t) => t.type === 'rule');
     rules.forEach((rule) => {
+      console.log(rule);
       if (rule.comparison === 'is') {
         if (rule.value === 'video') {
           if (rule.negated) {
@@ -831,6 +878,7 @@ class FileStore extends EventEmitter<{
             satisfiesRules = satisfiesRules && photo.hasDate;
           }
         }
+      } else if (rule.comparison === 'include') {
       } else if (rule.comparison === '=') {
         if (rule.target === 'date') {
           if (rule.negated) {
@@ -1790,6 +1838,15 @@ class FileStore extends EventEmitter<{
               negated,
             });
             matched = true;
+          }
+        } else if (split[0] === 'include') {
+          if (['duplicates'].indexOf(split[1]) >= 0) {
+            terms.push({
+              type: 'rule',
+              comparison: 'include',
+              value: split[1],
+              negated,
+            });
           }
         }
       }

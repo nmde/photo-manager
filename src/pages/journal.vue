@@ -143,7 +143,7 @@ onMounted(() => {
             entryActivities,
             steps,
           );
-          text = newText;
+          createText = newText;
         }
       "
     ></MarkdownEditor>
@@ -187,7 +187,7 @@ onMounted(() => {
               const j = await createJournalEntry(
                 formatDate(createDate),
                 createMood,
-                text,
+                createText,
                 createActivities.map((i) => Object.values(activities)[i]),
                 Number(createSteps),
               );
@@ -197,7 +197,6 @@ onMounted(() => {
               entryActivities = j.activities;
               createDialog = false;
               createMood = 2;
-              createText = '';
               createActivities = [];
               createSteps = '0';
             }

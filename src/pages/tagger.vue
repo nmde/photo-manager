@@ -85,7 +85,11 @@ const folderStructure = computed(() => {
       const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
       let curr = structure;
       for (let i = 0; i <= split.length - 2; i += 1) {
-        curr = curr.children[split[i]];
+        if (curr === undefined) {
+          console.warn(`Undefined value in folder structure ${split.join(',')}`);
+        } else {
+          curr = curr.children[split[i]];
+        }
       }
       curr.files.push(file);
     });

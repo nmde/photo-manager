@@ -47,7 +47,7 @@ async function readDir(path: string, top = true) {
           /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
           '',
         );
-        if (['.', '..'].indexOf(dir) < 0) {
+        if (['.', '..'].indexOf(dir) < 0 && dir.indexOf('.dropbox.cache') < 0) {
           dirs.push(await join(path, dir));
         }
       } else {
