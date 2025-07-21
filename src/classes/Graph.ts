@@ -24,7 +24,7 @@ export class Graph {
     this.nodes.splice(target, 1);
   }
 
-  public sort() {
+  public sort(fn?: (a: string, b: string) => number) {
     let sorted: string[] = [];
     let i = 0;
     const max = this.nodes.length;
@@ -40,7 +40,11 @@ export class Graph {
       console.log(`Possible loop detected!`);
     }
     if (this.nodes.length > 0) {
-      sorted = sorted.concat(this.nodes.map((n) => n.label).sort());
+      if (fn) {
+        sorted = sorted.concat(this.nodes.map((n) => n.label).sort(fn));
+      } else {
+        sorted = sorted.concat(this.nodes.map((n) => n.label).sort());
+      }
     }
     return sorted.reverse();
   }

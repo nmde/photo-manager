@@ -28,7 +28,7 @@ const {
   files,
 } = fileStore;
 
-const cutoff = ref(1);
+const cutoff = ref(30);
 const selected = ref('');
 const selectedColor = ref('black');
 const prereqTags = ref<string[]>([]);

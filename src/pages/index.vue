@@ -113,7 +113,7 @@ async function openFolder() {
       if (/^.*\.(ORF|NRW|HEIC|TIFF|TIF)$/.test(file.toUpperCase())) {
         files[file].data.raw = true;
         raws.push(file);
-      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM)$/.test(file.toUpperCase())) {
+      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$/.test(file.toUpperCase())) {
         files[file].data.video = true;
         videos.push(file);
       }
