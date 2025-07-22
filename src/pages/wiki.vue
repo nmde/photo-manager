@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import DecryptionDialog from '../components/DecryptionDialog.vue';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
-import WikiFolder, { WikiItem } from '../components/WikiFolder.vue';
+import WikiFolder, { type WikiItem } from '../components/WikiFolder.vue';
 import { WikiPage } from '../classes/WikiPage';
 import { fileStore } from '../stores/fileStore';
 

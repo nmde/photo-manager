@@ -1,4 +1,3 @@
-import * as turf from '@turf/turf';
 import { Entity } from './Entity';
 import type { Position } from './Map';
 
