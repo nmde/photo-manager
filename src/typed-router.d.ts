@@ -20,13 +20,13 @@ declare module 'vue-router/auto-routes' {
   export interface RouteNamedMap {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
     '/calendar': RouteRecordInfo<'/calendar', '/calendar', Record<never, never>, Record<never, never>>,
-    '/journal': RouteRecordInfo<'/journal', '/journal', Record<never, never>, Record<never, never>>,
+    '/journal/[date]': RouteRecordInfo<'/journal/[date]', '/journal/:date', { date: ParamValue<true> }, { date: ParamValue<false> }>,
     '/locations': RouteRecordInfo<'/locations', '/locations', Record<never, never>, Record<never, never>>,
     '/people': RouteRecordInfo<'/people', '/people', Record<never, never>, Record<never, never>>,
     '/settings': RouteRecordInfo<'/settings', '/settings', Record<never, never>, Record<never, never>>,
     '/stats': RouteRecordInfo<'/stats', '/stats', Record<never, never>, Record<never, never>>,
     '/tagger': RouteRecordInfo<'/tagger', '/tagger', Record<never, never>, Record<never, never>>,
     '/tags': RouteRecordInfo<'/tags', '/tags', Record<never, never>, Record<never, never>>,
-    '/wiki': RouteRecordInfo<'/wiki', '/wiki', Record<never, never>, Record<never, never>>,
+    '/wiki/[...page]': RouteRecordInfo<'/wiki/[...page]', '/wiki/:page(.*)', { page: ParamValue<true> }, { page: ParamValue<false> }>,
   }
 }

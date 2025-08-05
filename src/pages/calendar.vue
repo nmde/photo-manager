@@ -143,7 +143,7 @@ onMounted(() => {
               }
             "
           >
-            <template v-slot:event="{ day, event }">
+            <template v-slot:day-event="{ day, event }">
               <div
                 :class="{ 'event-bg': true, 'event-bg-half': event.photos.length < 3}"
                 v-if="journals[formatDate(day.date)]"

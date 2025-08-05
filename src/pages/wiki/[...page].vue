@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import DecryptionDialog from '../components/DecryptionDialog.vue';
-import MarkdownEditor from '../components/MarkdownEditor.vue';
-import WikiFolder, { type WikiItem } from '../components/WikiFolder.vue';
-import { WikiPage } from '../classes/WikiPage';
-import { fileStore } from '../stores/fileStore';
+import DecryptionDialog from '../../components/DecryptionDialog.vue';
+import MarkdownEditor from '../../components/MarkdownEditor.vue';
+import WikiFolder, { type WikiItem } from '../../components/WikiFolder.vue';
+import { WikiPage } from '../../classes/WikiPage';
+import { fileStore } from '../../stores/fileStore';
 
-const route = useRoute();
+const route = useRoute('/wiki/[...page]');
 const { wikiPages, createWikiPage, setWikiPageText, encrypted, setWikiPageTitle } = fileStore;
 
 const editTitle = ref(false);
@@ -83,17 +83,21 @@ function join(...fragments: string[]) {
 }
 
 watch(route, () => {
-  const page = route.params.page as string[];
-  const match = Object.values(wikiPages).find((p) => p.data.name.replace(/^\//, '') === page.join('/'));
+  console.log(route.params.page);
+  /*
+  const match = Object.values(wikiPages).find(
+    (p) => p.data.name.replace(/^\//, '') === route.params.page.join('/'),
+  );
   if (match) {
     activePage.value = match;
-    activePagePath.value = page;
+    activePagePath.value = route.params.page;
   }
-  if (page.length > 1) {
-    focusedFolder.value = page.slice(0, page.length - 1).join('/');
+  if (route.params.page.length > 1) { 
+    focusedFolder.value = route.params.page.slice(0, route.params.page.length - 1).join('/');
   } else {
     focusedFolder.value = '';
   }
+    */
   initializeStructure();
 });
 
@@ -131,10 +135,15 @@ onMounted(() => {
         >
           <v-icon>mdi-plus</v-icon>
         </v-btn>
-        <v-btn icon @click="() => {
-          newFolderName = focusedFolder;
-          createFolderDialog = true;
-        }">
+        <v-btn
+          icon
+          @click="
+            () => {
+              newFolderName = focusedFolder;
+              createFolderDialog = true;
+            }
+          "
+        >
           <v-icon>mdi-folder</v-icon>
         </v-btn>
       </v-toolbar>

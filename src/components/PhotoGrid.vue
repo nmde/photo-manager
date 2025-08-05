@@ -293,7 +293,7 @@ onUnmounted(() => {
         <v-list-item
           @click="
             () => {
-              targetTag = [];
+              targetTags = [];
               tagAddDialog = true;
             }
           "
@@ -302,7 +302,7 @@ onUnmounted(() => {
         <v-list-item
           @click="
             () => {
-              targetTag = [];
+              targetTags = [];
               replacementTag = [];
               tagReplaceDialog = true;
             }
@@ -353,7 +353,7 @@ onUnmounted(() => {
         Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
         <tag-input
           label="Tag to add"
-          :value="targetTag"
+          :value="targetTags"
           @update="(tags) => (targetTags = tags)"
         ></tag-input>
         <v-card-actions>
@@ -384,8 +384,8 @@ onUnmounted(() => {
         Search for a tag to remove (<b>this action will effect {{ selected.length }} photos</b>!)
         <tag-input
           label="Tag to find"
-          :value="targetTag"
-          @update="(tag) => (targetTag = tag)"
+          :value="targetTags"
+          @update="(tag) => (targetTags = tag)"
         ></tag-input>
         <v-radio-group v-model="tagAction">
           <v-radio label="Remove tag" value="remove"></v-radio>
@@ -398,7 +398,7 @@ onUnmounted(() => {
             :value="replacementTag"
             @update="(tag) => (replacementTag = tag)"
           ></tag-input>
-          Replacing {{ targetTag[0] }} with {{ replacementTag[0] }}.
+          Replacing {{ targetTags[0] }} with {{ replacementTag[0] }}.
         </div>
       </v-card-text>
       <v-card-actions>
@@ -410,11 +410,11 @@ onUnmounted(() => {
               selected.forEach(async (photo) => {
                 if (tagAction === 'remove') {
                   const updatedTags = [...photo.tags];
-                  updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
+                  updatedTags.splice(updatedTags.indexOf(targetTags[0]), 1);
                   await updateTagsForGroup(photo.data.name, updatedTags);
                 } else {
                   const updatedTags = [...photo.tags];
-                  updatedTags.splice(updatedTags.indexOf(targetTag[0]), 1);
+                  updatedTags.splice(updatedTags.indexOf(targetTags[0]), 1);
                   updatedTags.push(replacementTag[0]);
                   await updateTagsForGroup(photo.data.name, updatedTags);
                 }

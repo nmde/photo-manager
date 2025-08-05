@@ -208,7 +208,7 @@ onMounted(() => {
   syncContent();
 });
 
-let timer: NodeJS.Timeout;
+let timer: number;
 function handleKeypress() {
   clearTimeout(timer);
   timer = setTimeout(() => {

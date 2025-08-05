@@ -163,7 +163,6 @@ window.addEventListener('scroll', () => {
               >View Grid</v-btn
             >
           </div>
-          {{ localQuery }}
           <photo-grid
             v-if="localViewMode === 0"
             :photos="photos"

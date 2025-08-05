@@ -14,7 +14,7 @@ const emit = defineEmits<{
   (e: 'update:title', title: string): void;
   (e: 'update:description', description: string): void;
   (e: 'update:tags', tags: string[]): void;
-  (e: 'update:rating', rating: number): void;
+  (e: 'update:rating', rating: number | string): void;
   (e: 'update:isDuplicate', isDuplicate: boolean): void;
   (e: 'update:group', group?: string): void;
   (e: 'update:date', date: string): void;
@@ -94,7 +94,11 @@ function initialize() {
   photoTags.value = props.photo.tags;
   title.value = props.photo.data.title;
   description.value = props.photo.data.description;
-  date.value = props.photo.date;
+  if (props.photo.hasDate) {
+    date.value = props.photo.date;
+  } else {
+    date.value = new Date();
+  }
   location.value = props.photo.data.location;
   hideThumbnail.value = props.photo.data.hideThumbnail;
   photoPeople.value = props.photo.people;
@@ -227,8 +231,6 @@ onMounted(initialize);
   <v-date-input
     label="Date"
     v-model="date"
-    :year="focusDate.getFullYear()"
-    :month="focusDate.getMonth()"
     @update:model-value="emit('update:date', date.toISOString())"
   ></v-date-input>
   <v-select

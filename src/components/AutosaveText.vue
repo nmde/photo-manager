@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 const local = ref('');
 
-let timer: NodeJS.Timeout;
+let timer: number;
 function handleKeypress() {
   clearTimeout(timer);
   timer = setTimeout(() => {

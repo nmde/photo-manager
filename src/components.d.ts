@@ -13,7 +13,6 @@ declare module 'vue' {
     ColorPicker: typeof import('./components/ColorPicker.vue')['default']
     DecryptionDialog: typeof import('./components/DecryptionDialog.vue')['default']
     DirectoryPanels: typeof import('./components/DirectoryPanels.vue')['default']
-    HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
     MarkdownEditor: typeof import('./components/MarkdownEditor.vue')['default']
     MoodIcon: typeof import('./components/MoodIcon.vue')['default']
     PeopleInput: typeof import('./components/PeopleInput.vue')['default']

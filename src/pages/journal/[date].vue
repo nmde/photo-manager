@@ -1,13 +1,13 @@
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import type { Activity } from '../classes/Activity';
-import { fileStore, formatDate, moods } from '../stores/fileStore';
-import MoodIcon from '../components/MoodIcon.vue';
-import DecryptionDialog from '../components/DecryptionDialog.vue';
-import MarkdownEditor from '../components/MarkdownEditor.vue';
+import type { Activity } from '@/classes/Activity';
+import { fileStore, formatDate, moods } from '@/stores/fileStore';
+import MoodIcon from '@/components/MoodIcon.vue';
+import DecryptionDialog from '@/components/DecryptionDialog.vue';
+import MarkdownEditor from '@/components/MarkdownEditor.vue';
 
-const route = useRoute();
+const route = useRoute('/journal/[date]');
 
 const {
   createJournalEntry,
