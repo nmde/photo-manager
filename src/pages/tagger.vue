@@ -1,15 +1,9 @@
 <script setup lang="ts">
+import type { Photo } from '../classes/Photo';
 import moment from 'moment';
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Photo } from '../classes/Photo';
 import { fileStore, formatDate } from '../stores/fileStore';
-import AutosaveText from '../components/AutosaveText.vue';
-import DirectoryPanels from '../components/DirectoryPanels.vue';
-import MoodIcon from '../components/MoodIcon.vue';
-import PhotoGrid from '../components/PhotoGrid.vue';
-import PhotoGroup from '../components/PhotoGroup.vue';
-import SearchInput from '../components/SearchInput.vue';
 
 const route = useRoute();
 
@@ -23,7 +17,7 @@ const {
   viewMode,
   setViewMode,
   search,
-  query
+  query,
 } = fileStore;
 
 const selected = ref<Photo[]>([]);
@@ -42,10 +36,10 @@ const localQuery = ref<string[]>([]);
 const mood = ref(2);
 const entryText = ref('');
 
-async function setDate(date: Date) {
+function setDate(date: Date) {
   currentDate.value = date;
   const d = currentDate.value.toISOString();
-  await search(`date=${formatDate(currentDate.value)}`);
+  search(`date=${formatDate(currentDate.value)}`);
   if (journals[d]) {
     mood.value = journals[d].data.mood;
     entryText.value = journals[d].data.text;
@@ -66,10 +60,10 @@ const folderStructure = computed(() => {
     files: [],
     children: {},
   };
-  folder.dirs.forEach((dir) => {
+  for (const dir of folder.dirs) {
     const split = dir.replace(workingDir, '').split(/[/\\]/).slice(1);
     let curr = structure;
-    split.forEach((seg) => {
+    for (const seg of split) {
       if (!curr.children[seg]) {
         curr.children[seg] = {
           files: [],
@@ -77,33 +71,34 @@ const folderStructure = computed(() => {
         };
       }
       curr = curr.children[seg];
-    });
-  });
-  photos.value
-    .map((p) => p.data.name)
-    .forEach((file) => {
-      const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
-      let curr = structure;
-      for (let i = 0; i <= split.length - 2; i += 1) {
-        if (curr === undefined) {
-          console.warn(`Undefined value in folder structure ${split.join(',')}`);
-        } else {
-          curr = curr.children[split[i]];
-        }
+    }
+  }
+  for (const file of photos.value.map(p => p.data.name)) {
+    const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
+    let curr = structure;
+    for (let i = 0; i <= split.length - 2; i += 1) {
+      const s = split[i];
+      // I store my photos in dropbox, and this condition catches an issue with dropbox folders.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (curr === undefined) {
+        console.warn(`Undefined value in folder structure ${split.join(',')}`);
+      } else if (s && curr.children[s]) {
+        curr = curr.children[s];
       }
-      curr.files.push(file);
-    });
+    }
+    curr.files.push(file);
+  }
   return structure;
 });
 
-fileStore.on('search', (results) => {
+fileStore.on('search', results => {
   photos.value = results;
 });
 
-fileStore.on('updatePhoto', (photo) => {
-  const idx = photos.value.findIndex((p) => p.data.name === photo.data.name);
+fileStore.on('updatePhoto', photo => {
+  const idx = photos.value.findIndex(p => p.data.name === photo.data.name);
   if (checkFilter(photo)) {
-    if (idx < 0) {
+    if (idx === -1) {
       photos.value.push(photo);
     }
   } else {
@@ -114,21 +109,21 @@ fileStore.on('updatePhoto', (photo) => {
   // photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
 });
 
-onMounted(async () => {
+onMounted(() => {
   if (route.query.place) {
-    await search(`at=${route.query.place}`);
+    search(`at=${route.query.place as string}`);
     filterByLocation.value = true;
   } else if (route.query.date) {
     setDate(moment(route.query.date as string).toDate());
     filterByDate.value = true;
   } else if (route.query.person) {
-    await search(`of=${route.query.person}`);
+    search(`of=${route.query.person as string}`);
     filterByPerson.value = true;
   } else if (route.query.photographer) {
-    await search(`by=${route.query.photographer}`);
+    search(`by=${route.query.photographer as string}`);
     filterByPhotographer.value = true;
   } else {
-    await search(...query);
+    search(...query);
   }
   localQuery.value = query;
   localViewMode.value = viewMode;
@@ -143,73 +138,68 @@ window.addEventListener('scroll', () => {
   <v-main class="main">
     <v-container fluid>
       <v-row>
-        <v-col cols="6" ref="gridCol">
+        <v-col ref="gridCol" cols="6">
           <div class="flex">
-            <search-input></search-input>
+            <search-input />
             <v-btn
               v-if="localViewMode === 0"
               @click="
                 localViewMode = 1;
                 setViewMode(1);
               "
-              >View Folders</v-btn
             >
+              View Folders
+            </v-btn>
             <v-btn
               v-if="localViewMode === 1"
               @click="
                 localViewMode = 0;
                 setViewMode(0);
               "
-              >View Grid</v-btn
             >
+              View Grid
+            </v-btn>
           </div>
-          <photo-grid
-            v-if="localViewMode === 0"
-            :photos="photos"
-            @select="(s) => (selected = s)"
-          ></photo-grid>
+          <photo-grid v-if="localViewMode === 0" :photos="photos" @select="s => (selected = s)" />
           <div v-if="localViewMode === 1">
-            <directory-panels
-              :folder-structure="folderStructure"
-              @select="(s) => (selected = s)"
-            ></directory-panels>
+            <directory-panels :folder-structure="folderStructure" @select="s => (selected = s)" />
           </div>
           <div v-if="filterByDate">
             <mood-icon
               :mood="mood"
               @selected="
-                async (newMood) => {
+                async newMood => {
                   await setEntryMood(formatDate(currentDate), newMood);
                   mood = newMood;
                 }
               "
-            ></mood-icon>
+            />
             <autosave-text
               :value="entryText"
               @save="
-                async (text) => {
+                async text => {
                   await setEntryText(formatDate(currentDate), text);
                   entryText = text;
                 }
               "
-            ></autosave-text>
+            />
           </div>
         </v-col>
         <v-col cols="6">
           <div class="details" :class="{ spacer: spacer }">
-            <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []"
-              >Clear Selection ({{ selected.length }})</v-btn
-            >
+            <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []">
+              Clear Selection ({{ selected.length }})
+            </v-btn>
             <photo-group
-              :prev-date="prevDate"
               v-if="selected.length > 0"
               :photos="selected"
+              :prev-date="prevDate"
               @update-date="
-                (date) => {
+                date => {
                   prevDate = date;
                 }
               "
-            ></photo-group>
+            />
           </div>
         </v-col>
       </v-row>

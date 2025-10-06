@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
+import type { Tag } from '../classes/Tag';
+import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
+import { computed, ref } from 'vue';
 import { Bar } from 'vue-chartjs';
 import { fileStore } from '../stores/fileStore';
-import { computed, ref } from 'vue';
-import { Tag } from '../classes/Tag';
-import ColorOptions from '../components/ColorOptions.vue';
-import TagInput from '../components/TagInput.vue';
 
 /**
  * TODO:
@@ -41,57 +39,55 @@ const showGraphs = ref(false);
 const avgRating = computed(() => {
   let sum = 0;
   let count = 0;
-  Object.values(files).forEach((photo) => {
+  for (const photo of Object.values(files)) {
     if (photo.rating) {
       sum += photo.rating;
       count += 1;
     }
-  });
+  }
   return sum / count;
 });
 
 const avgTags = computed(() => {
   let sum = 0;
   let count = 0;
-  Object.values(files).forEach((photo) => {
+  for (const photo of Object.values(files)) {
     sum += photo.tags.length;
     count += 1;
-  });
+  }
   return sum / count;
 });
 
 const tagChartData = computed(() => {
-  let sorted: string[] = [];
+  const sorted: string[] = [];
   const backgroundColor: string[] = [];
-  Object.entries(tagCounts)
-    .filter((count) => count[1] >= cutoff.value)
-    .forEach(([tag, value]) => {
-      let color = getTagColor(tag);
-      if (color === 'black' || color.length === 0) {
-        color = 'rgba(201, 203, 207, 0.8)';
+  for (const [tag, value] of Object.entries(tagCounts).filter(count => count[1] >= cutoff.value)) {
+    let color = getTagColor(tag);
+    if (color === 'black' || color.length === 0) {
+      color = 'rgba(201, 203, 207, 0.8)';
+    }
+    if (filterColor.value.length > 0 && color !== filterColor.value) {
+      continue;
+    }
+    if (sorted.length === 0) {
+      sorted.push(tag);
+      backgroundColor.push(color);
+    } else {
+      let i = 0;
+      while (i < sorted.length && value < tagCounts[sorted[i]]) {
+        i += 1;
       }
-      if (filterColor.value.length > 0 && color !== filterColor.value) {
-        return;
-      }
-      if (sorted.length === 0) {
-        sorted.push(tag);
-        backgroundColor.push(color);
-      } else {
-        let i = 0;
-        while (i < sorted.length && value < tagCounts[sorted[i]]) {
-          i += 1;
-        }
-        sorted.splice(i, 0, tag);
-        backgroundColor.splice(i, 0, color);
-      }
-    });
+      sorted.splice(i, 0, tag);
+      backgroundColor.splice(i, 0, color);
+    }
+  }
   return {
     labels: sorted,
     datasets: [
       {
         axis: 'y',
         label: 'Count',
-        data: sorted.map((tag) => tagCounts[tag]),
+        data: sorted.map(tag => tagCounts[tag]),
         backgroundColor,
       },
     ],
@@ -101,30 +97,26 @@ const tagChartData = computed(() => {
 const tagRatingData = computed(() => {
   let sorted: string[] = [];
   const ratingsMap: Record<string, number[]> = {};
-  Object.entries(tagCounts)
-    .filter((count) => count[1] >= cutoff.value)
-    .forEach(([tag]) => {
-      let color = getTagColor(tag);
-      if (color === 'black' || color.length === 0) {
-        color = 'rgba(201, 203, 207, 0.8)';
+  for (const [tag] of Object.entries(tagCounts).filter(count => count[1] >= cutoff.value)) {
+    let color = getTagColor(tag);
+    if (color === 'black' || color.length === 0) {
+      color = 'rgba(201, 203, 207, 0.8)';
+    }
+    if (filterColor.value.length > 0 && color !== filterColor.value) {
+      continue;
+    }
+    sorted.push(tag);
+    ratingsMap[tag] = [0, 0];
+    for (const photo of Object.values(files).filter(photo => photo.hasTag(tag))) {
+      if (photo.rating) {
+        ratingsMap[tag][0] += 1;
+        ratingsMap[tag][1] += photo.rating;
       }
-      if (filterColor.value.length > 0 && color !== filterColor.value) {
-        return;
-      }
-      sorted.push(tag);
-      ratingsMap[tag] = [0, 0];
-      Object.values(files)
-        .filter((photo) => photo.hasTag(tag))
-        .forEach((photo) => {
-          if (photo.rating) {
-            ratingsMap[tag][0] += 1;
-            ratingsMap[tag][1] += photo.rating;
-          }
-        });
-    });
+    }
+  }
   sorted = sorted
-    .filter((tag) => ratingsMap[tag][0] >= cutoff.value)
-    .sort((a, b) => {
+    .filter(tag => ratingsMap[tag][0] >= cutoff.value)
+    .toSorted((a, b) => {
       let aa = ratingsMap[a][1] / ratingsMap[a][0];
       let ba = ratingsMap[b][1] / ratingsMap[b][0];
       if (relative.value) {
@@ -145,14 +137,14 @@ const tagRatingData = computed(() => {
       {
         axis: 'y',
         label: 'Avg. Rating',
-        data: sorted.map((tag) => {
+        data: sorted.map(tag => {
           let avg = ratingsMap[tag][1] / ratingsMap[tag][0];
           if (relative.value) {
             avg -= avgRating.value;
           }
           return avg;
         }),
-        backgroundColor: sorted.map((tag) => {
+        backgroundColor: sorted.map(tag => {
           let color = getTagColor(tag);
           if (color === 'black' || color.length === 0) {
             color = 'rgba(201, 203, 207, 0.8)';
@@ -172,8 +164,8 @@ const tagRatingData = computed(() => {
         <v-col cols="6">
           <tag-input
             label="Select a tag"
-            :value="selected"
             single
+            :value="selected"
             @update="
               (tags) => {
                 selected = tags as unknown as string;
@@ -191,71 +183,71 @@ const tagRatingData = computed(() => {
                 }
               }
             "
-          ></tag-input>
+          />
           <div v-if="selected">
             Editing properties of <span :style="{ color: selectedColor }">{{ selected }}</span>
             <br />
             Set color:
             <color-options
               @select="
-                async (color) => {
+                async color => {
                   selectedColor = color;
                   await setTagColor(selected, color);
                 }
               "
-            ></color-options>
+            />
             <br />
             <tag-input
               label="Prerequisite Tags"
               :value="prereqTags"
               @update="
-                async (tags) => {
+                async tags => {
                   await setTagPrereqs(selected, tags);
                   handleTagChange(selected);
                 }
               "
-            ></tag-input>
+            />
             <tag-input
               label="Corequisite Tags"
               :value="coreqTags"
               @update="
-                async (tags) => {
+                async tags => {
                   await setTagCoreqs(selected, tags);
                   handleTagChange(selected);
                 }
               "
-            ></tag-input>
+            />
             <tag-input
               label="Incompatible Tags"
               :value="incompatibleTags"
               @update="
-                async (tags) => {
+                async tags => {
                   await setTagIncompatible(selected, tags);
                   handleTagChange(selected);
                 }
               "
-            ></tag-input>
+            />
           </div>
         </v-col>
         <v-col cols="6">
           <div v-if="showGraphs">
             <!-- TODO: this should be one graph with multiple bars / sorting options -->
             <Bar
-              :options="{
-                indexAxis: 'y',
-              }"
               :data="tagChartData"
-            ></Bar>
-            <Bar
               :options="{
                 indexAxis: 'y',
               }"
+            />
+            <Bar
               :data="tagRatingData"
-            ></Bar>
-            <v-checkbox label="Show relative rating impact" v-model="relative"></v-checkbox>
-            Show tags with a count of at least <v-text-field v-model="cutoff"></v-text-field>
+              :options="{
+                indexAxis: 'y',
+              }"
+            />
+            <v-checkbox v-model="relative" label="Show relative rating impact" />
+            Show tags with a count of at least <v-text-field v-model="cutoff" />
             Filter by color:
-            <color-options @select="(color) => (filterColor = color)"></color-options>
+            <color-options @select="color => (filterColor = color)" />
           </div>
           <v-btn v-if="!showGraphs" @click="showGraphs = true">Show Graphs</v-btn>
           Average tags per photo: {{ avgTags.toPrecision(3) }}<br />

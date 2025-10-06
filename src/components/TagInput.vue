@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
 const { getTagColor, validateTags, getFile, tags, advTags } = fileStore;
@@ -15,8 +15,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'change', tags: string[]): void;
-  (e: 'update', tags: string[]): void;
+  (e: 'change' | 'update', tags: string[]): void;
 }>();
 
 const selected = ref<string[]>([]);
@@ -24,31 +23,26 @@ const valid = ref<boolean | undefined>(true);
 const validationMsg = ref<string | undefined>(undefined);
 const hasChanged = ref(false);
 
-const targetPhoto = computed(() => {
-  if (props.target) {
-    return getFile(props.target);
-  }
-  return undefined;
-});
+const targetPhoto = computed(() => (props.target ? getFile(props.target) : undefined));
 
 const filteredTags = computed(() => {
   if (!props.filtered) {
     return tags;
   }
   const filtered: string[] = [];
-  tags.forEach((tag) => {
-    if (props.value.indexOf(tag) >= 0) {
+  for (const tag of tags) {
+    if (props.value.includes(tag)) {
       // Always show tags that are already enabled regardless of prereqs
       filtered.push(tag);
-      return;
+      continue;
     }
-    const a = advTags.find((t) => t.data.name === tag);
+    const a = advTags.find(t => t.data.name === tag);
     if (a) {
       if (a.prereqs.length > 0) {
         let anyPrereqMet = false;
-        a.prereqs.forEach((p) => {
-          anyPrereqMet = anyPrereqMet || props.value.indexOf(p) >= 0;
-        });
+        for (const p of a.prereqs) {
+          anyPrereqMet = anyPrereqMet || props.value.includes(p);
+        }
         if (anyPrereqMet) {
           filtered.push(tag);
         }
@@ -58,7 +52,7 @@ const filteredTags = computed(() => {
     } else {
       filtered.push(tag);
     }
-  });
+  }
   return filtered;
 });
 
@@ -72,11 +66,7 @@ function validateTagsWrapper() {
 }
 
 function initialize() {
-  if (typeof props.value === 'string') {
-    selected.value = [props.value];
-  } else {
-    selected.value = props.value;
-  }
+  selected.value = typeof props.value === 'string' ? [props.value] : props.value;
   if (props.validate) {
     validateTagsWrapper();
   }
@@ -93,19 +83,14 @@ fileStore.on('validationUpdate', () => {
 // The global sorted tag list is not updating when new tags are added, links are created
 <template>
   <v-combobox
-    :label="props.label"
-    :items="filteredTags"
-    :multiple="props.single ? false : true"
+    v-model="selected"
     chips
     clearable
-    v-model="selected"
-    @update:model-value="
-      () => {
-        hasChanged = true;
-        emit('change', selected);
-        validateTagsWrapper();
-      }
-    "
+    :error="!valid"
+    :error-messages="validationMsg"
+    :items="filteredTags"
+    :label="props.label"
+    :multiple="props.single ? false : true"
     @update:focused="
       () => {
         if (hasChanged) {
@@ -114,15 +99,20 @@ fileStore.on('validationUpdate', () => {
         }
       }
     "
-    :error="!valid"
-    :error-messages="validationMsg"
+    @update:model-value="
+      () => {
+        hasChanged = true;
+        emit('change', selected);
+        validateTagsWrapper();
+      }
+    "
   >
-    <template v-slot:item="{ item, props }">
-      <v-list-item v-bind="props" :style="{ color: getTagColor(item.title) }"></v-list-item>
+    <template #item="{ item, props: lprops }">
+      <v-list-item v-bind="lprops" :style="{ color: getTagColor(item.title) }" />
     </template>
-    <template v-slot:chip="{ item, props }">
-      <v-chip v-bind="props" :color="getTagColor(item.title)"></v-chip>
+    <template #chip="{ item, props: cprops }">
+      <v-chip v-bind="cprops" :color="getTagColor(item.title)" />
     </template>
   </v-combobox>
-  <div v-if="advanced"></div>
+  <div v-if="advanced" />
 </template>

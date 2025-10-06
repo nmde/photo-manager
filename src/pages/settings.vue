@@ -1,15 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
-const {
-  encryptJournalEntries,
-  settings,
-  addCamera,
-  cameras,
-  theme,
-  toggleTheme,
-} = fileStore;
+const { encryptJournalEntries, settings, addCamera, cameras, theme, toggleTheme } = fileStore;
 
 const encryptDialog = ref(false);
 const password = ref('');
@@ -19,11 +12,9 @@ const encryptionProgress = ref(0);
 
 const cameraDialog = ref(false);
 const cameraName = ref('');
-const cameraList = computed(() => {
-  return Object.values(cameras).sort((a, b) => b.count - a.count);
-});
+const cameraList = computed(() => Object.values(cameras).toSorted((a, b) => b.count - a.count));
 
-fileStore.on('encryptionProgress', (amount) => {
+fileStore.on('encryptionProgress', amount => {
   encryptionProgress.value = amount;
 });
 </script>
@@ -47,8 +38,9 @@ fileStore.on('encryptionProgress', (amount) => {
           encryptDialog = true;
         }
       "
-      >Start</v-btn
     >
+      Start
+    </v-btn>
   </v-main>
   <v-dialog v-model="encryptDialog" :persistent="encrypting">
     <v-card>
@@ -56,21 +48,21 @@ fileStore.on('encryptionProgress', (amount) => {
       <v-card-text>
         <div v-if="encrypting">
           Encrypting journals...
-          <v-progress-linear :model-value="encryptionProgress"></v-progress-linear>
+          <v-progress-linear :model-value="encryptionProgress" />
         </div>
         <div v-else>
           Once journal entries are encrypted, you will need to enter your password in the journal
           page to view them.
           <v-text-field
+            v-model="password"
+            :error-messages="passwordError"
             label="Choose a password"
             type="password"
-            :error-messages="passwordError"
-            v-model="password"
-          ></v-text-field>
+          />
         </div>
       </v-card-text>
       <v-card-actions>
-        <v-btn @click="encryptDialog = false" :disabled="encrypting">Cancel</v-btn>
+        <v-btn :disabled="encrypting" @click="encryptDialog = false">Cancel</v-btn>
         <v-btn
           color="primary"
           :loading="encrypting"
@@ -87,8 +79,9 @@ fileStore.on('encryptionProgress', (amount) => {
               }
             }
           "
-          >Start Encryption</v-btn
         >
+          Start Encryption
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -96,7 +89,7 @@ fileStore.on('encryptionProgress', (amount) => {
     <v-card>
       <v-card-title>Add a Camera</v-card-title>
       <v-card-text>
-        <v-text-field label="Camera Name" v-model="cameraName"></v-text-field>
+        <v-text-field v-model="cameraName" label="Camera Name" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="cameraDialog = false">Cancel</v-btn>
@@ -109,8 +102,9 @@ fileStore.on('encryptionProgress', (amount) => {
               cameraName = '';
             }
           "
-          >Save</v-btn
         >
+          Save
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

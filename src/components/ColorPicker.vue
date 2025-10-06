@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 const props = defineProps<{
   color: string;
@@ -18,13 +18,13 @@ onMounted(() => {
 
 <template>
   <v-menu>
-    <template v-slot:activator="{ props }">
-      <v-btn v-bind="props" flat icon :color="tmpColor"></v-btn>
+    <template #activator="{ props: bprops }">
+      <v-btn v-bind="bprops" :color="tmpColor" flat icon />
     </template>
     <v-color-picker
       v-model="tmpColor"
       @update:model-value="() => emit('update', tmpColor)"
-    ></v-color-picker>
+    />
   </v-menu>
 </template>
 

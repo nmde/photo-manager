@@ -14,6 +14,7 @@ declare module 'vue' {
     DecryptionDialog: typeof import('./components/DecryptionDialog.vue')['default']
     DirectoryPanels: typeof import('./components/DirectoryPanels.vue')['default']
     MarkdownEditor: typeof import('./components/MarkdownEditor.vue')['default']
+    MeasurePixels: typeof import('./components/plugins/local/MeasurePixels.vue')['default']
     MoodIcon: typeof import('./components/MoodIcon.vue')['default']
     PeopleInput: typeof import('./components/PeopleInput.vue')['default']
     PhotoDetail: typeof import('./components/PhotoDetail.vue')['default']

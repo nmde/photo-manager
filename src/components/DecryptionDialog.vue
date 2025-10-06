@@ -22,10 +22,10 @@ watch(props, () => {
     <v-card>
       <v-card-title>Decrypt Journal & Wiki</v-card-title>
       <v-card-text>
-        <v-text-field label="Enter password" type="password" v-model="password"></v-text-field>
+        <v-text-field v-model="password" label="Enter password" type="password" />
       </v-card-text>
       <v-card-actions>
-        <v-btn @click="decryptDialog = false" :disabled="decrypting">Cancel</v-btn>
+        <v-btn :disabled="decrypting" @click="decryptDialog = false">Cancel</v-btn>
         <v-btn
           color="primary"
           :loading="decrypting"
@@ -37,8 +37,9 @@ watch(props, () => {
               decrypting = false;
             }
           "
-          >Decrypt</v-btn
         >
+          Decrypt
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

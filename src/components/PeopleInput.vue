@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
 type PeopleEntry = {
@@ -23,28 +23,37 @@ const props = defineProps<{
 
 const counts = ref<Record<string, number[]>>({});
 
-const peopleList = computed(() => {
-  return Object.entries(counts.value).sort((a, b) => {
+const peopleList = computed(() =>
+  Object.entries(counts.value)
+    .toSorted((a, b) => {
       let x = a[1][0];
       let y = b[1][0];
       if (props.sort === 'photographer') {
         x = a[1][1];
         y = b[1][1];
       }
-      return y - x;
+      return (y ?? 0) - (x ?? 0);
     })
-    .map((entry) => {
+    .map(entry => {
       let count = entry[1][0];
       if (props.sort === 'photographer') {
         count = entry[1][1];
       }
+      const p = people[entry[0]];
+      if (p) {
+        return {
+          color: peopleCategories[p.data.category]?.data.color,
+          title: `${p.data.name} (${count?.toString() ?? '0'})`,
+          value: entry[0],
+        };
+      }
       return {
-        color: peopleCategories[people[entry[0]].data.category].data.color,
-        title: `${people[entry[0]].data.name} (${count})`,
-        value: entry[0],
+        color: '',
+        title: '',
+        value: '',
       };
-    });
-});
+    }),
+);
 
 const prevPeople = ref<PeopleEntry[]>([]);
 const tempPeople = ref<PeopleEntry[]>([]);
@@ -52,17 +61,24 @@ const tempPeople = ref<PeopleEntry[]>([]);
 watch(
   () => props.value,
   () => {
-    tempPeople.value = props.value.map((id) => {
+    tempPeople.value = props.value.map(id => {
       const p = people[id];
-      let count = p.count;
-      if (props.sort === 'photographer') {
-        count = p.photographerCount;
+      if (p) {
+        let count = p.count;
+        if (props.sort === 'photographer') {
+          count = p.photographerCount;
+        }
+        counts.value[id] = [p.count, p.photographerCount];
+        return {
+          color: peopleCategories[p.data.category]?.data.color ?? '',
+          title: `${p.data.name} (${count.toString()})`,
+          value: p.Id,
+        };
       }
-      counts.value[id] = [p.count, p.photographerCount];
       return {
-        color: peopleCategories[p.data.category].data.color,
-        title: `${p.data.name} (${count})`,
-        value: p.Id,
+        color: '',
+        title: '',
+        value: '',
       };
     });
     prevPeople.value = tempPeople.value;
@@ -70,25 +86,25 @@ watch(
 );
 
 onMounted(() => {
-  Object.values(people).forEach((person) => {
+  for (const person of Object.values(people)) {
     counts.value[person.Id] = [person.count, person.photographerCount];
-  });
+  }
 });
 </script>
 
 <template>
   <v-combobox
-    :label="props.label"
-    :items="peopleList"
-    multiple
+    v-model="tempPeople"
     chips
     clearable
     item-value="value"
-    v-model="tempPeople"
+    :items="peopleList"
+    :label="props.label"
+    multiple
     @update:model-value="
-      (value) => {
-        value.forEach((person) => {
-          if (prevPeople.find((p) => p.value === person.value) === undefined) {
+      value => {
+        value.forEach(person => {
+          if (!prevPeople.some(p => p.value === person.value)) {
             if (sort === 'count') {
               counts[person.value][0] += 1;
             } else {
@@ -96,8 +112,8 @@ onMounted(() => {
             }
           }
         });
-        prevPeople.forEach((person) => {
-          if (value.find((p) => p.value === person.value) === undefined) {
+        prevPeople.forEach(person => {
+          if (!value.some(p => p.value === person.value)) {
             if (sort === 'count') {
               counts[person.value][0] -= 1;
             } else {
@@ -107,26 +123,26 @@ onMounted(() => {
         });
         emit(
           'update',
-          tempPeople.map((p) => p.value),
+          tempPeople.map(p => p.value),
         );
         prevPeople = value;
       }
     "
   >
-    <template v-slot:item="{ item, props }">
+    <template #item="{ item, props: lprops }">
       <v-list-item
-        v-bind="props"
+        v-bind="lprops"
+        :prepend-avatar="people[item.raw.value]?.data.photo"
         :style="{ color: item.raw.color }"
-        :prepend-avatar="people[item.raw.value].data.photo"
-      ></v-list-item>
+      />
     </template>
-    <template v-slot:chip="{ item, props }">
+    <template #chip="{ item, props: cprops }">
       <v-chip
-        v-bind="props"
-        size="x-large"
+        v-bind="cprops"
         :color="item.raw.color"
-        :prepend-avatar="people[item.raw.value].data.photo"
-      ></v-chip>
+        :prepend-avatar="people[item.raw.value]?.data.photo"
+        size="x-large"
+      />
     </template>
   </v-combobox>
 </template>

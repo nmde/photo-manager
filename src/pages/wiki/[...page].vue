@@ -1,10 +1,8 @@
 <script setup lang="ts">
+import type { WikiPage } from '../../classes/WikiPage';
+import type { WikiItem } from '@/types/WikiItem';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import DecryptionDialog from '../../components/DecryptionDialog.vue';
-import MarkdownEditor from '../../components/MarkdownEditor.vue';
-import WikiFolder, { type WikiItem } from '../../components/WikiFolder.vue';
-import { WikiPage } from '../../classes/WikiPage';
 import { fileStore } from '../../stores/fileStore';
 
 const route = useRoute('/wiki/[...page]');
@@ -22,15 +20,15 @@ const decryptDialog = ref(false);
 
 const wikiStructure = computed(() => {
   const items: Record<string, WikiItem> = {};
-  localPages.value.forEach((page) => {
-    if (page.data.name.indexOf('/') >= 0) {
+  for (const page of localPages.value) {
+    if (page.data.name.includes('/')) {
       let n = page.data.name;
       if (n[0] === '/') {
-        n = n.substring(1);
+        n = n.slice(1);
       }
       let base = items;
       const split = n.split('/');
-      split.forEach((pathItem, p) => {
+      for (const [p, pathItem] of split.entries()) {
         if (!base[pathItem]) {
           base[pathItem] = {
             name: pathItem,
@@ -40,12 +38,8 @@ const wikiStructure = computed(() => {
             id: pathItem,
           };
         }
-        if (p === split.length - 1) {
-          base = base[pathItem].files;
-        } else {
-          base = base[pathItem].folders;
-        }
-      });
+        base = p === split.length - 1 ? base[pathItem].files : base[pathItem].folders;
+      }
     } else {
       items[page.data.name] = {
         name: page.data.name,
@@ -55,8 +49,8 @@ const wikiStructure = computed(() => {
         id: page.Id,
       };
     }
-  });
-  return Object.values(items).sort((a, b) => {
+  }
+  return Object.values(items).toSorted((a, b) => {
     const aHasChildren = Object.values(a.folders).length > 0 || Object.values(a.files).length > 0;
     const bHasChildren = Object.values(b.folders).length > 0 || Object.values(b.files).length > 0;
     if (aHasChildren && !bHasChildren) {
@@ -75,11 +69,7 @@ function initializeStructure() {
 
 function splitNameAndPath(path: string) {
   const split = path.split('/');
-  return [split.slice(1, split.length - 1), [split[split.length - 1]]];
-}
-
-function join(...fragments: string[]) {
-  return fragments.map((f) => f.replace(/\//g, '')).join('/');
+  return [split.slice(1, -1), [split.at(-1)]];
 }
 
 watch(route, () => {
@@ -92,7 +82,7 @@ watch(route, () => {
     activePage.value = match;
     activePagePath.value = route.params.page;
   }
-  if (route.params.page.length > 1) { 
+  if (route.params.page.length > 1) {
     focusedFolder.value = route.params.page.slice(0, route.params.page.length - 1).join('/');
   } else {
     focusedFolder.value = '';
@@ -108,7 +98,7 @@ fileStore.on('updateWiki', () => {
 fileStore.on('decrypted', () => {
   encryptionBlock.value = false;
   if (activePage.value) {
-    activePage.value.data.content = wikiPages[activePagePath.value.join('/')].data.content;
+    activePage.value.data.content = wikiPages[activePagePath.value.join('/')]?.data.content ?? '';
   }
 });
 
@@ -124,7 +114,7 @@ onMounted(() => {
   <v-main class="wiki-page">
     <v-navigation-drawer permanent>
       <v-toolbar>
-        <v-spacer></v-spacer>
+        <v-spacer />
         <v-btn
           icon
           @click="
@@ -148,7 +138,7 @@ onMounted(() => {
         </v-btn>
       </v-toolbar>
       <v-list>
-        <WikiFolder v-for="page in wikiStructure" :key="page.name" :page="page"></WikiFolder>
+        <WikiFolder v-for="page in wikiStructure" :key="page.name" :page="page" />
       </v-list>
     </v-navigation-drawer>
     <div v-if="encryptionBlock">
@@ -158,34 +148,34 @@ onMounted(() => {
     </div>
     <div v-if="activePage != null && !encryptionBlock">
       <h1 v-if="!editTitle" @click="editTitle = true">
-        {{ splitNameAndPath(activePage.data.name)[1][0] }}
+        {{ splitNameAndPath(activePage.data.name)[1]?.[0] }}
       </h1>
       <v-text-field
         v-else
         v-model="activePage.data.name"
         @update:focused="
-          async (focused) => {
+          async focused => {
             if (!focused) {
               editTitle = false;
               await setWikiPageTitle(activePage?.Id as string, activePage?.data.name as string);
             }
           }
         "
-      ></v-text-field>
+      />
       <MarkdownEditor
         :text="activePage.data.content"
         @save="
-          async (content) => {
+          async content => {
             setWikiPageText(activePage?.Id as string, content);
           }
         "
-      ></MarkdownEditor>
+      />
     </div>
     <v-dialog v-model="createFolderDialog">
       <v-card>
         <v-card-title>Create Folder</v-card-title>
         <v-card-text>
-          <v-text-field label="Folder Name" v-model="newFolderName"></v-text-field>
+          <v-text-field v-model="newFolderName" label="Folder Name" />
         </v-card-text>
         <v-card-actions>
           <v-btn @click="createFolderDialog = false">Cancel</v-btn>
@@ -199,12 +189,13 @@ onMounted(() => {
                 createFolderDialog = false;
               }
             "
-            >Create</v-btn
           >
+            Create
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <DecryptionDialog :value="decryptDialog"></DecryptionDialog>
+    <DecryptionDialog :value="decryptDialog" />
   </v-main>
 </template>
 

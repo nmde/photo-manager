@@ -1,7 +1,7 @@
+import type { ShapeType } from './Shape';
 import { Loader } from '@googlemaps/js-api-loader';
 import { color as d3color } from 'd3-color';
 import { EventEmitter } from 'ee-ts';
-import { type ShapeType } from './Shape';
 
 export type Position = {
   lat: number;
@@ -115,10 +115,7 @@ export type PlaceType = keyof typeof icons;
  * @returns The location string.
  */
 export function locToString(location?: { lat: number; lng: number }) {
-  if (location) {
-    return `${location.lat},${location.lng}`;
-  }
-  return '';
+  return location ? `${location.lat.toString()},${location.lng.toString()}` : '';
 }
 
 /**
@@ -127,10 +124,10 @@ export function locToString(location?: { lat: number; lng: number }) {
  * @returns The location object.
  */
 export function stringToLoc(str: string) {
-  const split = str.split(',').map((x) => Number(x));
+  const split = str.split(',').map(Number);
   return {
-    lat: split[0],
-    lng: split[1],
+    lat: split[0] ?? 0,
+    lng: split[1] ?? 0,
   };
 }
 
@@ -150,8 +147,6 @@ export class Map extends EventEmitter<{
 
   private container!: HTMLElement;
 
-  private heatmap!: google.maps.visualization.HeatmapLayer;
-
   private map!: google.maps.Map;
 
   private mapsLibrary!: google.maps.MapsLibrary;
@@ -160,34 +155,7 @@ export class Map extends EventEmitter<{
 
   private markerLibrary!: google.maps.MarkerLibrary;
 
-  private maxCount = 0;
-
-  private shapes: Record<string, google.maps.Polyline | google.maps.Polygon> = {};
-
-  private visualizationLibrary!: google.maps.VisualizationLibrary;
-
-  /**
-   * Creates the heatmap visualization.
-   */
-  public createHeatmap() {
-    const bins: number[] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
-    const binSize = this.maxCount / 10;
-    this.heatmap = new this.visualizationLibrary.HeatmapLayer({
-      data: Object.values(this.markers).map((v) => {
-        let bin = 0;
-        while (v.count < binSize * bin && bin < 11) {
-          bin += 1;
-        }
-        return {
-          location: new google.maps.LatLng(v.position.lat, v.position.lng),
-          weight: bins[bin],
-        };
-      }),
-      dissipating: true,
-      radius: 20,
-      maxIntensity: 1,
-    });
-  }
+  private shapes: Record<string, google.maps.MVCObject> = {};
 
   /**
    * Places a marker on the map.
@@ -216,7 +184,7 @@ export class Map extends EventEmitter<{
         const i = document.createElement('div');
         i.innerHTML = `<i class="mdi ${icons[icon]}"></i>`;
         const markerEl = document.createElement('div');
-        markerEl.appendChild(
+        markerEl.append(
           new this.markerLibrary.PinElement({
             glyph: i,
             background: color,
@@ -225,7 +193,7 @@ export class Map extends EventEmitter<{
         );
         if (typeof count === 'number' && count > 0) {
           const countEl = document.createElement('div');
-          countEl.innerText = `${count}`;
+          countEl.textContent = count.toString();
           countEl.style.backgroundColor = 'red';
           if (count >= 1000) {
             countEl.style.width = '25px';
@@ -243,7 +211,7 @@ export class Map extends EventEmitter<{
           countEl.style.top = '-4px';
           countEl.style.right = '-2px';
           countEl.style.textAlign = 'center';
-          markerEl.appendChild(countEl);
+          markerEl.append(countEl);
         }
         marker.content = markerEl;
       }
@@ -279,24 +247,22 @@ export class Map extends EventEmitter<{
     id: string,
     editable = false,
   ) {
-    let shape;
-    if (type === 'line') {
-      shape = new this.mapsLibrary.Polyline({
-        path: points,
-        geodesic: true,
-        strokeColor: color,
-        strokeWeight: 2,
-        editable,
-      });
-    } else {
-      shape = new this.mapsLibrary.Polygon({
-        paths: points,
-        geodesic: true,
-        fillColor: color,
-        strokeColor: d3color(color)?.darker(0.15).toString(),
-        editable,
-      });
-    }
+    const shape =
+      type === 'line'
+        ? new this.mapsLibrary.Polyline({
+            path: points,
+            geodesic: true,
+            strokeColor: color,
+            strokeWeight: 2,
+            editable,
+          })
+        : new this.mapsLibrary.Polygon({
+            paths: points,
+            geodesic: true,
+            fillColor: color,
+            strokeColor: d3color(color)?.darker(0.15).toString(),
+            editable,
+          });
     shape.setMap(this.map);
     shape.addListener('click', () => {
       console.log(id);
@@ -322,7 +288,7 @@ export class Map extends EventEmitter<{
    * @param id - The ID of the shape.
    */
   public removeShape(id: string) {
-    this.shapes[id].setMap(null);
+    (this.shapes[id] as google.maps.Polyline).setMap(null);
     delete this.shapes[id];
   }
 
@@ -331,8 +297,10 @@ export class Map extends EventEmitter<{
    * @param id - The ID of the marker to delete.
    */
   public removeMarker(id: string) {
-    this.markers[id].el.map = null;
-    delete this.markers[id];
+    if (this.markers[id]) {
+      this.markers[id].el.map = null;
+      delete this.markers[id];
+    }
   }
 
   /**
@@ -342,45 +310,33 @@ export class Map extends EventEmitter<{
    */
   public async initialize(container: HTMLElement, style = Map.DefaultMap) {
     this.container = container;
-    return new Promise<void>((resolve) => {
-      new Loader({
-        apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
-        version: 'weekly',
-      })
-        .load()
-        .then(async () => {
-          this.mapsLibrary = (await google.maps.importLibrary('maps')) as google.maps.MapsLibrary;
-          this.visualizationLibrary = (await google.maps.importLibrary(
-            'visualization',
-          )) as google.maps.VisualizationLibrary;
-          this.markerLibrary = (await google.maps.importLibrary(
-            'marker',
-          )) as google.maps.MarkerLibrary;
+    const loader = new Loader({
+      apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY as string,
+      version: 'weekly',
+    });
+    this.mapsLibrary = await loader.importLibrary('maps');
+    this.markerLibrary = await loader.importLibrary('marker');
 
-          this.map = new this.mapsLibrary.Map(container, {
-            zoom: 6,
-            mapId: style,
-          });
-          this.map.setCenter({ lat: 0.0, lng: 0.0 });
-          navigator.geolocation.getCurrentPosition((position: GeolocationPosition) => {
-            this.map.setCenter({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            });
-          });
+    this.map = new this.mapsLibrary.Map(container, {
+      zoom: 6,
+      mapId: style,
+    });
+    this.map.setCenter({ lat: 0, lng: 0 });
+    navigator.geolocation.getCurrentPosition(position => {
+      this.map.setCenter({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+    });
 
-          this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
-            const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
-            this.emit('dblclick', location);
-          });
+    this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
+      const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
+      this.emit('dblclick', location);
+    });
 
-          this.map.addListener('click', (e: google.maps.MapMouseEvent) => {
-            const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
-            this.emit('click', location);
-          });
-
-          resolve();
-        });
+    this.map.addListener('click', (e: google.maps.MapMouseEvent) => {
+      const location = e.latLng?.toJSON() as google.maps.LatLngLiteral;
+      this.emit('click', location);
     });
   }
 
@@ -388,42 +344,28 @@ export class Map extends EventEmitter<{
    * Hides all markers.
    */
   public hideAllMarkers() {
-    Object.values(this.markers).forEach((marker) => {
+    for (const marker of Object.values(this.markers)) {
       marker.el.map = null;
-    });
+    }
   }
 
   /**
    * Deletes all markers.
    */
   public clearMarkers() {
-    Object.values(this.markers).forEach((marker) => {
+    for (const marker of Object.values(this.markers)) {
       marker.el.map = null;
-    });
+    }
     this.markers = {};
-  }
-
-  /**
-   * Hides the heatmap.
-   */
-  public hideHeatmap() {
-    this.heatmap.setMap(null);
   }
 
   /**
    * Shows all markers.
    */
   public showAllMarkers() {
-    Object.values(this.markers).forEach((marker) => {
+    for (const marker of Object.values(this.markers)) {
       marker.el.map = this.map;
-    });
-  }
-
-  /**
-   * Shows the heatmap.
-   */
-  public showHeatmap() {
-    this.heatmap.setMap(this.map);
+    }
   }
 
   /**
@@ -432,12 +374,12 @@ export class Map extends EventEmitter<{
    */
   public async setStyle(style: string) {
     await this.initialize(this.container, style);
-    Object.values(this.markers).forEach((marker) => {
+    for (const marker of Object.values(this.markers)) {
       marker.el.map = this.map;
-    });
-    Object.values(this.shapes).forEach((shape) => {
-      shape.setMap(this.map);
-    });
+    }
+    for (const shape of Object.values(this.shapes)) {
+      (shape as google.maps.Polygon).setMap(this.map);
+    }
   }
 
   public setCenter(lat: number, lng: number) {

@@ -2,8 +2,6 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
-import PhotoIcon from './PhotoIcon.vue';
-import TagInput from './TagInput.vue';
 
 const props = defineProps<{
   photos: Photo[];
@@ -41,6 +39,7 @@ const forceRefresh = ref(false);
 
 // Filters the photos based on the options
 const filteredPhotos = computed(() => {
+  // This variable has to be here to trigger filteredPhotos being recomputed
   let f = forceRefresh.value;
   const rows: GridRow[] = [];
   let row: GridRow = [];
@@ -83,19 +82,21 @@ const filteredPhotos = computed(() => {
   const groups: string[] = [];
   while (tempphotos.length > 0) {
     const file = tempphotos[0];
-    let grouped = false;
-    if (typeof file.group === 'string') {
-      if (groups.indexOf(file.group) >= 0) {
-        grouped = true;
-      } else {
-        groups.push(file.group);
+    if (file) {
+      let grouped = false;
+      if (typeof file.group === 'string') {
+        if (groups.indexOf(file.group) >= 0) {
+          grouped = true;
+        } else {
+          groups.push(file.group);
+        }
       }
-    }
-    if (!grouped) {
-      row.push(file);
-      if (row.length === itemsPerRow.value) {
-        rows.push(row);
-        row = [];
+      if (!grouped) {
+        row.push(file);
+        if (row.length === itemsPerRow.value) {
+          rows.push(row);
+          row = [];
+        }
       }
     }
     tempphotos.shift();
@@ -109,12 +110,11 @@ fileStore.on('updatePhoto', () => {
 });
 
 // The number of visible photos after filter rules are applied
-const visiblePhotoCount = computed(() => {
-  return (
+const visiblePhotoCount = computed(
+  () =>
     (filteredPhotos.value.length - 1) * itemsPerRow.value +
-    filteredPhotos.value[filteredPhotos.value.length - 1].length
-  );
-});
+    (filteredPhotos.value[filteredPhotos.value.length - 1]?.length ?? 0),
+);
 
 /**
  * Handles selecting one or more photos.
@@ -126,8 +126,8 @@ function selectPhoto(photo: Photo) {
     s = getByGroup(photo.group);
   }
   if (selectMultiple.value) {
-    s.forEach((x) => {
-      const idx = selected.value.findIndex((p) => p.data.name === x.data.name);
+    s.forEach(x => {
+      const idx = selected.value.findIndex(p => p.data.name === x.data.name);
       if (idx >= 0) {
         selected.value.splice(idx, 1);
       } else {
@@ -149,8 +149,8 @@ const replacementTag = ref<string[]>([]);
 const loading = ref(false);
 
 onMounted(() => {
-  sortBy.value = sort[0];
-  sortDir.value = sort[1];
+  sortBy.value = sort[0] ?? 0;
+  sortDir.value = sort[1] ?? 0;
   resizeGrid();
   window.addEventListener('resize', resizeGrid);
 });
@@ -279,13 +279,15 @@ onUnmounted(() => {
         <v-list-item
           @click="
             async () => {
-              const groupName = selected[0].data.name;
-              await addGroup(groupName);
-              const target = [...selected];
-              selected = [];
-              target.forEach(async (photo) => {
-                await setGroup(photo.data.name, groupName);
-              });
+              const groupName = selected[0]?.data.name;
+              if (groupName) {
+                await addGroup(groupName);
+                const target = [...selected];
+                selected = [];
+                target.forEach(async photo => {
+                  await setGroup(photo.data.name, groupName);
+                });
+              }
             }
           "
           >Quick Group</v-list-item
@@ -325,7 +327,7 @@ onUnmounted(() => {
         :key="i"
         :photo="photo"
         :size="size"
-        :selected="selected.findIndex((p) => p.data.name === photo.data.name) >= 0"
+        :selected="selected.findIndex(p => p.data.name === photo.data.name) >= 0"
         :invalid="!photo.valid"
         @select="selectPhoto(photo)"
       ></photo-icon>
@@ -354,7 +356,7 @@ onUnmounted(() => {
         <tag-input
           label="Tag to add"
           :value="targetTags"
-          @update="(tags) => (targetTags = tags)"
+          @update="tags => (targetTags = tags)"
         ></tag-input>
         <v-card-actions>
           <v-btn
@@ -362,7 +364,7 @@ onUnmounted(() => {
             @click="
               async () => {
                 loading = true;
-                selected.forEach(async (photo) => {
+                selected.forEach(async photo => {
                   await updateTagsForGroup(photo.data.name, photo.tags.concat(...targetTags));
                 });
                 loading = false;
@@ -385,7 +387,7 @@ onUnmounted(() => {
         <tag-input
           label="Tag to find"
           :value="targetTags"
-          @update="(tag) => (targetTags = tag)"
+          @update="tag => (targetTags = tag)"
         ></tag-input>
         <v-radio-group v-model="tagAction">
           <v-radio label="Remove tag" value="remove"></v-radio>
@@ -396,7 +398,7 @@ onUnmounted(() => {
           <tag-input
             label="Tag to replace with"
             :value="replacementTag"
-            @update="(tag) => (replacementTag = tag)"
+            @update="tag => (replacementTag = tag)"
           ></tag-input>
           Replacing {{ targetTags[0] }} with {{ replacementTag[0] }}.
         </div>
@@ -407,18 +409,23 @@ onUnmounted(() => {
           @click="
             async () => {
               loading = true;
-              selected.forEach(async (photo) => {
-                if (tagAction === 'remove') {
-                  const updatedTags = [...photo.tags];
-                  updatedTags.splice(updatedTags.indexOf(targetTags[0]), 1);
-                  await updateTagsForGroup(photo.data.name, updatedTags);
-                } else {
-                  const updatedTags = [...photo.tags];
-                  updatedTags.splice(updatedTags.indexOf(targetTags[0]), 1);
-                  updatedTags.push(replacementTag[0]);
-                  await updateTagsForGroup(photo.data.name, updatedTags);
-                }
-              });
+              const tag = targetTags[0];
+              if (tag) {
+                selected.forEach(async photo => {
+                  if (tagAction === 'remove') {
+                    const updatedTags = [...photo.tags];
+                    updatedTags.splice(updatedTags.indexOf(tag), 1);
+                    await updateTagsForGroup(photo.data.name, updatedTags);
+                  } else {
+                    const updatedTags = [...photo.tags];
+                    updatedTags.splice(updatedTags.indexOf(tag), 1);
+                    if (replacementTag[0]) {
+                      updatedTags.push(replacementTag[0]);
+                    }
+                    await updateTagsForGroup(photo.data.name, updatedTags);
+                  }
+                });
+              }
               loading = false;
               tagReplaceDialog = false;
             }

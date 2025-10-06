@@ -1,8 +1,7 @@
 <script setup lang="ts">
+import type { Photo } from '../classes/Photo';
 import { ref, watch } from 'vue';
-import { Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
-import PhotoDetail from './PhotoDetail.vue';
 
 const props = defineProps<{
   photos: Photo[];
@@ -10,7 +9,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'updateDate', date: Date): void;
+  (e: 'update-date', date: Date): void;
 }>();
 
 const {
@@ -30,6 +29,8 @@ const {
 
 const current = ref(0);
 
+const currentPhoto = computed(() => props.photos[current.value]);
+
 watch(
   () => props.photos,
   () => (current.value = 0),
@@ -39,8 +40,8 @@ watch(
 <template>
   <div v-if="props.photos.length > 1">
     <v-btn
-      icon
       flat
+      icon
       @click="
         () => {
           if (current > 0) {
@@ -53,8 +54,8 @@ watch(
     </v-btn>
     {{ current + 1 }} / {{ props.photos.length }}
     <v-btn
-      icon
       flat
+      icon
       @click="
         () => {
           if (current < props.photos.length - 1) {
@@ -67,11 +68,78 @@ watch(
     </v-btn>
   </div>
   <photo-detail
-    :photo="props.photos[current]"
+    v-if="currentPhoto"
+    :photo="currentPhoto"
     :prev-date="prevDate"
-    @update:title="(title) => setTitle(props.photos[current].data.name, title)"
+    @update:camera="
+      value => {
+        props.photos.forEach(photo => {
+          setCamera(photo.data.name, value);
+        });
+      }
+    "
+    @update:date="
+      date => {
+        props.photos.forEach(photo => {
+          setDate(photo.data.name, date);
+        });
+        emit('update-date', new Date(date));
+      }
+    "
     @update:description="
-      (description) => setDescription(props.photos[current].data.name, description)
+      description => {
+        if (currentPhoto) {
+          setDescription(currentPhoto.data.name, description);
+        }
+      }
+    "
+    @update:group="
+      group => {
+        props.photos.forEach(photo => {
+          setGroup(photo.data.name, group);
+        });
+      }
+    "
+    @update:hide-thumbnail="
+      value => {
+        props.photos.forEach(photo => {
+          setHideThumbnail(photo.data.name, value);
+        });
+      }
+    "
+    @update:is-duplicate="
+      isDuplicate => {
+        if (currentPhoto) {
+          setDuplicate(currentPhoto.data.name, isDuplicate);
+        }
+      }
+    "
+    @update:location="
+      location =>
+        props.photos.forEach(photo => {
+          setLocation(photo.data.name, location);
+        })
+    "
+    @update:people="
+      people => {
+        props.photos.forEach(photo => {
+          setPeople(photo.data.name, people);
+        });
+      }
+    "
+    @update:photographer="
+      value => {
+        props.photos.forEach(photo => {
+          setPhotographer(photo.data.name, value);
+        });
+      }
+    "
+    @update:rating="
+      rating => {
+        if (currentPhoto) {
+          setRating(currentPhoto.data.name, rating);
+        }
+      }
     "
     @update:tags="
       (tags) => {
@@ -79,11 +147,11 @@ watch(
         tags.forEach((tag) => {
           if (tag.indexOf(',') > 0) {
             tag.split(',').forEach((s) => {
-              if (expandedTags.indexOf(s) < 0) {
+              if (!expandedTags.includes(s)) {
                 expandedTags.push(s);
               }
             });
-          } else if (expandedTags.indexOf(tag) < 0) {
+          } else if (!expandedTags.includes(tag)) {
             expandedTags.push(tag);
           }
         });
@@ -92,58 +160,12 @@ watch(
         });
       }
     "
-    @update:rating="(rating) => setRating(props.photos[current].data.name, rating)"
-    @update:is-duplicate="
-      (isDuplicate) => setDuplicate(props.photos[current].data.name, isDuplicate)
-    "
-    @update:group="
-      (group) => {
-        props.photos.forEach((photo) => {
-          setGroup(photo.data.name, group);
-        });
+    @update:title="
+      title => {
+        if (currentPhoto) {
+          setTitle(currentPhoto.data.name, title);
+        }
       }
     "
-    @update:date="
-      (date) => {
-        props.photos.forEach((photo) => {
-          setDate(photo.data.name, date);
-        });
-        emit('updateDate', new Date(date));
-      }
-    "
-    @update:location="
-      (location) =>
-        props.photos.forEach((photo) => {
-          setLocation(photo.data.name, location);
-        })
-    "
-    @update:people="
-      (people) => {
-        props.photos.forEach((photo) => {
-          setPeople(photo.data.name, people);
-        });
-      }
-    "
-    @update:photographer="
-      (value) => {
-        props.photos.forEach((photo) => {
-          setPhotographer(photo.data.name, value);
-        });
-      }
-    "
-    @update:hide-thumbnail="
-      (value) => {
-        props.photos.forEach((photo) => {
-          setHideThumbnail(photo.data.name, value);
-        });
-      }
-    "
-    @update:camera="
-      (value) => {
-        props.photos.forEach((photo) => {
-          setCamera(photo.data.name, value);
-        });
-      }
-    "
-  ></photo-detail>
+  />
 </template>

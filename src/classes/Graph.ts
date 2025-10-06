@@ -1,27 +1,14 @@
-import { GraphNode } from './GraphNode';
+import type { GraphNode } from './GraphNode';
 
 export class Graph {
   public nodes: GraphNode[] = [];
 
-  public get(key: string) {
-    return this.nodes.find((n) => n.label === key);
-  }
-
   public get leaves() {
-    return this.nodes.filter((n) => n.links.length === 0);
+    return this.nodes.filter(n => n.links.length === 0);
   }
 
-  private removeNode(key: string) {
-    let target = -1;
-    this.nodes.forEach((node, i) => {
-      if (node.label === key) {
-        target = i;
-      }
-      if (node.links.indexOf(key) >= 0) {
-        node.links.splice(node.links.indexOf(key), 1);
-      }
-    });
-    this.nodes.splice(target, 1);
+  public get(key: string) {
+    return this.nodes.find(n => n.label === key);
   }
 
   public sort(fn?: (a: string, b: string) => number) {
@@ -29,10 +16,10 @@ export class Graph {
     let i = 0;
     const max = this.nodes.length;
     while (this.nodes.length > 0 && i < max) {
-      const leaves = this.leaves.map((n) => n.label).sort();
-      leaves.forEach((n) => {
+      const leaves = this.leaves.map(n => n.label).toSorted();
+      for (const n of leaves) {
         this.removeNode(n);
-      });
+      }
       sorted = sorted.concat(leaves);
       i += 1;
     }
@@ -40,12 +27,23 @@ export class Graph {
       console.log(`Possible loop detected!`);
     }
     if (this.nodes.length > 0) {
-      if (fn) {
-        sorted = sorted.concat(this.nodes.map((n) => n.label).sort(fn));
-      } else {
-        sorted = sorted.concat(this.nodes.map((n) => n.label).sort());
+      sorted = fn
+        ? sorted.concat(this.nodes.map(n => n.label).toSorted(fn))
+        : sorted.concat(this.nodes.map(n => n.label).toSorted());
+    }
+    return sorted.toReversed();
+  }
+
+  private removeNode(key: string) {
+    let target = -1;
+    for (const [i, node] of this.nodes.entries()) {
+      if (node.label === key) {
+        target = i;
+      }
+      if (node.links.includes(key)) {
+        node.links.splice(node.links.indexOf(key), 1);
       }
     }
-    return sorted.reverse();
+    this.nodes.splice(target, 1);
   }
 }

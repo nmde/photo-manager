@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { fileStore } from '../stores/fileStore';
 
 const { tags, search, query } = fileStore;
@@ -13,14 +13,13 @@ onMounted(() => {
 
 <template>
   <v-combobox
-    label="Search"
-    :items="tags"
-    multiple
+    v-model="localQuery"
     chips
     clearable
-    v-model="localQuery"
+    :items="tags"
+    label="Search"
+    multiple
     @update:model-value="() => {}"
-  >
-  </v-combobox>
+  />
   <v-btn @click="search(...localQuery)">Search</v-btn>
 </template>

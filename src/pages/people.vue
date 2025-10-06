@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import type { Person } from '../classes/Person';
+import type { PersonCategory } from '../classes/PersonCategory';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Person } from '../classes/Person';
-import { PersonCategory } from '../classes/PersonCategory';
 import { fileStore } from '../stores/fileStore';
-import ColorOptions from '../components/ColorOptions.vue';
 
 const router = useRouter();
 
@@ -24,7 +23,7 @@ const addCategoryColor = ref('');
 const localCategories = ref<Record<string, PersonCategory>>({});
 const localPeople = ref<Record<string, Person[]>>({});
 const categoryList = computed(() =>
-  Object.values(localCategories.value).map((c) => ({
+  Object.values(localCategories.value).map(c => ({
     color: c.data.color,
     title: c.data.name,
     value: c.Id,
@@ -35,35 +34,27 @@ const personCardWidth = 64;
 const personCardHeight = 212;
 const peopleRows = computed(() => {
   const re: Record<string, Person[][]> = {};
-  Object.entries(localPeople.value).forEach(([c, category]) => {
+  for (const [c, category] of Object.entries(localPeople.value)) {
     re[c] = [[]];
     let x = 0;
-    category.forEach((person) => {
-      re[c][re[c].length - 1].push(person);
+    for (const person of category) {
+      re[c].at(-1)?.push(person);
       x += 1;
       if (x > window.innerWidth / personCardWidth) {
         x = 0;
         re[c].push([]);
       }
-    });
-  });
+    }
+  }
   return re;
 });
 
 onMounted(() => {
   localCategories.value = peopleCategories;
   localPeople.value = {};
-  Object.entries(peopleMap).forEach(([category, people]) => {
-    localPeople.value[category] = people.sort((a, b) => {
-      if (a.count < b.count) {
-        return 1;
-      }
-      if (a.count > b.count) {
-        return -1;
-      }
-      return 0;
-    });
-  });
+  for (const [category, people] of Object.entries(peopleMap)) {
+    localPeople.value[category] = people.toSorted((a, b) => b.count - a.count);
+  }
 });
 </script>
 
@@ -77,8 +68,9 @@ onMounted(() => {
           addDialog = true;
         }
       "
-      >Add Person</v-btn
     >
+      Add Person
+    </v-btn>
     <v-btn color="secondary" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-expansion-panels>
       <v-expansion-panel v-for="category in localCategories" :key="category.Id">
@@ -91,19 +83,19 @@ onMounted(() => {
             :item-height="personCardHeight"
             :items="peopleRows[category.Id]"
           >
-            <template v-slot:default="{ item }">
+            <template #default="{ item }">
               <div class="people-grid">
-                <v-card class="person-card" v-for="person in item" :key="person.Id">
-                  <template v-slot:prepend v-if="person.data.photo.length > 0">
+                <v-card v-for="person in item" :key="person.Id" class="person-card">
+                  <template v-if="person.data.photo.length > 0" #prepend>
                     <v-avatar size="128">
-                      <v-img :src="person.data.photo"></v-img>
+                      <v-img :src="person.data.photo" />
                     </v-avatar>
                   </template>
-                  <v-card-title
-                    >{{ person.data.name }}
+                  <v-card-title>
+                    {{ person.data.name }}
                     <v-menu>
-                      <template v-slot:activator="{ props }">
-                        <v-btn icon flat v-bind="props">
+                      <template #activator="{ props }">
+                        <v-btn flat icon v-bind="props">
                           <v-icon>mdi-menu</v-icon>
                         </v-btn>
                       </template>
@@ -119,8 +111,9 @@ onMounted(() => {
                               addDialog = true;
                             }
                           "
-                          >Edit</v-list-item
                         >
+                          Edit
+                        </v-list-item>
                         <v-list-item
                           @click="
                             () => {
@@ -136,8 +129,9 @@ onMounted(() => {
                               router.push(`/tagger?photographer=${person.Id}`);
                             }
                           "
-                          >View Photos Taken By</v-list-item
                         >
+                          View Photos Taken By
+                        </v-list-item>
                       </v-list>
                     </v-menu>
                   </v-card-title>
@@ -159,8 +153,8 @@ onMounted(() => {
       <v-card>
         <v-card-title>Add Category</v-card-title>
         <v-card-text>
-          <v-text-field label="Name" v-model="addCategoryName"></v-text-field>
-          <color-options @select="(color) => (addCategoryColor = color)"></color-options>
+          <v-text-field v-model="addCategoryName" label="Name" />
+          <color-options @select="color => (addCategoryColor = color)" />
         </v-card-text>
         <v-card-actions>
           <v-btn @click="addCategoryDialog = false">Cancel</v-btn>
@@ -176,8 +170,9 @@ onMounted(() => {
                 addCategoryColor = '';
               }
             "
-            >Save</v-btn
           >
+            Save
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -185,13 +180,13 @@ onMounted(() => {
       <v-card>
         <v-card-title>Add Person</v-card-title>
         <v-card-text>
-          <v-text-field v-model="addName" label="Name"></v-text-field>
-          <v-select label="Category" :items="categoryList" v-model="addCategory">
-            <template v-slot:item="{ props, item }">
-              <v-list-item v-bind="props" :base-color="item.raw.color"></v-list-item>
+          <v-text-field v-model="addName" label="Name" />
+          <v-select v-model="addCategory" :items="categoryList" label="Category">
+            <template #item="{ props, item }">
+              <v-list-item v-bind="props" :base-color="item.raw.color" />
             </template>
           </v-select>
-          <v-textarea v-model="addNotes" label="Notes"></v-textarea>
+          <v-textarea v-model="addNotes" label="Notes" />
         </v-card-text>
         <v-card-actions>
           <v-btn @click="addDialog = false">Cancel</v-btn>
@@ -210,8 +205,9 @@ onMounted(() => {
                 addCategory = '';
               }
             "
-            >Save</v-btn
           >
+            Save
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -18,32 +18,23 @@ export class Tag extends Entity<TagData> {
   }
 
   public get prereqs() {
-    if (this.data.prereqs.length === 0) {
-      return [];
-    }
-    return this.data.prereqs.split(',');
+    return this.data.prereqs.length === 0 ? [] : this.data.prereqs.split(',');
+  }
+
+  public get coreqs() {
+    return this.data.coreqs.length === 0 ? [] : this.data.coreqs.split(',');
+  }
+
+  public get incompatible() {
+    return this.data.incompatible.length === 0 ? [] : this.data.incompatible.split(',');
   }
 
   public set prereqs(tags: string[]) {
     this.data.prereqs = tags.join(',');
   }
 
-  public get coreqs() {
-    if (this.data.coreqs === null || this.data.coreqs.length === 0) {
-      return [];
-    }
-    return this.data.coreqs.split(',');
-  }
-
   public set coreqs(tags: string[]) {
     this.data.coreqs = tags.join(',');
-  }
-
-  public get incompatible() {
-    if (this.data.incompatible.length === 0) {
-      return [];
-    }
-    return this.data.incompatible.split(',');
   }
 
   public set incompatible(tags: string[]) {

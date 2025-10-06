@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { fileStore } from '../stores/fileStore';
 import type { Photo } from '../classes/Photo';
+import { fileStore } from '../stores/fileStore';
 import PhotoGrid from './PhotoGrid.vue';
 
 const { files } = fileStore;
@@ -27,14 +27,17 @@ const emit = defineEmits<{
       <v-expansion-panel-text>
         <div v-if="Object.keys(folderStructure.children[dir]).length > 0">
           <directory-panels
-            :folder-structure="folderStructure.children[dir]"
-            @select="(s) => emit('select', s)"
-          ></directory-panels>
+            :folder-structure="folderStructure.children[dir] ?? { files: [], children: {} }"
+            @select="s => emit('select', s)"
+          />
         </div>
         <photo-grid
-          :photos="folderStructure.children[dir].files.map((s) => files[s])"
-          @select="(s) => emit('select', s)"
-        ></photo-grid>
+          :photos="
+            folderStructure.children[dir]?.files.map(s => files[s]).filter(s => s !== undefined) ??
+              []
+          "
+          @select="s => emit('select', s)"
+        />
       </v-expansion-panel-text>
     </v-expansion-panel>
   </v-expansion-panels>

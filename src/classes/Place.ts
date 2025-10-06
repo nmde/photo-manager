@@ -30,10 +30,7 @@ export class Place extends Entity<PlaceData> {
   }
 
   public get tags() {
-    if (this.data.tags.length === 0) {
-      return [];
-    }
-    return this.data.tags.split(',');
+    return this.data.tags.length === 0 ? [] : this.data.tags.split(',');
   }
 
   public set tags(tags: string[]) {

@@ -28,13 +28,13 @@ const startingLink = ref(false);
 const linkIndex = ref(-1);
 const linkText = ref('');
 
-const linkNames = computed(() => {
-  return Object.values(wikiPages)
-    .map((page) => `/wiki/${page.data.name}`.replace(/\/\//g, '/'))
-    .concat(Object.values(people).map((p) => `/people/${p.data.name}`))
-    .concat(Object.values(places).map((p) => `/locations/${p.data.name}`))
-    .filter((name) => name.toLowerCase().includes(linkText.value.toLowerCase()));
-});
+const linkNames = computed(() =>
+  Object.values(wikiPages)
+    .map(page => `/wiki/${page.data.name}`.replace(/\/\//g, '/'))
+    .concat(Object.values(people).map(p => `/people/${p.data.name}`))
+    .concat(Object.values(places).map(p => `/locations/${p.data.name}`))
+    .filter(name => name.toLowerCase().includes(linkText.value.toLowerCase())),
+);
 
 const widthContainer = ref();
 function width(text: string, size = '1rem', style = '') {
@@ -47,8 +47,7 @@ function width(text: string, size = '1rem', style = '') {
 }
 
 function getName(path: string) {
-  const split = path.split('/');
-  return split[split.length - 1];
+  return path.split('/').at(-1);
 }
 
 /**
@@ -66,13 +65,13 @@ function processInnerText(text: string) {
       symbol: '',
     });
   } else {
-    const ns = nextSymbol[0].substring(1);
+    const ns = nextSymbol[0].slice(1);
     if (ns === '\n') {
       if (nextSymbol.index + 1 > 0) {
         blocks.push({
-          text: text.substring(0, nextSymbol.index + 1),
+          text: text.slice(0, Math.max(0, nextSymbol.index + 1)),
           style: 'span',
-          original: text.substring(0, nextSymbol.index + 1),
+          original: text.slice(0, Math.max(0, nextSymbol.index + 1)),
           symbol: '',
         });
       }
@@ -82,10 +81,10 @@ function processInnerText(text: string) {
         original: '\n',
         symbol: '\n',
       });
-      blocks = blocks.concat(processInnerText(text.substring(nextSymbol.index + 1)));
+      blocks = blocks.concat(processInnerText(text.slice(Math.max(0, nextSymbol.index + 1))));
     } else {
       let closeSymbol = text.indexOf(
-        nextSymbol[0].substring(1),
+        nextSymbol[0].slice(1),
         nextSymbol.index + nextSymbol[0].length,
       );
       if (ns === '[[') {
@@ -95,13 +94,13 @@ function processInnerText(text: string) {
       }
       if (nextSymbol.index > 0 && closeSymbol > 0) {
         blocks.push({
-          text: text.substring(0, nextSymbol.index + 1),
+          text: text.slice(0, Math.max(0, nextSymbol.index + 1)),
           style: 'span',
-          original: text.substring(0, nextSymbol.index + 1),
+          original: text.slice(0, Math.max(0, nextSymbol.index + 1)),
           symbol: '',
         });
       }
-      if (nextSymbol != null && closeSymbol < 0) {
+      if (closeSymbol < 0) {
         blocks.push({
           text,
           style: 'span',
@@ -110,35 +109,40 @@ function processInnerText(text: string) {
         });
       } else {
         let style = 'i';
-        let renderedText = text.substring(nextSymbol.index + nextSymbol[0].length, closeSymbol);
+        let renderedText = text.slice(nextSymbol.index + nextSymbol[0].length, closeSymbol);
         switch (ns) {
-          case '**':
+          case '**': {
             style = 'b';
             break;
-          case '_':
+          }
+          case '_': {
             style = 'u';
             break;
-          case '!':
+          }
+          case '!': {
             style = 'Date';
             break;
-          case '##':
+          }
+          case '##': {
             style = 'h2';
             closeSymbol -= 1;
             break;
-          case '[[':
+          }
+          case '[[': {
             style = 'RouterLink';
-            renderedText = getName(renderedText);
+            renderedText = getName(renderedText) ?? '';
             break;
+          }
           default:
         }
         blocks.push({
           text: renderedText,
           style,
-          original: text.substring(nextSymbol.index + 1, closeSymbol + nextSymbol[0].length - 1),
+          original: text.slice(nextSymbol.index + 1, closeSymbol + nextSymbol[0].length - 1),
           symbol: ns,
         });
         blocks = blocks.concat(
-          processInnerText(text.substring(closeSymbol + nextSymbol[0].length - 1)),
+          processInnerText(text.slice(closeSymbol + nextSymbol[0].length - 1)),
         );
       }
     }
@@ -148,47 +152,46 @@ function processInnerText(text: string) {
 
 function moveCursor() {
   const cursorPos = (currentEditor.value as HTMLTextAreaElement).selectionStart;
-  let renderedText: string[] = [''];
+  const renderedText = [''];
   let offset = 0;
-  let originalText: string[] = [''];
-  let specialChars: string[] = [''];
+  const originalText = [''];
+  const specialChars = [''];
   let line = 0;
   let reachedCursor = false;
   let b = 0;
   while (!reachedCursor && b < textBlocks.value.length) {
     const block = textBlocks.value[b];
-    originalText[line] += block.original;
-    renderedText[line] += block.text;
-    if (originalText[line].length > cursorPos - offset - 1) {
-      reachedCursor = true;
-      if (block.style === 'RouterLink') {
-        specialChars[line] += block.original.substring(
-          0,
-          Math.min(cursorPos - offset - 1, block.original.indexOf(block.text)),
-        );
-      } else {
-        specialChars[line] += block.symbol;
-      }
-    } else {
-      if (block.style === 'RouterLink') {
+    if (block && originalText[line]) {
+      originalText[line] += block.original;
+      renderedText[line] += block.text;
+      if (originalText[line].length > cursorPos - offset - 1) {
+        reachedCursor = true;
         specialChars[line] +=
-          block.original.substring(0, block.original.indexOf(block.text)) + ']]';
+          block.style === 'RouterLink'
+            ? block.original.slice(
+              0,
+              Math.max(0, Math.min(cursorPos - offset - 1, block.original.indexOf(block.text))),
+            )
+            : block.symbol;
       } else {
-        specialChars[line] += `${block.symbol}${block.symbol}`;
+        specialChars[line] +=
+          block.style === 'RouterLink'
+            ? block.original.slice(0, Math.max(0, block.original.indexOf(block.text))) + ']]'
+            : `${block.symbol}${block.symbol}`;
       }
-    }
-    if (block.style === 'br' || block.style === 'h2') {
-      offset += originalText[line].length;
-      line += 1;
-      renderedText.push('');
-      specialChars.push('');
-      originalText.push('');
+      if (block.style === 'br' || block.style === 'h2') {
+        offset += originalText[line].length;
+        line += 1;
+        renderedText.push('');
+        specialChars.push('');
+        originalText.push('');
+      }
     }
     b += 1;
   }
-  renderedText[line] = renderedText[line].substring(
+  renderedText[line] = renderedText[line]?.slice(
     0,
-    cursorPos - offset - specialChars[line].length,
+    Math.max(0, cursorPos - offset - specialChars[line].length),
   );
   cursorLeft.value = width(renderedText[line]);
   cursorTop.value = 2 + 16 * 1.5 * line;
@@ -245,7 +248,7 @@ function handleKeypress() {
           handleKeypress();
         }
       "
-    ></textarea>
+    />
     <div
       class="written"
       :style="{ background: theme ? 'rgb(18,18,18)' : 'white' }"
@@ -259,10 +262,12 @@ function handleKeypress() {
           let offset = 0;
           while (b < textBlocks.length && r < row) {
             const block = textBlocks[b];
+            if (block) {
             offset += block.original.length;
             if (block.style === 'br' || block.style === 'h2') {
               r += 1;
             }
+            {}
             b += 1;
           }
           currentEditor.selectionEnd =
@@ -280,7 +285,7 @@ function handleKeypress() {
         <router-link v-if="block.style === 'Date'" :to="`/journal/${block.text}`">{{
           block.text
         }}</router-link>
-        <component v-else-if="block.style !== 'RouterLink'" :is="block.style">{{
+        <component :is="block.style" v-else-if="block.style !== 'RouterLink'">{{
           block.text
         }}</component>
         <router-link v-else :to="block.original.substring(2, block.original.length - 3)">{{
@@ -294,10 +299,10 @@ function handleKeypress() {
           top: `${cursorTop}px`,
           background: theme ? 'white' : 'black',
         }"
-      ></div>
+      />
       <v-card
-        id="link-suggestions"
         v-if="startingLink"
+        id="link-suggestions"
         :style="{
           left: `${cursorLeft}px`,
           top: `${cursorTop + 18}px`,
@@ -321,13 +326,14 @@ function handleKeypress() {
                 emit('save', currentEditor.value);
               }
             "
-            >{{ page }}</v-list-item
           >
+            {{ page }}
+          </v-list-item>
         </v-list>
       </v-card>
     </div>
   </div>
-  <canvas ref="widthContainer"></canvas>
+  <canvas ref="widthContainer" />
 </template>
 
 <style scoped>

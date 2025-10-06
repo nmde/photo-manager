@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { createPhoto, type Photo } from '../classes/Photo';
 import { fileStore } from '../stores/fileStore';
-import { Photo, createPhoto } from '../classes/Photo';
 
 const router = useRouter();
 const {
@@ -47,7 +47,7 @@ async function readDir(path: string, top = true) {
           /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
           '',
         );
-        if (['.', '..'].indexOf(dir) < 0 && dir.indexOf('.dropbox.cache') < 0) {
+        if (!['.', '..'].includes(dir) && !dir.includes('.dropbox.cache')) {
           dirs.push(await join(path, dir));
         }
       } else {
@@ -95,15 +95,15 @@ async function openFolder() {
     const files: Record<string, Photo> = {};
     const existing = { ...(await loadPhotos()) };
     let fullFileList: string[] = [];
-    let raws: string[] = [];
-    let videos: string[] = [];
+    const raws: string[] = [];
+    const videos: string[] = [];
     console.log('Loaded photos');
     const folder = await readDir(selected);
     setFolderStructure(folder);
     fullFileList = folder.files;
     console.log('Read dir');
     const rawPhotos: Photo[] = [];
-    fullFileList.forEach(async (file) => {
+    for (const file of fullFileList) {
       if (existing[file]) {
         files[file] = existing[file];
         delete existing[file];
@@ -120,21 +120,21 @@ async function openFolder() {
       if (files[file].data.raw) {
         rawPhotos.push(files[file]);
       }
-    });
+    }
     deleted.value = Object.keys(existing);
     setFiles(files);
     groupRaws(rawPhotos);
     if (raws.length > 0 || videos.length > 0) {
-      generateThumbnails(raws, videos);
+      await generateThumbnails(raws, videos);
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
-        router.push('/tagger');
+        await router.push('/tagger');
       }
     } else if (deleted.value.length > 0) {
       deletedDialog.value = true;
     } else {
-      router.push('/tagger');
+      await router.push('/tagger');
     }
   }
   loading.value = false;
@@ -145,14 +145,14 @@ async function openFolder() {
   <v-main>
     <v-container>
       <v-row>
-        <v-col cols="4"></v-col>
+        <v-col cols="4" />
         <v-col cols="12">
           <div class="main">
             <h1>Photo Manager</h1>
-            <v-btn color="primary" @click="openFolder" :loading="loading">Open Folder</v-btn>
+            <v-btn color="primary" :loading="loading" @click="openFolder">Open Folder</v-btn>
           </div>
         </v-col>
-        <v-col cols="4"></v-col>
+        <v-col cols="4" />
       </v-row>
     </v-container>
     <v-dialog v-model="deletedDialog" persistent>
@@ -170,13 +170,17 @@ async function openFolder() {
             @click="
               async () => {
                 for (let i = 0; i < deleted.length; i += 1) {
-                  removeDeleted(deleted[i]);
+                  const d = deleted[i];
+                  if (d) {
+                    removeDeleted(d);
+                  }
                 }
                 router.push('/tagger');
               }
             "
-            >Remove Records &amp; Continue</v-btn
           >
+            Remove Records &amp; Continue
+          </v-btn>
           <v-btn color="primary" @click="router.push('/tagger')">Continue Without Removing</v-btn>
         </v-card-actions>
       </v-card>
@@ -187,9 +191,9 @@ async function openFolder() {
         <v-card-text>
           <p v-if="reading.length > 0">Reading {{ reading }}</p>
           <v-progress-linear
-            :model-value="(initializingProgress / fileCount) * 100"
             color="primary"
-          ></v-progress-linear>
+            :model-value="(initializingProgress / fileCount) * 100"
+          />
         </v-card-text>
       </v-card>
     </v-dialog>

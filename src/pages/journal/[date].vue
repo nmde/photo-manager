@@ -1,11 +1,8 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
 import type { Activity } from '@/classes/Activity';
+import { onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { fileStore, formatDate, moods } from '@/stores/fileStore';
-import MoodIcon from '@/components/MoodIcon.vue';
-import DecryptionDialog from '@/components/DecryptionDialog.vue';
-import MarkdownEditor from '@/components/MarkdownEditor.vue';
 
 const route = useRoute('/journal/[date]');
 
@@ -40,10 +37,12 @@ function setDate(d: Date) {
   date.value = simplifyDate(d);
   if (journals[formatDate(date.value)]) {
     const entry = journals[formatDate(date.value)];
-    mood.value = entry.data.mood;
-    text.value = entry.data.text;
-    entryActivities.value = entry.activities;
-    steps.value = entry.data.steps;
+    if (entry) {
+      mood.value = entry.data.mood;
+      text.value = entry.data.text;
+      entryActivities.value = entry.activities;
+      steps.value = entry.data.steps;
+    }
   } else {
     mood.value = 2;
     text.value = '';
@@ -63,7 +62,7 @@ const encryptionBlock = ref(false);
 
 fileStore.on('decrypted', () => {
   encryptionBlock.value = false;
-  text.value = journals[formatDate(date.value)].data.text;
+  text.value = journals[formatDate(date.value)]?.data.text ?? '';
 });
 
 onMounted(() => {
@@ -84,22 +83,22 @@ onMounted(() => {
 <template>
   <v-main class="main">
     <v-btn
-      icon
       flat
+      icon
       @click="setDate(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1))"
     >
       <v-icon>mdi-arrow-left</v-icon>
     </v-btn>
     <v-btn
-      icon
       flat
+      icon
       @click="setDate(new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1))"
     >
       <v-icon>mdi-arrow-right</v-icon>
     </v-btn>
     <h1 class="header">
       {{ date.toISOString() }}
-      <mood-icon :mood="mood"></mood-icon>
+      <mood-icon :mood="mood" />
       <v-btn
         icon
         @click="
@@ -123,63 +122,58 @@ onMounted(() => {
     <v-chip
       v-for="activity in entryActivities"
       :key="activity.Id"
-      :text="activity.data.name"
       :prepend-icon="activity.data.icon"
-    ></v-chip>
+      :text="activity.data.name"
+    />
     {{ steps }} Steps<br />
     <div v-if="encryptionBlock">
       <h3>Journal entries are encrypted!</h3>
-      <v-btn @click="decryptDialog = true" color="primary">Decrypt Entries</v-btn>
+      <v-btn color="primary" @click="decryptDialog = true">Decrypt Entries</v-btn>
     </div>
     <MarkdownEditor
       v-else
       :text="text"
       @save="
-        async (newText) => {
-          await createJournalEntry(
-            formatDate(date),
-            mood,
-            newText,
-            entryActivities,
-            steps,
-          );
+        async newText => {
+          await createJournalEntry(formatDate(date), mood, newText, entryActivities, steps);
           createText = newText;
         }
       "
-    ></MarkdownEditor>
+    />
   </v-main>
   <v-dialog v-model="createDialog">
     <v-card>
       <v-card-title>Add an Entry</v-card-title>
       <v-card-text>
-        <v-date-input label="Date" v-model="createDate"></v-date-input>
+        <v-date-input v-model="createDate" label="Date" />
         <v-select
-          label="Mood"
-          :items="moods"
+          v-model="createMood"
           item-title="label"
           item-value="value"
-          v-model="createMood"
+          :items="moods"
+          label="Mood"
         >
-          <template v-slot:item="{ item, props }">
-            <v-list-item v-bind="props" :style="{ color: item.raw.color }"></v-list-item>
+          <template #item="{ item, props: lprops }">
+            <v-list-item v-bind="lprops" :style="{ color: item.raw.color }" />
           </template>
         </v-select>
-        <v-chip-group multiple column selected-class="text-primary" v-model="createActivities">
+        <v-chip-group v-model="createActivities" column multiple selected-class="text-primary">
           <v-chip
             v-for="activity in localActivities"
             :key="activity.Id"
-            :text="activity.data.name"
             :prepend-icon="activity.data.icon"
-          ></v-chip>
+            :text="activity.data.name"
+          />
           <v-btn flat icon @click="activityDialog = true">
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </v-chip-group>
-        <v-text-field v-model="createSteps" label="Steps"></v-text-field>
+        <v-text-field v-model="createSteps" label="Steps" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>
         <v-btn
+          color="primary"
           @click="
             async () => {
               // TODO: The way this is set up, when you modify activities after typing in the text area,
@@ -188,7 +182,9 @@ onMounted(() => {
                 formatDate(createDate),
                 createMood,
                 createText,
-                createActivities.map((i) => Object.values(activities)[i]),
+                createActivities
+                  .map(i => Object.values(activities)[i])
+                  .filter(i => i !== undefined),
                 Number(createSteps),
               );
               mood = createMood;
@@ -201,9 +197,9 @@ onMounted(() => {
               createSteps = '0';
             }
           "
-          color="primary"
-          >Save</v-btn
         >
+          Save
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -211,12 +207,13 @@ onMounted(() => {
     <v-card>
       <v-card-title>Add Activity</v-card-title>
       <v-card-text>
-        <v-text-field v-model="activityName" label="Name"></v-text-field>
-        <v-text-field v-model="activityIcon" label="Icon"></v-text-field>
+        <v-text-field v-model="activityName" label="Name" />
+        <v-text-field v-model="activityIcon" label="Icon" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="activityDialog = false">Cancel</v-btn>
         <v-btn
+          color="primary"
           @click="
             async () => {
               const a = await createActivity(activityName, activityIcon);
@@ -226,13 +223,13 @@ onMounted(() => {
               localActivities.push(a);
             }
           "
-          color="primary"
-          >Save</v-btn
         >
+          Save
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
-  <DecryptionDialog :value="decryptDialog"></DecryptionDialog>
+  <DecryptionDialog :value="decryptDialog" />
 </template>
 
 <style scoped>

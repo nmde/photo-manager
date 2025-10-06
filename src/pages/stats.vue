@@ -1,45 +1,38 @@
 <script setup lang="ts">
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LineElement,
-  LinearScale,
-  PointElement,
-  Tooltip,
-  Title,
-  BarElement,
-} from 'chart.js';
-import { Scatter, Line, Bar } from 'vue-chartjs';
-import { ref, onMounted } from 'vue';
-import { fileStore, formatDate } from '../stores/fileStore';
-import SearchInput from '../components/SearchInput.vue';
 import type { Photo } from '../classes/Photo';
+import {
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  LinearScale,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+} from 'chart.js';
+import { onMounted, ref } from 'vue';
+import { Bar, Line } from 'vue-chartjs';
+import { fileStore } from '../stores/fileStore';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, BarElement);
 
-const {
-  people,
-  peopleCategories,
-  dateMap,
-  places,
-  layers,
-  tags,
-  getTagColor,
-  journals,
-  query,
-  search,
-} = fileStore;
+const { people, peopleCategories, query, search } = fileStore;
 
 let targetFiles: Photo[] = [];
 
+type Target = {
+  title: string;
+  value: string | number;
+};
+
 const targetFileCount = ref(0);
-const targetOptions = ref([
+const targetOptions = ref<Target[]>([
   {
     title: 'People',
     value: 'people',
   },
 ]);
-const typeOptions = ref({
+const typeOptions = ref<Record<string, Target[]>>({
   people: [
     {
       title: 'Count',
@@ -51,7 +44,7 @@ const typeOptions = ref({
     },
   ],
 });
-const precisionOptions = ref([
+const precisionOptions = ref<Target[]>([
   {
     title: 'Year',
     value: 0,
@@ -72,7 +65,7 @@ const precision = ref(0);
 const running = ref(false);
 const hasResults = ref(false);
 
-fileStore.on('search', (results) => {
+fileStore.on('search', results => {
   targetFiles = results;
   targetFileCount.value = results.length;
 });
@@ -85,38 +78,46 @@ const chartData = ref<{
   datasets: [],
 });
 
+type Dataset = {
+  label: string;
+  backgroundColor: string[];
+  data: any[];
+};
+
 function runCount() {
   const keyMap: Record<string, number> = {};
   // Collect data
-  targetFiles.forEach((photo) => {
+  for (const photo of targetFiles) {
     if (graphTarget.value === 'people') {
-      photo.people.forEach((person) => {
+      for (const person of photo.people) {
         if (!keyMap[person]) {
           keyMap[person] = 0;
         }
         keyMap[person] += 1;
-      });
+      }
     }
-  });
-  const results = Object.entries(keyMap).sort((a, b) => b[1] - a[1]);
+  }
+  const results = Object.entries(keyMap).toSorted((a, b) => b[1] - a[1]);
 
   // Generate ChartJS datasets
   const labels: string[] = [];
-  const datasets: any[] = [
+  const datasets: Dataset[] = [
     {
       label: 'Count',
       backgroundColor: [],
       data: [],
     },
   ];
-  results.forEach((entry) => {
+  for (const entry of results) {
     if (graphTarget.value === 'people') {
       const p = people[entry[0]];
-      labels.push(p.data.name);
-      datasets[0].backgroundColor.push(peopleCategories[p.data.category].data.color);
-      datasets[0].data.push(entry[1]);
+      if (p) {
+        labels.push(p.data.name);
+        datasets[0]?.backgroundColor.push(peopleCategories[p.data.category]?.data.color ?? '');
+        datasets[0]?.data.push(entry[1]);
+      }
     }
-  });
+  }
 
   chartData.value = {
     labels,
@@ -132,9 +133,9 @@ function runTimeline() {
   let maxDate = new Date(1900, 0, 0);
   const totals: Record<string, number> = {};
   const keyMap: Record<string, Record<string, number>> = {};
-  targetFiles
-    .filter((photo) => photo.data.date.length > 0)
-    .sort((a, b) => {
+  for (const photo of targetFiles
+    .filter(photo => photo.data.date.length > 0)
+    .toSorted((a, b) => {
       if (a.date > b.date) {
         return 1;
       }
@@ -142,39 +143,38 @@ function runTimeline() {
         return -1;
       }
       return 0;
-    })
-    .forEach((photo) => {
-      if (photo.date < minDate) {
-        minDate = photo.date;
+  })) {
+    if (photo.date < minDate) {
+      minDate = photo.date;
+    }
+    if (photo.date > maxDate) {
+      maxDate = photo.date;
+    }
+    const year = photo.date.getFullYear();
+    let key = year.toString();
+    if (precision.value >= 1) {
+      const month = photo.date.getMonth();
+      key = `${year.toString()}/${month.toString()}`;
+      if (precision.value >= 2) {
+        key = `${year.toString()}/${month.toString()}/${photo.date.getDate().toString()}`;
       }
-      if (photo.date > maxDate) {
-        maxDate = photo.date;
-      }
-      const year = photo.date.getFullYear();
-      let key = `${year}`;
-      if (precision.value >= 1) {
-        const month = photo.date.getMonth();
-        key = `${year}/${month}`;
-        if (precision.value >= 2) {
-          key = `${year}/${month}/${photo.date.getDate()}`;
+    }
+    if (graphTarget.value === 'people') {
+      for (const person of photo.people) {
+        if (!keyMap[key]) {
+          keyMap[key] = {};
         }
+        if (!totals[person]) {
+          totals[person] = 0;
+        }
+        if (!keyMap[key]?.[person]) {
+          keyMap[key][person] = totals[person];
+        }
+        keyMap[key][person] += 1;
+        totals[person] += 1;
       }
-      if (graphTarget.value === 'people') {
-        photo.people.forEach((person) => {
-          if (!keyMap[key]) {
-            keyMap[key] = {};
-          }
-          if (!totals[person]) {
-            totals[person] = 0;
-          }
-          if (!keyMap[key][person]) {
-            keyMap[key][person] = totals[person];
-          }
-          keyMap[key][person] += 1;
-          totals[person] += 1;
-        });
-      }
-    });
+    }
+  }
 
   // Fill out timeline
   const labels: string[] = [];
@@ -182,15 +182,15 @@ function runTimeline() {
   let x = 0;
   for (let year = minDate.getFullYear(); year <= maxDate.getFullYear(); year += 1) {
     if (precision.value === 0) {
-      const key = `${year}`;
+      const key = year.toString();
       labels.push(key);
       if (keyMap[key]) {
-        Object.entries(keyMap[key]).forEach(([person, value]) => {
+        for (const [person, value] of Object.entries(keyMap[key])) {
           if (!timeline[person]) {
             timeline[person] = [];
           }
           timeline[person][x] = value;
-        });
+        }
       }
       x += 1;
     } else {
@@ -204,15 +204,15 @@ function runTimeline() {
       }
       for (month; month <= stopMonth; month += 1) {
         if (precision.value === 1) {
-          const key = `${year}/${month}`;
+          const key = `${year.toString()}/${month.toString()}`;
           labels.push(key);
           if (keyMap[key]) {
-            Object.entries(keyMap[key]).forEach(([person, value]) => {
+            for (const [person, value] of Object.entries(keyMap[key])) {
               if (!timeline[person]) {
                 timeline[person] = [];
               }
               timeline[person][x] = value;
-            });
+            }
           }
           x += 1;
         } else {
@@ -225,15 +225,15 @@ function runTimeline() {
             stopDay = maxDate.getDate();
           }
           for (day; day <= stopDay; day += 1) {
-            const key = `${year}/${month}/${day}`;
+            const key = `${year.toString()}/${month.toString()}/${day.toString()}`;
             labels.push(key);
             if (keyMap[key]) {
-              Object.entries(keyMap[key]).forEach(([person, value]) => {
+              for (const [person, value] of Object.entries(keyMap[key])) {
                 if (!timeline[person]) {
                   timeline[person] = [];
                 }
                 timeline[person][x] = value;
-              });
+              }
             }
             x += 1;
           }
@@ -245,15 +245,18 @@ function runTimeline() {
   // Generate datasets from timeline
   const datasets: any[] = [];
   console.log(timeline);
-  Object.entries(timeline).forEach(([person, data]) => {
-    datasets.push({
-      label: people[person].data.name,
-      backgroundColor: peopleCategories[people[person].data.category].data.color,
-      borderColor: peopleCategories[people[person].data.category].data.color,
-      data,
-      spanGaps: true,
-    });
-  });
+  for (const [person, data] of Object.entries(timeline)) {
+    const c = people[person]?.data.category;
+    if (c) {
+      datasets.push({
+        label: people[person]?.data.name,
+        backgroundColor: peopleCategories[c]?.data.color,
+        borderColor: peopleCategories[c]?.data.color,
+        data,
+        spanGaps: true,
+      });
+    }
+  }
 
   chartData.value = {
     labels,
@@ -263,16 +266,16 @@ function runTimeline() {
   running.value = false;
 }
 
-onMounted(async () => {
-  await search();
+onMounted(() => {
+  search();
 });
 </script>
 
 <template>
   <v-main>
-    <v-container fluid class="fill-height">
+    <v-container class="fill-height" fluid>
       <v-row class="fill-height">
-        <v-col cols="8" class="fill-height">
+        <v-col class="fill-height" cols="8">
           <template v-if="hasResults">
             <Bar
               v-if="graphType === 'count'"
@@ -280,32 +283,31 @@ onMounted(async () => {
               :options="{
                 maintainAspectRatio: false,
               }"
-            ></Bar>
-            <Line v-if="graphType === 'timeline'" :data="chartData"></Line>
+            />
+            <Line v-if="graphType === 'timeline'" :data="chartData" />
           </template>
         </v-col>
         <v-col cols="4">
-          <SearchInput :value="query"></SearchInput> Computing stats for
-          {{ targetFileCount }} photos.
+          <SearchInput :value="query" /> Computing stats for {{ targetFileCount }} photos.
           <v-select
-            :disabled="running"
-            label="Statistic"
             v-model="graphTarget"
+            :disabled="running"
             :items="targetOptions"
-          ></v-select>
+            label="Statistic"
+          />
           <v-select
             v-if="typeOptions[graphTarget]"
-            :disabled="running"
-            label="Type"
-            :items="typeOptions[graphTarget]"
             v-model="graphType"
-          ></v-select>
+            :disabled="running"
+            :items="typeOptions[graphTarget]"
+            label="Type"
+          />
           <v-select
             v-if="graphType === 'timeline'"
-            :items="precisionOptions"
             v-model="precision"
+            :items="precisionOptions"
             label="Precision"
-          ></v-select>
+          />
           <v-btn
             :loading="running"
             @click="
@@ -318,8 +320,9 @@ onMounted(async () => {
                 }
               }
             "
-            >Run</v-btn
           >
+            Run
+          </v-btn>
         </v-col>
       </v-row>
     </v-container>

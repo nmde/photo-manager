@@ -39,10 +39,7 @@ export class Photo extends Entity<PhotoData> {
   }
 
   public get group() {
-    if (this.data.photoGroup.length === 0) {
-      return undefined;
-    }
-    return this.data.photoGroup;
+    return this.data.photoGroup.length === 0 ? undefined : this.data.photoGroup;
   }
 
   public get hasLocation() {
@@ -50,14 +47,7 @@ export class Photo extends Entity<PhotoData> {
   }
 
   public get tags() {
-    if (this.data.tags.length === 0) {
-      return [];
-    }
-    return this.data.tags.split(',');
-  }
-
-  public set tags(value: string[]) {
-    this.data.tags = value.join(',');
+    return this.data.tags.length === 0 ? [] : this.data.tags.split(',');
   }
 
   public get rating() {
@@ -77,28 +67,29 @@ export class Photo extends Entity<PhotoData> {
     return this.data.date.length > 0;
   }
 
+  public get date() {
+    return new Date(this.data.date);
+  }
+
+  public get people() {
+    return this.data.people.length === 0 ? [] : this.data.people.split(',');
+  }
+
+  public set tags(value: string[]) {
+    this.data.tags = value.join(',');
+  }
+
+  public set people(people: string[]) {
+    this.data.people = people.join(',');
+  }
+
   /**
    * Checks if this photo has the specified tag.
    * @param tag - The tag to check for.
    * @returns If this photo has the specified tag.
    */
   public hasTag(tag: string) {
-    return this.tags.indexOf(tag) >= 0;
-  }
-
-  public get date() {
-    return new Date(this.data.date);
-  }
-
-  public get people() {
-    if (this.data.people === null || this.data.people.length === 0) {
-      return [];
-    }
-    return this.data.people.split(',');
-  }
-
-  public set people(people: string[]) {
-    this.data.people = people.join(',');
+    return this.tags.includes(tag);
   }
 }
 

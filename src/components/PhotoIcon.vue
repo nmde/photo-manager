@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import type { Photo } from '../classes/Photo';
 import { computed } from 'vue';
-import { Photo } from '../classes/Photo';
 import hiddenPng from '../assets/hidden.png';
 
 const props = defineProps<{
@@ -15,9 +15,7 @@ const emit = defineEmits<{
   (e: 'select'): void;
 }>();
 
-const hasThumbnail = computed(() => {
-  return props.photo.data.video || props.photo.data.raw;
-});
+const hasThumbnail = computed(() => props.photo.data.video || props.photo.data.raw);
 
 const photoPath = computed(() => {
   if (props.photo.data.hideThumbnail) {
@@ -50,20 +48,20 @@ const displayName = computed(() => {
   >
     <v-card @click="emit('select')">
       <v-progress-circular
+        v-if="hasThumbnail && photo.data.thumbnail.length === 0"
         class="thumbnail-loading"
         indeterminate
-        v-if="hasThumbnail && photo.data.thumbnail.length === 0"
-      ></v-progress-circular>
+      />
       <v-img
-        class="photo-preview align-end text-white"
         aspect-ratio="1/1"
-        :width="size"
-        :height="size"
+        class="photo-preview align-end text-white"
         cover
+        :height="size"
         :src="photoPath"
+        :width="size"
       >
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
-        <div class="icons" v-if="props.hideIcons !== true">
+        <div v-if="props.hideIcons !== true" class="icons">
           <div v-if="props.photo.hasRating">
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>

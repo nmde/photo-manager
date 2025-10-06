@@ -34,7 +34,7 @@ const colors = [
       class="color-opt"
       :style="{ 'background-color': color }"
       @click="emit('select', color)"
-    ></div>
+    />
   </div>
 </template>
 
