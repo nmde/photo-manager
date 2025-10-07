@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { WikiItem } from '@/types/WikiItem';
+  import type { WikiItem } from '@/types/WikiItem';
 
-defineProps<{
-  page: WikiItem;
-}>();
+  defineProps<{
+    page: WikiItem;
+  }>();
 </script>
 
 <template>

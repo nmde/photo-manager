@@ -1,83 +1,83 @@
 <script lang="ts" setup>
-import type { Activity } from '@/classes/Activity';
-import { onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import { fileStore, formatDate, moods } from '@/stores/fileStore';
+  import type { Activity } from '@/classes/Activity';
+  import { onMounted, ref } from 'vue';
+  import { useRoute } from 'vue-router';
+  import { fileStore, formatDate, moods } from '@/stores/fileStore';
 
-const route = useRoute('/journal/[date]');
+  const route = useRoute('/journal/[date]');
 
-const {
-  createJournalEntry,
-  journals,
-  activities,
-  createActivity,
-  setCalendarViewDate,
-  calendarViewDate,
-  encrypted,
-} = fileStore;
+  const {
+    createJournalEntry,
+    journals,
+    activities,
+    createActivity,
+    setCalendarViewDate,
+    calendarViewDate,
+    encrypted,
+  } = fileStore;
 
-function simplifyDate(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
+  function simplifyDate(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
 
-const createDialog = ref(false);
-const createDate = ref(simplifyDate(new Date()));
-const createMood = ref(2);
-const createText = ref('');
-const createActivities = ref<number[]>([]);
-const createSteps = ref('0');
+  const createDialog = ref(false);
+  const createDate = ref(simplifyDate(new Date()));
+  const createMood = ref(2);
+  const createText = ref('');
+  const createActivities = ref<number[]>([]);
+  const createSteps = ref('0');
 
-const date = ref(simplifyDate(new Date()));
-const mood = ref(2);
-const text = ref('');
-const entryActivities = ref<Activity[]>([]);
-const steps = ref(0);
+  const date = ref(simplifyDate(new Date()));
+  const mood = ref(2);
+  const text = ref('');
+  const entryActivities = ref<Activity[]>([]);
+  const steps = ref(0);
 
-function setDate(d: Date) {
-  date.value = simplifyDate(d);
-  if (journals[formatDate(date.value)]) {
-    const entry = journals[formatDate(date.value)];
-    if (entry) {
-      mood.value = entry.data.mood;
-      text.value = entry.data.text;
-      entryActivities.value = entry.activities;
-      steps.value = entry.data.steps;
+  function setDate(d: Date) {
+    date.value = simplifyDate(d);
+    if (journals[formatDate(date.value)]) {
+      const entry = journals[formatDate(date.value)];
+      if (entry) {
+        mood.value = entry.mood;
+        text.value = entry.displayText;
+        entryActivities.value = entry.activities;
+        steps.value = entry.steps;
+      }
+    } else {
+      mood.value = 2;
+      text.value = '';
+      entryActivities.value = [];
+      steps.value = 0;
     }
-  } else {
-    mood.value = 2;
-    text.value = '';
-    entryActivities.value = [];
-    steps.value = 0;
+    setCalendarViewDate(date.value);
   }
-  setCalendarViewDate(date.value);
-}
 
-const activityDialog = ref(false);
-const activityName = ref('');
-const activityIcon = ref('');
-const localActivities = ref<Activity[]>([]);
+  const activityDialog = ref(false);
+  const activityName = ref('');
+  const activityIcon = ref('');
+  const localActivities = ref<Activity[]>([]);
 
-const decryptDialog = ref(false);
-const encryptionBlock = ref(false);
+  const decryptDialog = ref(false);
+  const encryptionBlock = ref(false);
 
-fileStore.on('decrypted', () => {
-  encryptionBlock.value = false;
-  text.value = journals[formatDate(date.value)]?.data.text ?? '';
-});
+  fileStore.on('decrypted', () => {
+    encryptionBlock.value = false;
+    text.value = journals[formatDate(date.value)]?.displayText ?? '';
+  });
 
-onMounted(() => {
-  if (typeof route.params.date === 'string') {
-    const split = route.params.date.split('-');
-    date.value = simplifyDate(new Date(Number(split[0]), Number(split[1]) - 1, Number(split[2])));
-  } else {
-    date.value = calendarViewDate;
-  }
-  setDate(date.value);
-  localActivities.value = Object.values(activities);
-  if (encrypted) {
-    encryptionBlock.value = true;
-  }
-});
+  onMounted(() => {
+    if (typeof route.params.date === 'string') {
+      const split = route.params.date.split('-');
+      date.value = simplifyDate(new Date(Number(split[0]), Number(split[1]) - 1, Number(split[2])));
+    } else {
+      date.value = calendarViewDate;
+    }
+    setDate(date.value);
+    localActivities.value = Object.values(activities);
+    if (encrypted) {
+      encryptionBlock.value = true;
+    }
+  });
 </script>
 
 <template>
@@ -108,7 +108,7 @@ onMounted(() => {
             createText = text;
             const a: number[] = [];
             Object.values(entryActivities).forEach((activity) => {
-              a.push(Object.keys(activities).indexOf(activity.Id));
+              a.push(Object.keys(activities).indexOf(activity.id));
             });
             createActivities = a;
             createSteps = `${steps}`;
@@ -121,11 +121,11 @@ onMounted(() => {
     </h1>
     <v-chip
       v-for="activity in entryActivities"
-      :key="activity.Id"
-      :prepend-icon="activity.data.icon"
-      :text="activity.data.name"
+      :key="activity.id"
+      :prepend-icon="activity.icon"
+      :text="activity.name"
     />
-    {{ steps }} Steps<br />
+    {{ steps }} Steps<br>
     <div v-if="encryptionBlock">
       <h3>Journal entries are encrypted!</h3>
       <v-btn color="primary" @click="decryptDialog = true">Decrypt Entries</v-btn>
@@ -160,9 +160,9 @@ onMounted(() => {
         <v-chip-group v-model="createActivities" column multiple selected-class="text-primary">
           <v-chip
             v-for="activity in localActivities"
-            :key="activity.Id"
-            :prepend-icon="activity.data.icon"
-            :text="activity.data.name"
+            :key="activity.id"
+            :prepend-icon="activity.icon"
+            :text="activity.name"
           />
           <v-btn flat icon @click="activityDialog = true">
             <v-icon>mdi-plus</v-icon>
@@ -233,15 +233,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.main {
-  margin: 8px;
-}
+  .main {
+    margin: 8px;
+  }
 
-.header {
-  display: flex;
-}
+  .header {
+    display: flex;
+  }
 
-.entry-text {
-  white-space: pre-wrap;
-}
+  .entry-text {
+    white-space: pre-wrap;
+  }
 </style>

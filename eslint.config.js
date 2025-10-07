@@ -67,13 +67,6 @@ export default defineConfig(
           multiline: 'consistent',
         },
       ],
-
-      'vue/script-indent': ['warn', 2, {
-        baseIndent: 0,
-        switchCase: 1,
-      }],
-
-      'vue/html-self-closing': 'off',
     },
   },
 );

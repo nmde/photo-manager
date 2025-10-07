@@ -1,15 +1,17 @@
-import { Entity } from './Entity';
-
 export type SettingKey = 'encrypt' | 'theme';
 
-type SettingData = {
-  setting: SettingKey;
-  value: boolean | string;
-};
+export class Setting {
+  public constructor(
+    private id: string,
+    private _setting: SettingKey,
+    private _value: boolean | string,
+  ) {}
 
-export class Setting extends Entity<SettingData> {
-  public constructor(data: SettingData) {
-    super('Setting', data);
-    this.primaryKey = 'setting';
+  public get setting() {
+    return this._setting;
+  }
+
+  public get value() {
+    return this._value;
   }
 }

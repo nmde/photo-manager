@@ -11,7 +11,7 @@ export class Graph {
     return this.nodes.find(n => n.label === key);
   }
 
-  public sort(fn?: (a: string, b: string) => number) {
+  public toSorted(fn?: (a: string, b: string) => number) {
     let sorted: string[] = [];
     let i = 0;
     const max = this.nodes.length;

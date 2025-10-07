@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { fileStore } from '../stores/fileStore';
+  import { ref, watch } from 'vue';
+  import { fileStore } from '../stores/fileStore';
 
-const { decryptJournalEntries } = fileStore;
+  const { decryptJournalEntries } = fileStore;
 
-const props = defineProps<{
-  value: boolean;
-}>();
+  const props = defineProps<{
+    value: boolean;
+  }>();
 
-const password = ref('');
-const decrypting = ref(false);
-const decryptDialog = ref(false);
+  const password = ref('');
+  const decrypting = ref(false);
+  const decryptDialog = ref(false);
 
-watch(props, () => {
-  decryptDialog.value = props.value;
-});
+  watch(props, () => {
+    decryptDialog.value = props.value;
+  });
 </script>
 
 <template>

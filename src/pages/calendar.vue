@@ -1,131 +1,131 @@
 <script setup lang="ts">
-import type { Photo } from '../classes/Photo';
-import type { Place } from '../classes/Place';
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { fileStore, formatDate, moods } from '../stores/fileStore';
+  import type { Photo } from '../classes/Photo';
+  import type { Place } from '../classes/Place';
+  import { computed, onMounted, ref } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { fileStore, formatDate, moods } from '../stores/fileStore';
 
-const router = useRouter();
+  const router = useRouter();
 
-const jumpDate = ref<Date>(new Date());
-const date = ref<Date[]>([new Date()]);
-const dayDialog = ref(false);
-const dialogDate = ref<Date>(new Date());
+  const jumpDate = ref<Date>(new Date());
+  const date = ref<Date[]>([new Date()]);
+  const dayDialog = ref(false);
+  const dialogDate = ref<Date>(new Date());
 
-const { files, calendarViewDate, setCalendarViewDate, places, layers, journals } = fileStore;
+  const { files, calendarViewDate, setCalendarViewDate, places, layers, journals } = fileStore;
 
-let eventMap: Record<
-  string,
-  {
-    date: Date;
+  let eventMap: Record<
+    string,
+    {
+      date: Date;
+      photos: Photo[];
+    }
+  > = {};
+  function buildEventMap() {
+    eventMap = {};
+    const groups: string[] = [];
+    for (const photo of Object.values(files)) {
+      if (
+        (photo.hasDate && photo.group === undefined) ||
+        (photo.group && !groups.includes(photo.group))
+      ) {
+        const k = photo.date.toISOString();
+        if (!eventMap[k]) {
+          eventMap[k] = { date: photo.date, photos: [] };
+        }
+        eventMap[k].photos.push(photo);
+        eventMap[k].photos.sort((a, b) => {
+          if (!b.rating) {
+            return -1;
+          }
+          if (!a.rating) {
+            return 1;
+          }
+          if (a.rating > b.rating) {
+            return -1;
+          }
+          if (a.rating < b.rating) {
+            return 1;
+          }
+          return 0;
+        });
+        if (photo.group !== undefined) {
+          groups.push(photo.group);
+        }
+      }
+    }
+    const year = date.value[0]?.getFullYear();
+    const month = date.value[0]?.getMonth();
+    if (year && month) {
+      for (let i = 1; i <= new Date(year, month + 1, 0).getDate(); i += 1) {
+        const d = new Date(year, month, i);
+        const k = d.toISOString();
+        if (!eventMap[k]) {
+          eventMap[k] = {
+            date: d,
+            photos: [],
+          };
+        }
+      }
+    }
+  }
+
+  type Event = {
+    start: Date;
+    end: Date;
+    allDay: boolean;
     photos: Photo[];
-  }
-> = {};
-function buildEventMap() {
-  eventMap = {};
-  const groups: string[] = [];
-  for (const photo of Object.values(files)) {
-    if (
-      (photo.data.date.length > 0 && photo.group === undefined) ||
-      (photo.group && !groups.includes(photo.group))
-    ) {
-      const k = photo.date.toISOString();
-      if (!eventMap[k]) {
-        eventMap[k] = { date: photo.date, photos: [] };
-      }
-      eventMap[k].photos.push(photo);
-      eventMap[k].photos.sort((a, b) => {
-        if (!b.rating) {
-          return -1;
-        }
-        if (!a.rating) {
-          return 1;
-        }
-        if (a.rating > b.rating) {
-          return -1;
-        }
-        if (a.rating < b.rating) {
-          return 1;
-        }
-        return 0;
+  };
+
+  const events = computed(() => {
+    const events: Event[] = [];
+    buildEventMap();
+    for (const event of Object.values(eventMap)) {
+      events.push({
+        start: event.date,
+        end: event.date,
+        allDay: true,
+        photos: event.photos,
       });
-      if (photo.group !== undefined) {
-        groups.push(photo.group);
-      }
     }
-  }
-  const year = date.value[0]?.getFullYear();
-  const month = date.value[0]?.getMonth();
-  if (year && month) {
-    for (let i = 1; i <= new Date(year, month + 1, 0).getDate(); i += 1) {
-      const d = new Date(year, month, i);
-      const k = d.toISOString();
-      if (!eventMap[k]) {
-        eventMap[k] = {
-          date: d,
-          photos: [],
-        };
-      }
-    }
-  }
-}
+    return events;
+  });
 
-type Event = {
-  start: Date;
-  end: Date;
-  allDay: boolean;
-  photos: Photo[];
-};
-
-const events = computed(() => {
-  const events: Event[] = [];
-  buildEventMap();
-  for (const event of Object.values(eventMap)) {
-    events.push({
-      start: event.date,
-      end: event.date,
-      allDay: true,
-      photos: event.photos,
-    });
-  }
-  return events;
-});
-
-function getLocationsByDate(date: Date) {
-  const locations: Place[] = [];
-  const photos = eventMap[date.toISOString()]?.photos;
-  if (photos) {
-    for (const photo of photos) {
-      if (photo.hasLocation) {
-        const place = places[photo.data.location];
-        if (place && !locations.some(p => p.Id === place.Id)) {
-          locations.push(place);
+  function getLocationsByDate(date: Date) {
+    const locations: Place[] = [];
+    const photos = eventMap[date.toISOString()]?.photos;
+    if (photos) {
+      for (const photo of photos) {
+        if (photo.hasLocation) {
+          const place = places[photo.location];
+          if (place && !locations.some(p => p.id === place.id)) {
+            locations.push(place);
+          }
         }
       }
     }
+    return locations;
   }
-  return locations;
-}
 
-function getAvgRatingByDate(date: Date) {
-  let sum = 0;
-  let count = 0;
-  const photos = eventMap[date.toISOString()]?.photos;
-  if (photos) {
-    for (const photo of photos) {
-      if (photo.rating) {
-        sum += photo.rating;
-        count += 1;
+  function getAvgRatingByDate(date: Date) {
+    let sum = 0;
+    let count = 0;
+    const photos = eventMap[date.toISOString()]?.photos;
+    if (photos) {
+      for (const photo of photos) {
+        if (photo.rating) {
+          sum += photo.rating;
+          count += 1;
+        }
       }
     }
+    return sum / count;
   }
-  return sum / count;
-}
 
-onMounted(() => {
-  console.log(calendarViewDate);
-  date.value[0] = calendarViewDate;
-});
+  onMounted(() => {
+    console.log(calendarViewDate);
+    date.value[0] = calendarViewDate;
+  });
 </script>
 
 <template>
@@ -163,7 +163,7 @@ onMounted(() => {
                 :class="{ 'event-bg': true, 'event-bg-half': ((event as Event).photos?.length ?? 0) < 3 }"
                 :style="{
                   backgroundColor:
-                    moods[journals[formatDate(day?.date ?? new Date())]?.data.mood ?? 0]?.color,
+                    moods[journals[formatDate(day?.date ?? new Date())]?.mood ?? 0]?.color,
                 }"
                 @click="
                   () => {
@@ -175,7 +175,7 @@ onMounted(() => {
               <div class="calendar-photos">
                 <photo-icon
                   v-for="photo in (event as Event)?.photos.slice(0, 4)"
-                  :key="photo.Id"
+                  :key="photo.id"
                   hide-icons
                   :photo="photo"
                   :size="100"
@@ -208,7 +208,7 @@ onMounted(() => {
           {{ dialogDate.toDateString() }}
           <mood-icon
             v-if="journals[formatDate(dialogDate)]"
-            :mood="journals[formatDate(dialogDate)]?.data.mood ?? 0"
+            :mood="journals[formatDate(dialogDate)]?.mood ?? 0"
           />
         </v-card-title>
         <v-card-text>
@@ -217,7 +217,7 @@ onMounted(() => {
               <v-col cols="6">
                 <photo-icon
                   v-for="photo in eventMap[dialogDate.toISOString()]?.photos.slice(0, 20)"
-                  :key="photo.Id"
+                  :key="photo.id"
                   hide-icons
                   :photo="photo"
                   :size="100"
@@ -231,15 +231,15 @@ onMounted(() => {
               <v-col cols="6">
                 <v-chip
                   v-for="place in getLocationsByDate(dialogDate)"
-                  :key="place.Id"
-                  :color="layers[place.data.layer]?.data.color"
+                  :key="place.id"
+                  :color="layers[place.layer]?.color"
                 >
-                  {{ place.data.name }}
+                  {{ place.name }}
                 </v-chip>
                 <div v-if="(eventMap[dialogDate.toISOString()]?.photos.length ?? 0) > 0">
-                  <br />
+                  <br>
                   Total photos: {{ eventMap[dialogDate.toISOString()]?.photos.length }}
-                  <br />
+                  <br>
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
               </v-col>
@@ -264,20 +264,20 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.focus {
-  height: 200px;
-  width: 200px;
-  display: block;
-}
+  .focus {
+    height: 200px;
+    width: 200px;
+    display: block;
+  }
 
-.event-bg {
-  width: 100%;
-  height: 214px;
-  position: absolute;
-  opacity: 0.5;
-}
+  .event-bg {
+    width: 100%;
+    height: 214px;
+    position: absolute;
+    opacity: 0.5;
+  }
 
-.event-bg-half {
-  height: 118px;
-}
+  .event-bg-half {
+    height: 118px;
+  }
 </style>

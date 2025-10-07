@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { fileStore } from '../stores/fileStore';
+  import { computed, ref } from 'vue';
+  import { fileStore } from '../stores/fileStore';
 
-const { encryptJournalEntries, settings, addCamera, cameras, theme, toggleTheme } = fileStore;
+  const { encryptJournalEntries, settings, addCamera, cameras, theme, toggleTheme } = fileStore;
 
-const encryptDialog = ref(false);
-const password = ref('');
-const passwordError = ref('');
-const encrypting = ref(false);
-const encryptionProgress = ref(0);
+  const encryptDialog = ref(false);
+  const password = ref('');
+  const passwordError = ref('');
+  const encrypting = ref(false);
+  const encryptionProgress = ref(0);
 
-const cameraDialog = ref(false);
-const cameraName = ref('');
-const cameraList = computed(() => Object.values(cameras).toSorted((a, b) => b.count - a.count));
+  const cameraDialog = ref(false);
+  const cameraName = ref('');
+  const cameraList = computed(() => Object.values(cameras).toSorted((a, b) => b.count - a.count));
 
-fileStore.on('encryptionProgress', amount => {
-  encryptionProgress.value = amount;
-});
+  fileStore.on('encryptionProgress', amount => {
+    encryptionProgress.value = amount;
+  });
 </script>
 
 <template>
@@ -25,8 +25,8 @@ fileStore.on('encryptionProgress', amount => {
     <v-btn @click="toggleTheme()">{{ theme ? 'Dark Mode' : 'Light Mode' }}</v-btn>
     <h3>Cameras</h3>
     <v-btn color="primary" @click="cameraDialog = true">Add Camera</v-btn>
-    <div v-for="camera in cameraList" :key="camera.Id">
-      {{ camera.data.name }} ({{ camera.count }})
+    <div v-for="camera in cameraList" :key="camera.id">
+      {{ camera.name }} ({{ camera.count }})
     </div>
     <h3>Encrypt Journal Entries</h3>
     <div v-if="settings.encrypt">Journal entries are encrypted.</div>
@@ -111,7 +111,7 @@ fileStore.on('encryptionProgress', amount => {
 </template>
 
 <style>
-.main {
-  margin: 8px;
-}
+  .main {
+    margin: 8px;
+  }
 </style>

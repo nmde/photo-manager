@@ -1,26 +1,26 @@
 <script setup lang="ts">
-const emit = defineEmits<{
-  (e: 'select', color: string): void;
-}>();
+  const emit = defineEmits<{
+    (e: 'select', color: string): void;
+  }>();
 
-const colors = [
-  '#F44336',
-  '#E91E63',
-  '#9C27B0',
-  '#673AB7',
-  '#3F51B5',
-  '#2196F3',
-  '#03A9F4',
-  '#00BCD4',
-  '#009688',
-  '#4CAF50',
-  '#8BC34A',
-  '#CDDC39',
-  '#FFEB3B',
-  '#FFC107',
-  '#FF9800',
-  '#FF5722',
-];
+  const colors = [
+    '#F44336',
+    '#E91E63',
+    '#9C27B0',
+    '#673AB7',
+    '#3F51B5',
+    '#2196F3',
+    '#03A9F4',
+    '#00BCD4',
+    '#009688',
+    '#4CAF50',
+    '#8BC34A',
+    '#CDDC39',
+    '#FFEB3B',
+    '#FFC107',
+    '#FF9800',
+    '#FF5722',
+  ];
 </script>
 
 <template>
@@ -39,19 +39,19 @@ const colors = [
 </template>
 
 <style scoped>
-.color-opts {
-  display: flex;
-  height: 50px;
-}
+  .color-opts {
+    display: flex;
+    height: 50px;
+  }
 
-.color-opt {
-  cursor: pointer;
-  width: 100px;
-}
+  .color-opt {
+    cursor: pointer;
+    width: 100px;
+  }
 
-.clear-opt {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
+  .clear-opt {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 </style>

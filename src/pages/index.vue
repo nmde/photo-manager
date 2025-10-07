@@ -1,144 +1,144 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { createPhoto, type Photo } from '../classes/Photo';
-import { fileStore } from '../stores/fileStore';
+  import { ref } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { createPhoto, type Photo } from '../classes/Photo';
+  import { fileStore } from '../stores/fileStore';
 
-const router = useRouter();
-const {
-  setWorkingDir,
-  loadPhotos,
-  setFiles,
-  generateThumbnails,
-  groupRaws,
-  removeDeleted,
-  setFolderStructure,
-} = fileStore;
+  const router = useRouter();
+  const {
+    setWorkingDir,
+    loadPhotos,
+    setFiles,
+    generateThumbnails,
+    groupRaws,
+    removeDeleted,
+    setFolderStructure,
+  } = fileStore;
 
-const loading = ref(false);
-const deletedDialog = ref(false);
-const deleted = ref<string[]>([]);
-const initializing = ref(false);
-const initializingProgress = ref(0);
-const fileCount = ref(0);
-const reading = ref('');
+  const loading = ref(false);
+  const deletedDialog = ref(false);
+  const deleted = ref<string[]>([]);
+  const initializing = ref(false);
+  const initializingProgress = ref(0);
+  const fileCount = ref(0);
+  const reading = ref('');
 
-/**
- * Uses dir to quickly read a directory's contents.
- * @param path - The path to read.
- */
-async function readDir(path: string, top = true) {
-  const { join } = await import('@tauri-apps/api/path');
-  const { Command } = await import('@tauri-apps/plugin-shell');
-  console.log(`Reading ${path}`);
-  reading.value = path;
-  let files: string[] = [];
-  let dirs: string[] = [];
-  const output = await Command.create('cmd', ['/C', 'dir', path]).execute();
-  console.log(output.stdout);
-  if (output.stderr.length > 0) {
-    console.error(output.stderr);
-  } else {
-    const it = output.stdout.matchAll(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}.*$/gm);
-    let curr = it.next();
-    while (!curr.done) {
-      if (curr.value[0].indexOf('<DIR>') > 0) {
-        const dir = curr.value[0].replace(
-          /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
-          '',
-        );
-        if (!['.', '..'].includes(dir) && !dir.includes('.dropbox.cache')) {
-          dirs.push(await join(path, dir));
-        }
-      } else {
-        files.push(
-          await join(
-            path,
-            curr.value[0].replace(
-              /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/,
-              '',
+  /**
+   * Uses dir to quickly read a directory's contents.
+   * @param path - The path to read.
+   */
+  async function readDir(path: string, top = true) {
+    const { join } = await import('@tauri-apps/api/path');
+    const { Command } = await import('@tauri-apps/plugin-shell');
+    console.log(`Reading ${path}`);
+    reading.value = path;
+    let files: string[] = [];
+    let dirs: string[] = [];
+    const output = await Command.create('cmd', ['/C', 'dir', path]).execute();
+    console.log(output.stdout);
+    if (output.stderr.length > 0) {
+      console.error(output.stderr);
+    } else {
+      const it = output.stdout.matchAll(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}.*$/gm);
+      let curr = it.next();
+      while (!curr.done) {
+        if (curr.value[0].indexOf('<DIR>') > 0) {
+          const dir = curr.value[0].replace(
+            /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
+            '',
+          );
+          if (!['.', '..'].includes(dir) && !dir.includes('.dropbox.cache')) {
+            dirs.push(await join(path, dir));
+          }
+        } else {
+          files.push(
+            await join(
+              path,
+              curr.value[0].replace(
+                /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/,
+                '',
+              ),
             ),
-          ),
-        );
+          );
+        }
+        curr = it.next();
       }
-      curr = it.next();
+      if (top) {
+        fileCount.value += dirs.length;
+      }
+      for (const dir of dirs) {
+        const r = await readDir(dir, false);
+        files = files.concat(r.files);
+        dirs = dirs.concat(r.dirs);
+      }
     }
     if (top) {
-      fileCount.value += dirs.length;
+      initializingProgress.value += 1;
     }
-    for (const dir of dirs) {
-      const r = await readDir(dir, false);
-      files = files.concat(r.files);
-      dirs = dirs.concat(r.dirs);
-    }
+    return { dirs, files };
   }
-  if (top) {
-    initializingProgress.value += 1;
-  }
-  return { dirs, files };
-}
 
-/**
- * Prompts the user to select the folder to manage.
- */
-async function openFolder() {
-  loading.value = true;
-  const { open } = await import('@tauri-apps/plugin-dialog');
-  const { convertFileSrc } = await import('@tauri-apps/api/core');
-  const selected = await open({
-    directory: true,
-    multiple: false,
-  });
-  if (selected && typeof selected === 'string') {
-    initializing.value = true;
-    await setWorkingDir(selected);
-    const files: Record<string, Photo> = {};
-    const existing = { ...(await loadPhotos()) };
-    let fullFileList: string[] = [];
-    const raws: string[] = [];
-    const videos: string[] = [];
-    console.log('Loaded photos');
-    const folder = await readDir(selected);
-    setFolderStructure(folder);
-    fullFileList = folder.files;
-    console.log('Read dir');
-    const rawPhotos: Photo[] = [];
-    for (const file of fullFileList) {
-      if (existing[file]) {
-        files[file] = existing[file];
-        delete existing[file];
-      } else {
-        files[file] = createPhoto(file, convertFileSrc(file));
+  /**
+   * Prompts the user to select the folder to manage.
+   */
+  async function openFolder() {
+    loading.value = true;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { convertFileSrc } = await import('@tauri-apps/api/core');
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+    if (selected && typeof selected === 'string') {
+      initializing.value = true;
+      await setWorkingDir(selected);
+      const files: Record<string, Photo> = {};
+      const existing = { ...(await loadPhotos()) };
+      let fullFileList: string[] = [];
+      const raws: string[] = [];
+      const videos: string[] = [];
+      console.log('Loaded photos');
+      const folder = await readDir(selected);
+      setFolderStructure(folder);
+      fullFileList = folder.files;
+      console.log('Read dir');
+      const rawPhotos: Photo[] = [];
+      for (const file of fullFileList) {
+        if (existing[file]) {
+          files[file] = existing[file];
+          delete existing[file];
+        } else {
+          files[file] = createPhoto(file, convertFileSrc(file));
+        }
+        if (/^.*\.(ORF|NRW|HEIC|TIFF|TIF)$/.test(file.toUpperCase())) {
+          await files[file].setRaw(true);
+          raws.push(file);
+        } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$/.test(file.toUpperCase())) {
+          await files[file].setVideo(true);
+          videos.push(file);
+        }
+        if (files[file].raw) {
+          rawPhotos.push(files[file]);
+        }
       }
-      if (/^.*\.(ORF|NRW|HEIC|TIFF|TIF)$/.test(file.toUpperCase())) {
-        files[file].data.raw = true;
-        raws.push(file);
-      } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$/.test(file.toUpperCase())) {
-        files[file].data.video = true;
-        videos.push(file);
-      }
-      if (files[file].data.raw) {
-        rawPhotos.push(files[file]);
-      }
-    }
-    deleted.value = Object.keys(existing);
-    setFiles(files);
-    groupRaws(rawPhotos);
-    if (raws.length > 0 || videos.length > 0) {
-      await generateThumbnails(raws, videos);
-      if (deleted.value.length > 0) {
+      deleted.value = Object.keys(existing);
+      setFiles(files);
+      groupRaws(rawPhotos);
+      if (raws.length > 0 || videos.length > 0) {
+        await generateThumbnails(raws, videos);
+        if (deleted.value.length > 0) {
+          deletedDialog.value = true;
+        } else {
+          await router.push('/tagger');
+        }
+      } else if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
         await router.push('/tagger');
       }
-    } else if (deleted.value.length > 0) {
-      deletedDialog.value = true;
-    } else {
-      await router.push('/tagger');
     }
+    loading.value = false;
   }
-  loading.value = false;
-}
 </script>
 
 <template>
@@ -201,11 +201,11 @@ async function openFolder() {
 </template>
 
 <style scoped>
-.main {
-  text-align: center;
-}
+  .main {
+    text-align: center;
+  }
 
-.main > h1 {
-  margin-bottom: 28px;
-}
+  .main > h1 {
+    margin-bottom: 28px;
+  }
 </style>

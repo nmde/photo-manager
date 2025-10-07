@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { fileStore } from '../stores/fileStore';
+  import { onMounted, ref } from 'vue';
+  import { fileStore } from '../stores/fileStore';
 
-const { tags, search, query } = fileStore;
+  const { tags, search, query } = fileStore;
 
-const localQuery = ref<string[]>([]);
+  const localQuery = ref<string[]>([]);
 
-onMounted(() => {
-  localQuery.value = query;
-});
+  onMounted(() => {
+    localQuery.value = query;
+  });
 </script>
 
 <template>
@@ -21,5 +21,5 @@ onMounted(() => {
     multiple
     @update:model-value="() => {}"
   />
-  <v-btn @click="search(...localQuery)">Search</v-btn>
+  <v-btn @click="search()">Search</v-btn>
 </template>

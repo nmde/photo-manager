@@ -1,80 +1,80 @@
 <script setup lang="ts">
-import type { WikiPage } from '../../classes/WikiPage';
-import type { WikiItem } from '@/types/WikiItem';
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { fileStore } from '../../stores/fileStore';
+  import type { WikiPage } from '../../classes/WikiPage';
+  import type { WikiItem } from '@/types/WikiItem';
+  import { computed, onMounted, ref, watch } from 'vue';
+  import { useRoute } from 'vue-router';
+  import { fileStore } from '../../stores/fileStore';
 
-const route = useRoute('/wiki/[...page]');
-const { wikiPages, createWikiPage, setWikiPageText, encrypted, setWikiPageTitle } = fileStore;
+  const route = useRoute('/wiki/[...page]');
+  const { wikiPages, createWikiPage, setWikiPageText, encrypted, setWikiPageTitle } = fileStore;
 
-const editTitle = ref(false);
-const localPages = ref<WikiPage[]>([]);
-const activePage = ref<WikiPage | null>(null);
-const activePagePath = ref<string[]>([]);
-const createFolderDialog = ref(false);
-const newFolderName = ref('');
-const focusedFolder = ref('');
-const encryptionBlock = ref(false);
-const decryptDialog = ref(false);
+  const editTitle = ref(false);
+  const localPages = ref<WikiPage[]>([]);
+  const activePage = ref<WikiPage | null>(null);
+  const activePagePath = ref<string[]>([]);
+  const createFolderDialog = ref(false);
+  const newFolderName = ref('');
+  const focusedFolder = ref('');
+  const encryptionBlock = ref(false);
+  const decryptDialog = ref(false);
 
-const wikiStructure = computed(() => {
-  const items: Record<string, WikiItem> = {};
-  for (const page of localPages.value) {
-    if (page.data.name.includes('/')) {
-      let n = page.data.name;
-      if (n[0] === '/') {
-        n = n.slice(1);
-      }
-      let base = items;
-      const split = n.split('/');
-      for (const [p, pathItem] of split.entries()) {
-        if (!base[pathItem]) {
-          base[pathItem] = {
-            name: pathItem,
-            path: page.data.name,
-            folders: {},
-            files: {},
-            id: pathItem,
-          };
+  const wikiStructure = computed(() => {
+    const items: Record<string, WikiItem> = {};
+    for (const page of localPages.value) {
+      if (page.displayName.includes('/')) {
+        let n = page.displayName;
+        if (n[0] === '/') {
+          n = n.slice(1);
         }
-        base = p === split.length - 1 ? base[pathItem].files : base[pathItem].folders;
+        let base = items;
+        const split = n.split('/');
+        for (const [p, pathItem] of split.entries()) {
+          if (!base[pathItem]) {
+            base[pathItem] = {
+              name: pathItem,
+              path: page.displayName,
+              folders: {},
+              files: {},
+              id: pathItem,
+            };
+          }
+          base = p === split.length - 1 ? base[pathItem].files : base[pathItem].folders;
+        }
+      } else {
+        items[page.displayName] = {
+          name: page.displayName,
+          path: page.displayName,
+          folders: {},
+          files: {},
+          id: page.id,
+        };
       }
-    } else {
-      items[page.data.name] = {
-        name: page.data.name,
-        path: page.data.name,
-        folders: {},
-        files: {},
-        id: page.Id,
-      };
     }
-  }
-  return Object.values(items).toSorted((a, b) => {
-    const aHasChildren = Object.values(a.folders).length > 0 || Object.values(a.files).length > 0;
-    const bHasChildren = Object.values(b.folders).length > 0 || Object.values(b.files).length > 0;
-    if (aHasChildren && !bHasChildren) {
-      return -1;
-    }
-    if (bHasChildren && !aHasChildren) {
-      return 1;
-    }
-    return a.name.localeCompare(b.name);
+    return Object.values(items).toSorted((a, b) => {
+      const aHasChildren = Object.values(a.folders).length > 0 || Object.values(a.files).length > 0;
+      const bHasChildren = Object.values(b.folders).length > 0 || Object.values(b.files).length > 0;
+      if (aHasChildren && !bHasChildren) {
+        return -1;
+      }
+      if (bHasChildren && !aHasChildren) {
+        return 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
   });
-});
 
-function initializeStructure() {
-  localPages.value = Object.values(wikiPages);
-}
+  function initializeStructure() {
+    localPages.value = Object.values(wikiPages);
+  }
 
-function splitNameAndPath(path: string) {
-  const split = path.split('/');
-  return [split.slice(1, -1), [split.at(-1)]];
-}
+  function splitNameAndPath(path: string) {
+    const split = path.split('/');
+    return [split.slice(1, -1), [split.at(-1)]];
+  }
 
-watch(route, () => {
-  console.log(route.params.page);
-  /*
+  watch(route, () => {
+    console.log(route.params.page);
+    /*
   const match = Object.values(wikiPages).find(
     (p) => p.data.name.replace(/^\//, '') === route.params.page.join('/'),
   );
@@ -88,26 +88,26 @@ watch(route, () => {
     focusedFolder.value = '';
   }
     */
-  initializeStructure();
-});
+    initializeStructure();
+  });
 
-fileStore.on('updateWiki', () => {
-  initializeStructure();
-});
+  fileStore.on('updateWiki', () => {
+    initializeStructure();
+  });
 
-fileStore.on('decrypted', () => {
-  encryptionBlock.value = false;
-  if (activePage.value) {
-    activePage.value.data.content = wikiPages[activePagePath.value.join('/')]?.data.content ?? '';
-  }
-});
+  fileStore.on('decrypted', () => {
+    encryptionBlock.value = false;
+    if (activePage.value) {
+      activePage.value.displayContent = wikiPages[activePagePath.value.join('/')]?.displayContent ?? '';
+    }
+  });
 
-onMounted(() => {
-  initializeStructure();
-  if (encrypted) {
-    encryptionBlock.value = true;
-  }
-});
+  onMounted(() => {
+    initializeStructure();
+    if (encrypted) {
+      encryptionBlock.value = true;
+    }
+  });
 </script>
 
 <template>
@@ -143,30 +143,30 @@ onMounted(() => {
     </v-navigation-drawer>
     <div v-if="encryptionBlock">
       Wiki pages are encrypted!
-      <br />
+      <br>
       <v-btn color="primary" @click="decryptDialog = true">Decrypt Wiki</v-btn>
     </div>
     <div v-if="activePage != null && !encryptionBlock">
       <h1 v-if="!editTitle" @click="editTitle = true">
-        {{ splitNameAndPath(activePage.data.name)[1]?.[0] }}
+        {{ splitNameAndPath(activePage.displayName)[1]?.[0] }}
       </h1>
       <v-text-field
         v-else
-        v-model="activePage.data.name"
+        v-model="activePage.displayName"
         @update:focused="
           async focused => {
             if (!focused) {
               editTitle = false;
-              await setWikiPageTitle(activePage?.Id as string, activePage?.data.name as string);
+              await setWikiPageTitle(activePage?.id as string, activePage?.displayName as string);
             }
           }
         "
       />
       <MarkdownEditor
-        :text="activePage.data.content"
+        :text="activePage.displayContent"
         @save="
           async content => {
-            setWikiPageText(activePage?.Id as string, content);
+            setWikiPageText(activePage?.id as string, content);
           }
         "
       />
@@ -200,7 +200,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.wiki-page {
-  margin: 8px;
-}
+  .wiki-page {
+    margin: 8px;
+  }
 </style>

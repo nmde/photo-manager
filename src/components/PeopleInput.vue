@@ -1,95 +1,95 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { fileStore } from '../stores/fileStore';
+  import { computed, onMounted, ref, watch } from 'vue';
+  import { fileStore } from '../stores/fileStore';
 
-type PeopleEntry = {
-  title: string;
-  value: string;
-  color: string;
-};
+  type PeopleEntry = {
+    title: string;
+    value: string;
+    color: string;
+  };
 
-const { people, peopleCategories } = fileStore;
+  const { people, peopleCategories } = fileStore;
 
-const emit = defineEmits<{
-  (e: 'update', value: string[]): void;
-}>();
+  const emit = defineEmits<{
+    (e: 'update', value: string[]): void;
+  }>();
 
-const props = defineProps<{
-  label: string;
-  multiple?: boolean;
-  value: string[];
-  sort: 'count' | 'photographer';
-}>();
+  const props = defineProps<{
+    label: string;
+    multiple?: boolean;
+    value: string[];
+    sort: 'count' | 'photographer';
+  }>();
 
-const counts = ref<Record<string, number[]>>({});
+  const counts = ref<Record<string, number[]>>({});
 
-const peopleList = computed(() =>
-  Object.entries(counts.value)
-    .toSorted((a, b) => {
-      let x = a[1][0];
-      let y = b[1][0];
-      if (props.sort === 'photographer') {
-        x = a[1][1];
-        y = b[1][1];
-      }
-      return (y ?? 0) - (x ?? 0);
-    })
-    .map(entry => {
-      let count = entry[1][0];
-      if (props.sort === 'photographer') {
-        count = entry[1][1];
-      }
-      const p = people[entry[0]];
-      if (p) {
-        return {
-          color: peopleCategories[p.data.category]?.data.color,
-          title: `${p.data.name} (${count?.toString() ?? '0'})`,
-          value: entry[0],
-        };
-      }
-      return {
-        color: '',
-        title: '',
-        value: '',
-      };
-    }),
-);
-
-const prevPeople = ref<PeopleEntry[]>([]);
-const tempPeople = ref<PeopleEntry[]>([]);
-
-watch(
-  () => props.value,
-  () => {
-    tempPeople.value = props.value.map(id => {
-      const p = people[id];
-      if (p) {
-        let count = p.count;
+  const peopleList = computed(() =>
+    Object.entries(counts.value)
+      .toSorted((a, b) => {
+        let x = a[1][0];
+        let y = b[1][0];
         if (props.sort === 'photographer') {
-          count = p.photographerCount;
+          x = a[1][1];
+          y = b[1][1];
         }
-        counts.value[id] = [p.count, p.photographerCount];
+        return (y ?? 0) - (x ?? 0);
+      })
+      .map(entry => {
+        let count = entry[1][0];
+        if (props.sort === 'photographer') {
+          count = entry[1][1];
+        }
+        const p = people[entry[0]];
+        if (p) {
+          return {
+            color: peopleCategories[p.category]?.color,
+            title: `${p.name} (${count?.toString() ?? '0'})`,
+            value: entry[0],
+          };
+        }
         return {
-          color: peopleCategories[p.data.category]?.data.color ?? '',
-          title: `${p.data.name} (${count.toString()})`,
-          value: p.Id,
+          color: '',
+          title: '',
+          value: '',
         };
-      }
-      return {
-        color: '',
-        title: '',
-        value: '',
-      };
-    });
-    prevPeople.value = tempPeople.value;
-  },
-);
+      }),
+  );
 
-onMounted(() => {
-  for (const person of Object.values(people)) {
-    counts.value[person.Id] = [person.count, person.photographerCount];
-  }
-});
+  const prevPeople = ref<PeopleEntry[]>([]);
+  const tempPeople = ref<PeopleEntry[]>([]);
+
+  watch(
+    () => props.value,
+    () => {
+      tempPeople.value = props.value.map(id => {
+        const p = people[id];
+        if (p) {
+          let count = p.count;
+          if (props.sort === 'photographer') {
+            count = p.photographerCount;
+          }
+          counts.value[id] = [p.count, p.photographerCount];
+          return {
+            color: peopleCategories[p.category]?.color ?? '',
+            title: `${p.name} (${count.toString()})`,
+            value: p.id,
+          };
+        }
+        return {
+          color: '',
+          title: '',
+          value: '',
+        };
+      });
+      prevPeople.value = tempPeople.value;
+    },
+  );
+
+  onMounted(() => {
+    for (const person of Object.values(people)) {
+      counts.value[person.id] = [person.count, person.photographerCount];
+    }
+  });
 </script>
 
 <template>
@@ -132,7 +132,7 @@ onMounted(() => {
     <template #item="{ item, props: lprops }">
       <v-list-item
         v-bind="lprops"
-        :prepend-avatar="people[item.raw.value]?.data.photo"
+        :prepend-avatar="people[item.raw.value]?.photo"
         :style="{ color: item.raw.color }"
       />
     </template>
@@ -140,7 +140,7 @@ onMounted(() => {
       <v-chip
         v-bind="cprops"
         :color="item.raw.color"
-        :prepend-avatar="people[item.raw.value]?.data.photo"
+        :prepend-avatar="people[item.raw.value]?.photo"
         size="x-large"
       />
     </template>

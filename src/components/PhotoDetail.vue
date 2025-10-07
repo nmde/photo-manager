@@ -1,126 +1,126 @@
 <script setup lang="ts">
-import type { Photo } from '../classes/Photo';
-import { VideoPlayer } from '@videojs-player/vue';
-import { computed, onMounted, ref, watch } from 'vue';
-import { fileStore } from '../stores/fileStore';
-import AutosaveText from './AutosaveText.vue';
-import PeopleInput from './PeopleInput.vue';
-import TagInput from './TagInput.vue';
-import 'video.js/dist/video-js.css';
+  import type { Photo } from '../classes/Photo';
+  import { VideoPlayer } from '@videojs-player/vue';
+  import { computed, onMounted, ref, watch } from 'vue';
+  import { fileStore } from '../stores/fileStore';
+  import AutosaveText from './AutosaveText.vue';
+  import PeopleInput from './PeopleInput.vue';
+  import TagInput from './TagInput.vue';
+  import 'video.js/dist/video-js.css';
 
-const { groupNames, addGroup, removeGroup, places, layers, setPersonPhoto, cameras } = fileStore;
+  const { groupNames, addGroup, removeGroup, places, layers, people, cameras } = fileStore;
 
-const emit = defineEmits<{
-  (
-    e:
-      | 'update:title'
-      | 'update:description'
-      | 'update:date'
-      | 'update:location'
-      | 'update:photographer'
-      | 'update:camera',
-    value: string,
-  ): void;
-  (e: 'update:tags' | 'update:people', value: string[]): void;
-  (e: 'update:rating', rating: number): void;
-  (e: 'update:isDuplicate' | 'update:hideThumbnail', value: boolean): void;
-  (e: 'update:group', group?: string): void;
-}>();
+  const emit = defineEmits<{
+    (
+      e:
+        | 'update:title'
+        | 'update:description'
+        | 'update:date'
+        | 'update:location'
+        | 'update:photographer'
+        | 'update:camera',
+      value: string,
+    ): void;
+    (e: 'update:tags' | 'update:people', value: string[]): void;
+    (e: 'update:rating', rating: number): void;
+    (e: 'update:isDuplicate' | 'update:hideThumbnail', value: boolean): void;
+    (e: 'update:group', group?: string): void;
+  }>();
 
-const props = defineProps<{
-  photo: Photo;
-  prevDate: Date;
-}>();
+  const props = defineProps<{
+    photo: Photo;
+    prevDate: Date;
+  }>();
 
-const photoPath = computed(() =>
-  props.photo.data.thumbnail.length > 0 ? props.photo.data.thumbnail : props.photo.data.path,
-);
+  const photoPath = computed(() =>
+    props.photo.thumbnail.length > 0 ? props.photo.thumbnail : props.photo.path,
+  );
 
-const showAddGroup = ref(false);
-const newGroupName = ref('');
-const rating = ref(0);
-const isDuplicate = ref(false);
-const group = ref<string | undefined>();
-const photoTags = ref<string[]>([]);
-const title = ref('');
-const description = ref('');
-const newGroupError = ref(false);
-const date = ref<Date>(new Date());
-const closeUp = ref(false);
-const location = ref('');
-const showRaw = ref(false);
-const photoPeople = ref<string[]>([]);
-const photographer = ref<string[]>([]);
-const hideThumbnail = ref(false);
-const focusDate = ref<Date>(new Date());
-const camera = ref<string>('');
+  const showAddGroup = ref(false);
+  const newGroupName = ref('');
+  const rating = ref(0);
+  const isDuplicate = ref(false);
+  const group = ref<string | undefined>();
+  const photoTags = ref<string[]>([]);
+  const title = ref('');
+  const description = ref('');
+  const newGroupError = ref(false);
+  const date = ref<Date>(new Date());
+  const closeUp = ref(false);
+  const location = ref('');
+  const showRaw = ref(false);
+  const photoPeople = ref<string[]>([]);
+  const photographer = ref<string[]>([]);
+  const hideThumbnail = ref(false);
+  const focusDate = ref<Date>(new Date());
+  const camera = ref<string>('');
 
-const setPhotoDialog = ref(false);
-const setPhotoTarget = ref<string[]>([]);
-const viewConfirmation = ref(false);
+  const setPhotoDialog = ref(false);
+  const setPhotoTarget = ref<string[]>([]);
+  const viewConfirmation = ref(false);
 
-const placeList = computed(() =>
-  Object.values(places)
-    .toSorted((a, b) => {
-      if (a.isNewestPlace) {
-        return -1;
-      }
-      if (b.isNewestPlace) {
-        return 1;
-      }
-      return b.count - a.count;
-    })
-    .map(p => ({
-      color: layers[p.data.layer]?.data.color,
-      title: `${p.data.name} (${p.count.toString()})`,
-      value: p.Id,
-    })),
-);
+  const placeList = computed(() =>
+    Object.values(places)
+      .toSorted((a, b) => {
+        if (a.isNewestPlace) {
+          return -1;
+        }
+        if (b.isNewestPlace) {
+          return 1;
+        }
+        return b.count - a.count;
+      })
+      .map(p => ({
+        color: layers[p.layer]?.color,
+        title: `${p.name} (${p.count.toString()})`,
+        value: p.id,
+      })),
+  );
 
-const cameraList = computed(() =>
-  Object.values(cameras)
-    .toSorted((a, b) => b.count - a.count)
-    .map(x => ({
-      title: `${x.data.name} (${x.count.toString()})`,
-      value: x.Id,
-    })),
-);
+  const cameraList = computed(() =>
+    Object.values(cameras)
+      .toSorted((a, b) => b.count - a.count)
+      .map(x => ({
+        title: `${x.name} (${x.count.toString()})`,
+        value: x.id,
+      })),
+  );
 
-function initialize() {
-  rating.value = props.photo.data.rating;
-  isDuplicate.value = props.photo.data.isDuplicate;
-  group.value = props.photo.group;
-  photoTags.value = props.photo.tags;
-  title.value = props.photo.data.title;
-  description.value = props.photo.data.description;
-  date.value = props.photo.hasDate ? props.photo.date : new Date();
-  location.value = props.photo.data.location;
-  hideThumbnail.value = props.photo.data.hideThumbnail;
-  photoPeople.value = props.photo.people;
-  camera.value = props.photo.data.camera;
-  focusDate.value = props.photo.data.date.length > 0 ? props.photo.date : props.prevDate;
-  photographer.value = props.photo.data.photographer ? [props.photo.data.photographer] : [];
-}
+  function initialize() {
+    rating.value = props.photo.rating ?? 0;
+    isDuplicate.value = props.photo.isDuplicate;
+    group.value = props.photo.group;
+    photoTags.value = props.photo.tags;
+    title.value = props.photo.title;
+    description.value = props.photo.description;
+    date.value = props.photo.hasDate ? props.photo.date : new Date();
+    location.value = props.photo.location;
+    hideThumbnail.value = props.photo.hideThumbnail;
+    photoPeople.value = props.photo.people;
+    camera.value = props.photo.camera;
+    focusDate.value = props.photo.hasDate ? props.photo.date : props.prevDate;
+    photographer.value = props.photo.photographer ? [props.photo.photographer] : [];
+  }
 
-watch(() => props.photo, initialize);
+  watch(() => props.photo, initialize);
 
-onMounted(initialize);
+  onMounted(initialize);
 </script>
 
 <template>
-  <div v-if="photo.data.hideThumbnail && !viewConfirmation">
+  <div v-if="photo.hideThumbnail && !viewConfirmation">
     <v-btn @click="viewConfirmation = true">Show Image</v-btn>
   </div>
-  <div v-if="!photo.data.hideThumbnail || viewConfirmation">
+  <div v-if="!photo.hideThumbnail || viewConfirmation">
     <video-player
-      v-if="photo.data.video"
+      v-if="photo.video"
       controls
       :height="400"
-      :poster="photo.data.thumbnail"
-      :src="photo.data.path"
+      :poster="photo.thumbnail"
+      :src="photo.path"
       :width="700"
     />
-    <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" @click="closeUp = true" />
+    <v-img v-if="!photo.video" max-height="600" :src="photoPath" @click="closeUp = true" />
     <v-img v-if="showRaw" max-height="600" :src="photo.rawFile" />
     <v-btn v-if="photo.rawFile.length > 0" @click="showRaw = !showRaw">RAW</v-btn>
   </div>
@@ -128,8 +128,8 @@ onMounted(initialize);
     advanced
     filtered
     :label="`Photo Tags (${photoTags.length})`"
-    :target="photo.data.name"
-    :validate="photo.data.name"
+    :target="photo.name"
+    :validate="photo.name"
     :value="photoTags"
     @change="
       tags => {
@@ -225,7 +225,7 @@ onMounted(initialize);
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
   </v-btn>
-  <v-btn icon @click="removeGroup(photo.data.name)">
+  <v-btn icon @click="removeGroup(photo.name)">
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
   <v-btn
@@ -283,17 +283,17 @@ onMounted(initialize);
   </div>
   <v-dialog v-model="closeUp">
     <v-card>
-      <v-card-title>{{ photo.data.title }}</v-card-title>
+      <v-card-title>{{ photo.title }}</v-card-title>
       <v-card-text>
         <video-player
-          v-if="photo.data.video"
+          v-if="photo.video"
           controls
           :height="400"
-          :poster="photo.data.thumbnail"
-          :src="photo.data.path"
+          :poster="photo.thumbnail"
+          :src="photo.path"
           :width="700"
         />
-        <v-img v-if="!photo.data.video" max-height="600" :src="photoPath" />
+        <v-img v-if="!photo.video" max-height="600" :src="photoPath" />
       </v-card-text>
     </v-card>
   </v-dialog>
@@ -308,7 +308,7 @@ onMounted(initialize);
         <v-avatar size="48">
           <v-img :src="photoPath" />
         </v-avatar>
-        <br />
+        <br>
         <people-input
           label="Set as profile photo for"
           sort="count"
@@ -323,7 +323,7 @@ onMounted(initialize);
           @click="
             async () => {
               if (setPhotoTarget[0]) {
-                await setPersonPhoto(setPhotoTarget[0], photoPath);
+                await people[setPhotoTarget[0]]?.setPhoto(photoPath);
               }
               setPhotoDialog = false;
               setPhotoTarget = [];

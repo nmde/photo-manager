@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { moods } from '../stores/fileStore';
+  import { moods } from '../stores/fileStore';
 
-defineProps<{
-  mood: number;
-}>();
+  defineProps<{
+    mood: number;
+  }>();
 
-const emit = defineEmits<{
-  (e: 'selected', mood: number): void;
-}>();
+  const emit = defineEmits<{
+    (e: 'selected', mood: number): void;
+  }>();
 </script>
 
 <template>

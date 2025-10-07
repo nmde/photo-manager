@@ -1,61 +1,61 @@
 <script setup lang="ts">
-import type { Person } from '../classes/Person';
-import type { PersonCategory } from '../classes/PersonCategory';
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { fileStore } from '../stores/fileStore';
+  import type { Person } from '../classes/Person';
+  import type { PersonCategory } from '../classes/PersonCategory';
+  import { computed, onMounted, ref } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { fileStore } from '../stores/fileStore';
 
-const router = useRouter();
+  const router = useRouter();
 
-const { addPerson, peopleMap, peopleCategories, addPersonCategory, updatePerson } = fileStore;
+  const { addPerson, peopleMap, peopleCategories, addPersonCategory, updatePerson } = fileStore;
 
-const editing = ref(false);
-const editTarget = ref('');
-const addDialog = ref(false);
-const addName = ref('');
-const addNotes = ref('');
-const addCategory = ref('');
+  const editing = ref(false);
+  const editTarget = ref('');
+  const addDialog = ref(false);
+  const addName = ref('');
+  const addNotes = ref('');
+  const addCategory = ref('');
 
-const addCategoryDialog = ref(false);
-const addCategoryName = ref('');
-const addCategoryColor = ref('');
+  const addCategoryDialog = ref(false);
+  const addCategoryName = ref('');
+  const addCategoryColor = ref('');
 
-const localCategories = ref<Record<string, PersonCategory>>({});
-const localPeople = ref<Record<string, Person[]>>({});
-const categoryList = computed(() =>
-  Object.values(localCategories.value).map(c => ({
-    color: c.data.color,
-    title: c.data.name,
-    value: c.Id,
-  })),
-);
+  const localCategories = ref<Record<string, PersonCategory>>({});
+  const localPeople = ref<Record<string, Person[]>>({});
+  const categoryList = computed(() =>
+    Object.values(localCategories.value).map(c => ({
+      color: c.color,
+      title: c.name,
+      value: c.id,
+    })),
+  );
 
-const personCardWidth = 64;
-const personCardHeight = 212;
-const peopleRows = computed(() => {
-  const re: Record<string, Person[][]> = {};
-  for (const [c, category] of Object.entries(localPeople.value)) {
-    re[c] = [[]];
-    let x = 0;
-    for (const person of category) {
-      re[c].at(-1)?.push(person);
-      x += 1;
-      if (x > window.innerWidth / personCardWidth) {
-        x = 0;
-        re[c].push([]);
+  const personCardWidth = 64;
+  const personCardHeight = 212;
+  const peopleRows = computed(() => {
+    const re: Record<string, Person[][]> = {};
+    for (const [c, category] of Object.entries(localPeople.value)) {
+      re[c] = [[]];
+      let x = 0;
+      for (const person of category) {
+        re[c].at(-1)?.push(person);
+        x += 1;
+        if (x > window.innerWidth / personCardWidth) {
+          x = 0;
+          re[c].push([]);
+        }
       }
     }
-  }
-  return re;
-});
+    return re;
+  });
 
-onMounted(() => {
-  localCategories.value = peopleCategories;
-  localPeople.value = {};
-  for (const [category, people] of Object.entries(peopleMap)) {
-    localPeople.value[category] = people.toSorted((a, b) => b.count - a.count);
-  }
-});
+  onMounted(() => {
+    localCategories.value = peopleCategories;
+    localPeople.value = {};
+    for (const [category, people] of Object.entries(peopleMap)) {
+      localPeople.value[category] = people.toSorted((a, b) => b.count - a.count);
+    }
+  });
 </script>
 
 <template>
@@ -73,26 +73,26 @@ onMounted(() => {
     </v-btn>
     <v-btn color="secondary" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-expansion-panels>
-      <v-expansion-panel v-for="category in localCategories" :key="category.Id">
-        <v-expansion-panel-title :color="category.data.color">{{
-          category.data.name
+      <v-expansion-panel v-for="category in localCategories" :key="category.id">
+        <v-expansion-panel-title :color="category.color">{{
+          category.name
         }}</v-expansion-panel-title>
         <v-expansion-panel-text>
           <v-virtual-scroll
             :height="640"
             :item-height="personCardHeight"
-            :items="peopleRows[category.Id]"
+            :items="peopleRows[category.id]"
           >
             <template #default="{ item }">
               <div class="people-grid">
-                <v-card v-for="person in item" :key="person.Id" class="person-card">
-                  <template v-if="person.data.photo.length > 0" #prepend>
+                <v-card v-for="person in item" :key="person.id" class="person-card">
+                  <template v-if="person.photo.length > 0" #prepend>
                     <v-avatar size="128">
-                      <v-img :src="person.data.photo" />
+                      <v-img :src="person.photo" />
                     </v-avatar>
                   </template>
                   <v-card-title>
-                    {{ person.data.name }}
+                    {{ person.name }}
                     <v-menu>
                       <template #activator="{ props }">
                         <v-btn flat icon v-bind="props">
@@ -104,10 +104,10 @@ onMounted(() => {
                           @click="
                             () => {
                               editing = true;
-                              editTarget = person.Id;
-                              addName = person.data.name;
-                              addNotes = person.data.notes;
-                              addCategory = person.data.category;
+                              editTarget = person.id;
+                              addName = person.name;
+                              addNotes = person.notes;
+                              addCategory = person.category;
                               addDialog = true;
                             }
                           "
@@ -117,7 +117,7 @@ onMounted(() => {
                         <v-list-item
                           @click="
                             () => {
-                              router.push(`/tagger?person=${person.Id}`);
+                              router.push(`/tagger?person=${person.id}`);
                             }
                           "
                         >
@@ -126,7 +126,7 @@ onMounted(() => {
                         <v-list-item
                           @click="
                             () => {
-                              router.push(`/tagger?photographer=${person.Id}`);
+                              router.push(`/tagger?photographer=${person.id}`);
                             }
                           "
                         >
@@ -137,10 +137,10 @@ onMounted(() => {
                   </v-card-title>
                   <v-card-text>
                     Photo count: {{ person.count }}
-                    <br />
+                    <br>
                     Photos taken: {{ person.photographerCount }}
-                    <br />
-                    <p class="notes">{{ person.data.notes }}</p>
+                    <br>
+                    <p class="notes">{{ person.notes }}</p>
                   </v-card-text>
                 </v-card>
               </div>
@@ -163,8 +163,8 @@ onMounted(() => {
             @click="
               async () => {
                 const c = await addPersonCategory(addCategoryName, addCategoryColor);
-                localCategories[c.Id] = c;
-                localPeople[c.Id] = [];
+                localCategories[c.id] = c;
+                localPeople[c.id] = [];
                 addCategoryDialog = false;
                 addCategoryName = '';
                 addCategoryColor = '';
@@ -215,16 +215,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.people-grid {
-  display: flex;
-  flex-wrap: wrap;
-}
+  .people-grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
 
-.person-card {
-  margin: 12px;
-}
+  .person-card {
+    margin: 12px;
+  }
 
-.notes {
-  white-space: pre;
-}
+  .notes {
+    white-space: pre;
+  }
 </style>

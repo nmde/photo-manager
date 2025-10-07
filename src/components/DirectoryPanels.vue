@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import type { Photo } from '../classes/Photo';
-import { fileStore } from '../stores/fileStore';
-import PhotoGrid from './PhotoGrid.vue';
+  import type { Photo } from '../classes/Photo';
+  import { fileStore } from '../stores/fileStore';
+  import PhotoGrid from './PhotoGrid.vue';
 
-const { files } = fileStore;
+  const { files } = fileStore;
 
-type Folder = {
-  files: string[];
-  children: Record<string, Folder>;
-};
+  type Folder = {
+    files: string[];
+    children: Record<string, Folder>;
+  };
 
-defineProps<{
-  folderStructure: Folder;
-}>();
+  defineProps<{
+    folderStructure: Folder;
+  }>();
 
-const emit = defineEmits<{
-  (e: 'select', s: Photo[]): void;
-}>();
+  const emit = defineEmits<{
+    (e: 'select', s: Photo[]): void;
+  }>();
 
-// TODO: photos in the root level directory are not displayed
+  // TODO: photos in the root level directory are not displayed
 </script>
 
 <template>

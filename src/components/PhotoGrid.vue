@@ -59,7 +59,7 @@ const filteredPhotos = computed(() => {
       }
       return 0;
     } else if (sortBy.value === 2) {
-      if (b.data.date.length === 0) {
+      if (b.hasDate) {
         return -1 * sortDir.value;
       }
       if (a.date > b.date) {
@@ -70,10 +70,10 @@ const filteredPhotos = computed(() => {
       }
       return 0;
     } else {
-      if (a.data.name > b.data.name) {
+      if (a.name > b.name) {
         return 1 * sortDir.value;
       }
-      if (a.data.name < b.data.name) {
+      if (a.name < b.name) {
         return -1 * sortDir.value;
       }
       return 0;
@@ -127,7 +127,7 @@ function selectPhoto(photo: Photo) {
   }
   if (selectMultiple.value) {
     s.forEach(x => {
-      const idx = selected.value.findIndex(p => p.data.name === x.data.name);
+      const idx = selected.value.findIndex(p => p.name === x.name);
       if (idx >= 0) {
         selected.value.splice(idx, 1);
       } else {
@@ -279,13 +279,13 @@ onUnmounted(() => {
         <v-list-item
           @click="
             async () => {
-              const groupName = selected[0]?.data.name;
+              const groupName = selected[0]?.name;
               if (groupName) {
                 await addGroup(groupName);
                 const target = [...selected];
                 selected = [];
                 target.forEach(async photo => {
-                  await setGroup(photo.data.name, groupName);
+                  await setGroup(photo.name, groupName);
                 });
               }
             }
@@ -327,7 +327,7 @@ onUnmounted(() => {
         :key="i"
         :photo="photo"
         :size="size"
-        :selected="selected.findIndex(p => p.data.name === photo.data.name) >= 0"
+        :selected="selected.findIndex(p => p.name === photo.name) >= 0"
         :invalid="!photo.valid"
         @select="selectPhoto(photo)"
       ></photo-icon>
@@ -365,7 +365,7 @@ onUnmounted(() => {
               async () => {
                 loading = true;
                 selected.forEach(async photo => {
-                  await updateTagsForGroup(photo.data.name, photo.tags.concat(...targetTags));
+                  await updateTagsForGroup(photo.name, photo.tags.concat(...targetTags));
                 });
                 loading = false;
                 tagAddDialog = false;
@@ -415,14 +415,14 @@ onUnmounted(() => {
                   if (tagAction === 'remove') {
                     const updatedTags = [...photo.tags];
                     updatedTags.splice(updatedTags.indexOf(tag), 1);
-                    await updateTagsForGroup(photo.data.name, updatedTags);
+                    await updateTagsForGroup(photo.name, updatedTags);
                   } else {
                     const updatedTags = [...photo.tags];
                     updatedTags.splice(updatedTags.indexOf(tag), 1);
                     if (replacementTag[0]) {
                       updatedTags.push(replacementTag[0]);
                     }
-                    await updateTagsForGroup(photo.data.name, updatedTags);
+                    await updateTagsForGroup(photo.name, updatedTags);
                   }
                 });
               }

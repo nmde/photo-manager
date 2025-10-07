@@ -1,11 +1,7 @@
-import { Entity } from './Entity';
+export class Group {
+  public constructor(private id: string, private _name: string) {}
 
-type GroupData = {
-  name: string;
-};
-
-export class Group extends Entity<GroupData> {
-  public constructor(data: GroupData) {
-    super('PhotoGroup', data);
+  public get name() {
+    return this._name;
   }
 }

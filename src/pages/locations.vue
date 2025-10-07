@@ -1,212 +1,201 @@
 <script setup lang="ts">
-import type { Layer } from '../classes/Layer';
-import type { Place } from '../classes/Place';
-import type { Shape, ShapeType } from '../classes/Shape';
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { icons, locToString, Map, type Position } from '../classes/Map';
-import { fileStore } from '../stores/fileStore';
+  import type { Layer } from '../classes/Layer';
+  import type { Place } from '../classes/Place';
+  import type { Shape, ShapeType } from '../classes/Shape';
+  import { computed, onMounted, ref } from 'vue';
+  import { useRouter } from 'vue-router';
+  import { icons, locToString, Map, type Position } from '../classes/Map';
+  import { fileStore } from '../stores/fileStore';
 
-const router = useRouter();
+  const router = useRouter();
 
-const {
-  places,
-  layers,
-  shapes,
-  createPlace,
-  createLayer,
-  setLayerColor,
-  createShape,
-  setPlaceShape,
-  setShapePath,
-  setShapeName,
-  setPlaceName,
-  deletePlace,
-  deleteShape,
-  setPlaceLayer,
-  setShapeLayer,
-  setPlaceTags,
-  setPlaceNotes,
-  setPlaceCategory,
-  setPlacePosition,
-  updateTags,
-} = fileStore;
+  const {
+    places,
+    layers,
+    shapes,
+    createPlace,
+    createLayer,
+    createShape,
+    deletePlace,
+    deleteShape,
+    updateTags,
+  } = fileStore;
 
-const layerDialog = ref(false);
-const layerName = ref('');
-const createDialog = ref(false);
-const position = ref<Position>({ lat: 0, lng: 0 });
-const mapEl = ref(null);
-const newPlaceMapEl = ref(null);
-const placeName = ref('');
-const placeCategory = ref<keyof typeof icons>('hospital');
-const mapInitialized = ref(false);
-const layerList = ref<Layer[]>([]);
-const layerEntryList = ref<
-  {
-    title: string;
-    value: string;
-  }[]
->([]);
-const targetLayer = ref('');
-const drawMode = ref(false);
-const tmpShape = ref<Position[]>([]);
-const tmpShapeType = ref<ShapeType>('line');
-const placeMap = ref<Record<string, Place[]>>({});
-const shapeMap = ref<Record<string, Shape[]>>({});
-const shapeName = ref('');
-const shapeDialog = ref(false);
-const targetPlace = ref('');
-const editingShape = ref(false);
-const targetShape = ref('');
-const hideMarkers = ref(false);
-const hideLabels = ref(false);
-const changeLayerDialog = ref(false);
-const layerChangeTarget = ref('');
-const changeShapeLayerDialog = ref(false);
-const totalArea = ref(0);
+  const layerDialog = ref(false);
+  const layerName = ref('');
+  const createDialog = ref(false);
+  const position = ref<Position>({ lat: 0, lng: 0 });
+  const mapEl = ref(null);
+  const newPlaceMapEl = ref(null);
+  const placeName = ref('');
+  const placeCategory = ref<keyof typeof icons>('hospital');
+  const mapInitialized = ref(false);
+  const layerList = ref<Layer[]>([]);
+  const layerEntryList = ref<
+    {
+      title: string;
+      value: string;
+    }[]
+  >([]);
+  const targetLayer = ref('');
+  const drawMode = ref(false);
+  const tmpShape = ref<Position[]>([]);
+  const tmpShapeType = ref<ShapeType>('line');
+  const placeMap = ref<Record<string, Place[]>>({});
+  const shapeMap = ref<Record<string, Shape[]>>({});
+  const shapeName = ref('');
+  const shapeDialog = ref(false);
+  const targetPlace = ref('');
+  const editingShape = ref(false);
+  const targetShape = ref('');
+  const hideMarkers = ref(false);
+  const hideLabels = ref(false);
+  const changeLayerDialog = ref(false);
+  const layerChangeTarget = ref('');
+  const changeShapeLayerDialog = ref(false);
+  const totalArea = ref(0);
 
-const categories = computed(() => Object.keys(icons));
+  const categories = computed(() => Object.keys(icons));
 
-const map = new Map();
-const newPlaceMap = new Map();
-let lastChangedIndex = -1;
+  const map = new Map();
+  const newPlaceMap = new Map();
+  let lastChangedIndex = -1;
 
-function openCreateDialog(layer: string) {
-  targetLayer.value = layer;
-  createDialog.value = true;
-  if (mapInitialized.value) {
-    newPlaceMap.clearMarkers();
-  } else {
-    setTimeout(async () => {
-      await newPlaceMap.initialize(newPlaceMapEl.value as unknown as HTMLElement);
-      newPlaceMap.on('dblclick', pos => {
-        position.value = pos;
-        newPlaceMap.createMarker(
-          locToString(pos),
-          '0',
-          placeCategory.value,
-          layers[targetLayer.value]?.data.color,
-          placeName.value,
-        );
+  function openCreateDialog(layer: string) {
+    targetLayer.value = layer;
+    createDialog.value = true;
+    if (mapInitialized.value) {
+      newPlaceMap.clearMarkers();
+    } else {
+      setTimeout(async () => {
+        await newPlaceMap.initialize(newPlaceMapEl.value as unknown as HTMLElement);
+        newPlaceMap.on('dblclick', pos => {
+          position.value = pos;
+          newPlaceMap.createMarker(
+            locToString(pos),
+            '0',
+            placeCategory.value,
+            layers[targetLayer.value]?.color,
+            placeName.value,
+          );
+        });
+      }, 500);
+    }
+  }
+
+  function setShapeColor(shape: Shape, color: string) {
+    map.removeShape(shape.id);
+    map.createShape(shape.type, shape.points, color, shape.id, false);
+  }
+
+  function setPlaceColor(place: Place, color: string) {
+    map.removeMarker(place.id);
+    map.createMarker(place.pos, place.id, place.category, color, place.name, place.count);
+    // update color of linked polygons
+    const s = shapes[place.shape];
+    if (place.shape.length > 0 && s) {
+      setShapeColor(s, color);
+    }
+  }
+
+  async function deleteShapeFunc(layer_id: string, id: string) {
+    await deleteShape(id);
+    map.removeShape(id);
+    shapeMap.value[layer_id]?.splice(
+      shapeMap.value[layer_id].findIndex(p => p.id === id),
+      1,
+    );
+  }
+
+  let prevShape = 0;
+  onMounted(async () => {
+    layerList.value = Object.values(layers);
+    placeMap.value = {};
+    shapeMap.value = {};
+    totalArea.value = 0;
+    for (const layer of layerList.value) {
+      placeMap.value[layer.id] = [];
+      shapeMap.value[layer.id] = [];
+      layerEntryList.value.push({
+        title: layer.name,
+        value: layer.id,
       });
-    }, 500);
-  }
-}
-
-function setShapeColor(shape: Shape, color: string) {
-  map.removeShape(shape.Id);
-  map.createShape(shape.data.type, shape.points, color, shape.Id, false);
-}
-
-function setPlaceColor(place: Place, color: string) {
-  map.removeMarker(place.Id);
-  map.createMarker(place.pos, place.Id, place.data.category, color, place.data.name, place.count);
-  // update color of linked polygons
-  const s = shapes[place.data.shape];
-  if (place.data.shape.length > 0 && s) {
-    setShapeColor(s, color);
-  }
-}
-
-async function deleteShapeFunc(layer_id: string, id: string) {
-  await deleteShape(id);
-  map.removeShape(id);
-  shapeMap.value[layer_id]?.splice(
-    shapeMap.value[layer_id].findIndex(p => p.Id === id),
-    1,
-  );
-}
-
-let prevShape = 0;
-onMounted(async () => {
-  layerList.value = Object.values(layers);
-  placeMap.value = {};
-  shapeMap.value = {};
-  totalArea.value = 0;
-  for (const layer of layerList.value) {
-    placeMap.value[layer.Id] = [];
-    shapeMap.value[layer.Id] = [];
-    layerEntryList.value.push({
-      title: layer.data.name,
-      value: layer.Id,
+    }
+    await map.initialize(mapEl.value as unknown as HTMLElement);
+    const linkedShapes: string[] = [];
+    for (const layer of layerList.value) {
+      for (const place of Object.values(places).filter(place => place.layer === layer.id)) {
+        if (!placeMap.value[place.layer]) {
+          placeMap.value[place.layer] = [];
+        }
+        placeMap.value[place.layer]?.push(place);
+        if (place.shape.length > 0) {
+          linkedShapes.push(place.shape);
+        }
+        map.createMarker(
+          place.pos,
+          place.id,
+          place.category,
+          layers[place.layer]?.color,
+          place.name,
+          place.count,
+        );
+      }
+      for (const shape of Object.values(shapes).filter(shape => shape.layer === layer.id)) {
+        if (!linkedShapes.includes(shape.id)) {
+          if (!shapeMap.value[shape.layer]) {
+            shapeMap.value[shape.layer] = [];
+          }
+          shapeMap.value[shape.layer]?.push(shape);
+        }
+        totalArea.value += shape.area;
+        map.createShape(
+          shape.type,
+          shape.points,
+          layers[shape.layer]?.color ?? '',
+          shape.id,
+        );
+      }
+    }
+    map.on('click', pos => {
+      if (drawMode.value) {
+        tmpShape.value.push(pos);
+        let nextId = (prevShape + 1).toString();
+        if (editingShape.value) {
+          map.removeShape(targetShape.value);
+          nextId = targetShape.value;
+        } else if (prevShape > 0) {
+          map.removeShape(prevShape.toString());
+        }
+        prevShape += 1;
+        map.createShape(
+          tmpShapeType.value,
+          tmpShape.value,
+          layers[targetLayer.value]?.color ?? '',
+          nextId,
+          true,
+        );
+      }
     });
-  }
-  await map.initialize(mapEl.value as unknown as HTMLElement);
-  const linkedShapes: string[] = [];
-  for (const layer of layerList.value) {
-    for (const place of Object.values(places).filter(place => place.data.layer === layer.Id)) {
-      if (!placeMap.value[place.data.layer]) {
-        placeMap.value[place.data.layer] = [];
-      }
-      placeMap.value[place.data.layer]?.push(place);
-      if (place.data.shape.length > 0) {
-        linkedShapes.push(place.data.shape);
-      }
-      map.createMarker(
-        place.pos,
-        place.Id,
-        place.data.category,
-        layers[place.data.layer]?.data.color,
-        place.data.name,
-        place.count,
-      );
-    }
-    for (const shape of Object.values(shapes).filter(shape => shape.data.layer === layer.Id)) {
-      if (!linkedShapes.includes(shape.Id)) {
-        if (!shapeMap.value[shape.data.layer]) {
-          shapeMap.value[shape.data.layer] = [];
+    map.on('shapeUpdate', pos => {
+      if (drawMode.value) {
+        for (const [i, item] of pos.getArray().entries()) {
+          const x = item.toJSON();
+          if (locToString(tmpShape.value[i]) !== locToString(x)) {
+            lastChangedIndex = i;
+          }
+          tmpShape.value[i] = x;
         }
-        shapeMap.value[shape.data.layer]?.push(shape);
       }
-      totalArea.value += shape.area;
-      map.createShape(
-        shape.data.type,
-        shape.points,
-        layers[shape.data.layer]?.data.color ?? '',
-        shape.Id,
-      );
-    }
-  }
-  map.on('click', pos => {
-    if (drawMode.value) {
-      tmpShape.value.push(pos);
-      let nextId = (prevShape + 1).toString();
-      if (editingShape.value) {
-        map.removeShape(targetShape.value);
-        nextId = targetShape.value;
-      } else if (prevShape > 0) {
-        map.removeShape(prevShape.toString());
-      }
-      prevShape += 1;
-      map.createShape(
-        tmpShapeType.value,
-        tmpShape.value,
-        layers[targetLayer.value]?.data.color ?? '',
-        nextId,
-        true,
-      );
-    }
+    });
+    map.on(
+      'markerClicked',
+      place =>
+        void (async place => {
+          await router.push(`/tagger?place=${place}`);
+        })(place),
+    );
   });
-  map.on('shapeUpdate', pos => {
-    if (drawMode.value) {
-      for (const [i, item] of pos.getArray().entries()) {
-        const x = item.toJSON();
-        if (locToString(tmpShape.value[i]) !== locToString(x)) {
-          lastChangedIndex = i;
-        }
-        tmpShape.value[i] = x;
-      }
-    }
-  });
-  map.on(
-    'markerClicked',
-    place =>
-      void (async place => {
-        await router.push(`/tagger?place=${place}`);
-      })(place),
-  );
-});
 </script>
 
 <template>
@@ -216,12 +205,12 @@ onMounted(async () => {
       <v-row>
         <v-col cols="4">
           <v-expansion-panels>
-            <v-expansion-panel v-for="layer in layerList" :key="layer.Id">
+            <v-expansion-panel v-for="layer in layerList" :key="layer.id">
               <v-expansion-panel-title>
-                {{ layer.data.name }} ({{ placeMap[layer.Id]?.length }})
+                {{ layer.name }} ({{ placeMap[layer.id]?.length }})
               </v-expansion-panel-title>
               <v-expansion-panel-text>
-                {{ layer.data.name }}
+                {{ layer.name }}
                 <v-menu :disabled="drawMode">
                   <template #activator="{ props }">
                     <v-btn flat icon v-bind="props">
@@ -229,12 +218,12 @@ onMounted(async () => {
                     </v-btn>
                   </template>
                   <v-list>
-                    <v-list-item @click="openCreateDialog(layer.Id)">Add Place</v-list-item>
+                    <v-list-item @click="openCreateDialog(layer.id)">Add Place</v-list-item>
                     <v-list-item
                       @click="
                         () => {
                           tmpShapeType = 'line';
-                          targetLayer = layer.Id;
+                          targetLayer = layer.id;
                           targetPlace = '';
                           shapeName = '';
                           shapeDialog = true;
@@ -248,7 +237,7 @@ onMounted(async () => {
                       @click="
                         () => {
                           tmpShapeType = 'polygon';
-                          targetLayer = layer.Id;
+                          targetLayer = layer.id;
                           targetPlace = '';
                           shapeName = '';
                           shapeDialog = true;
@@ -261,31 +250,28 @@ onMounted(async () => {
                   </v-list>
                 </v-menu>
                 <color-picker
-                  :color="layer.data.color"
+                  :color="layer.color"
                   @update="
                     async color => {
                       // don't know why this line is needed, but it is otherwise shapes in edit mode won't have the right color and new shapes won't either
-                      const l = layers[layer.Id];
-                      if (l) {
-                        l.data.color = color;
-                        await setLayerColor(layer.Id, color);
-                        // update color of places, lines, and shapes
-                        placeMap[layer.Id]?.forEach(place => {
-                          setPlaceColor(place, color);
-                        });
-                        shapeMap[layer.Id]?.forEach(shape => {
-                          setShapeColor(shape, color);
-                        });
-                      }
+                      const l = layers[layer.id];
+                      await layers[layer.id]?.setColor(color);
+                      // update color of places, lines, and shapes
+                      placeMap[layer.id]?.forEach(place => {
+                        setPlaceColor(place, color);
+                      });
+                      shapeMap[layer.id]?.forEach(shape => {
+                        setShapeColor(shape, color);
+                      });
                     }
                   "
                 />
                 <v-expansion-panels>
-                  <v-expansion-panel v-for="place in placeMap[layer.Id]" :key="place.Id">
-                    <v-expansion-panel-title>{{ place.data.name }}</v-expansion-panel-title>
+                  <v-expansion-panel v-for="place in placeMap[layer.id]" :key="place.id">
+                    <v-expansion-panel-title>{{ place.name }}</v-expansion-panel-title>
                     <v-expansion-panel-text>
                       <v-btn
-                        v-if="place.data.shape.length === 0"
+                        v-if="place.shape.length === 0"
                         color="primary"
                         @click="
                           () => {
@@ -293,30 +279,30 @@ onMounted(async () => {
                             drawMode = true;
                             editingShape = false;
                             tmpShapeType = 'polygon';
-                            targetLayer = layer.Id;
-                            targetPlace = place.Id;
+                            targetLayer = layer.id;
+                            targetPlace = place.id;
                           }
                         "
                       >
                         Draw Polygon
                       </v-btn>
-                      <div v-if="place.data.shape.length > 0">
+                      <div v-if="place.shape.length > 0">
                         <v-btn
                           @click="
                             () => {
-                              const shape = shapes[place.data.shape];
-                              map.removeShape(place.data.shape);
-                              targetLayer = layer.Id;
+                              const shape = shapes[place.shape];
+                              map.removeShape(place.shape);
+                              targetLayer = layer.id;
                               if (shape) {
                                 tmpShape = shape.points;
                                 editingShape = true;
-                                targetShape = shape.Id;
-                                tmpShapeType = shape.data.type;
+                                targetShape = shape.id;
+                                tmpShapeType = shape.type;
                                 map.createShape(
-                                  shape.data.type,
+                                  shape.type,
                                   shape.points,
-                                  layers[shape.data.layer]?.data.color ?? '',
-                                  shape.Id,
+                                  layers[shape.layer]?.color ?? '',
+                                  shape.id,
                                   true,
                                 );
                                 drawMode = true;
@@ -326,7 +312,7 @@ onMounted(async () => {
                         >
                           Edit Polygon
                         </v-btn>
-                        Area: {{ shapes[place.data.shape]?.area }}
+                        Area: {{ shapes[place.shape]?.area }}
                       </div>
                       <v-menu>
                         <template #activator="{ props }">
@@ -347,15 +333,15 @@ onMounted(async () => {
                           <v-list-item
                             @click="
                               async () => {
-                                await deletePlace(place.Id);
-                                if (place.data.shape.length > 0) {
-                                  deleteShapeFunc(layer.Id, place.data.shape);
+                                await deletePlace(place.id);
+                                if (place.shape.length > 0) {
+                                  deleteShapeFunc(layer.id, place.shape);
                                 }
-                                placeMap[layer.Id]?.splice(
-                                  placeMap[layer.Id]?.findIndex(p => p.Id === place.Id) ?? -1,
+                                placeMap[layer.id]?.splice(
+                                  placeMap[layer.id]?.findIndex(p => p.id === place.id) ?? -1,
                                   1,
                                 );
-                                map.removeMarker(place.Id);
+                                map.removeMarker(place.id);
                               }
                             "
                           >
@@ -364,7 +350,7 @@ onMounted(async () => {
                           <v-list-item
                             @click="
                               () => {
-                                targetPlace = place.Id;
+                                targetPlace = place.id;
                                 changeLayerDialog = true;
                               }
                             "
@@ -374,20 +360,20 @@ onMounted(async () => {
                           <v-list-item
                             @click="
                               () => {
-                                targetLayer = place.data.layer;
-                                map.removeMarker(place.Id);
+                                targetLayer = place.layer;
+                                map.removeMarker(place.id);
                                 editingShape = true;
                                 const listener = map.on('dblclick', async pos => {
                                   map.createMarker(
                                     locToString(pos),
-                                    place.Id,
-                                    place.data.category,
-                                    layers[targetLayer]?.data.color,
-                                    place.data.name,
+                                    place.id,
+                                    place.category,
+                                    layers[targetLayer]?.color,
+                                    place.name,
                                     place.count,
                                   );
                                   map.off('dblclick', listener);
-                                  await setPlacePosition(place.Id, pos);
+                                  await places[place.id]?.setPosition(pos);
                                 });
                               }
                             "
@@ -397,7 +383,7 @@ onMounted(async () => {
                           <v-list-item
                             @click="
                               () => {
-                                router.push(`/tagger?place=${place.Id}`);
+                                router.push(`/tagger?place=${place.id}`);
                               }
                             "
                           >
@@ -406,27 +392,27 @@ onMounted(async () => {
                         </v-list>
                       </v-menu>
                       <v-text-field
-                        v-model="place.data.name"
+                        v-model="place.name"
                         label="Name"
                         @update:model-value="
                           async () => {
-                            await setPlaceName(place.Id, place.data.name);
+                            await places[place.id]?.setName(place.name);
                           }
                         "
                       />
                       <v-select
-                        v-model="place.data.category"
+                        v-model="place.category"
                         :items="categories"
                         @update:model-value="
                           async () => {
-                            await setPlaceCategory(place.Id, place.data.category);
-                            map.removeMarker(place.Id);
+                            await places[place.id]?.setCategory(place.category);
+                            map.removeMarker(place.id);
                             map.createMarker(
                               place.pos,
-                              place.Id,
-                              place.data.category,
-                              layers[place.data.layer]?.data.color,
-                              place.data.name,
+                              place.id,
+                              place.category,
+                              layers[place.layer]?.color,
+                              place.name,
                               place.count,
                             );
                           }
@@ -437,48 +423,48 @@ onMounted(async () => {
                         :value="place.tags"
                         @update="
                           async tags => {
-                            await setPlaceTags(place.Id, tags);
+                            await places[place.id]?.setTags(tags);
                             updateTags(tags);
                           }
                         "
                       />
                       <autosave-text
                         label="Notes"
-                        :value="place.data.notes"
+                        :value="place.notes"
                         @save="
                           async notes => {
-                            await setPlaceNotes(place.Id, notes);
+                            await places[place.id]?.setNotes(notes);
                           }
                         "
                       />
                     </v-expansion-panel-text>
                   </v-expansion-panel>
-                  <v-expansion-panel v-for="shape in shapeMap[layer.Id]" :key="shape.Id">
-                    <v-expansion-panel-title>{{ shape.data.name }}</v-expansion-panel-title>
+                  <v-expansion-panel v-for="shape in shapeMap[layer.id]" :key="shape.id">
+                    <v-expansion-panel-title>{{ shape.name }}</v-expansion-panel-title>
                     <v-expansion-panel-text>
                       <v-text-field
-                        v-model="shape.data.name"
+                        v-model="shape.name"
                         label="Name"
                         @update:model-value="
                           async () => {
-                            await setShapeName(shape.Id, shape.data.name);
+                            await shapes[shape.id]?.setName(shape.name);
                           }
                         "
                       />
                       <v-btn
                         @click="
                           () => {
-                            map.removeShape(shape.Id);
-                            targetLayer = layer.Id;
+                            map.removeShape(shape.id);
+                            targetLayer = layer.id;
                             tmpShape = shape.points;
                             editingShape = true;
-                            targetShape = shape.Id;
-                            tmpShapeType = shape.data.type;
+                            targetShape = shape.id;
+                            tmpShapeType = shape.type;
                             map.createShape(
-                              shape.data.type,
+                              shape.type,
                               shape.points,
-                              layers[shape.data.layer]?.data.color ?? '',
-                              shape.Id,
+                              layers[shape.layer]?.color ?? '',
+                              shape.id,
                               true,
                             );
                             drawMode = true;
@@ -490,7 +476,7 @@ onMounted(async () => {
                       <v-btn
                         @click="
                           () => {
-                            targetShape = shape.Id;
+                            targetShape = shape.id;
                             changeShapeLayerDialog = true;
                           }
                         "
@@ -500,7 +486,7 @@ onMounted(async () => {
                       <v-btn
                         @click="
                           async () => {
-                            deleteShapeFunc(layer.Id, shape.Id);
+                            deleteShapeFunc(layer.id, shape.id);
                           }
                         "
                       >
@@ -523,18 +509,18 @@ onMounted(async () => {
             @click="
               async () => {
                 if (editingShape) {
-                  await setShapePath(targetShape, tmpShape);
+                  await shapes[targetShape]?.setPoints(tmpShape);
                   map.removeShape(targetShape);
                   map.createShape(
-                    shapes[targetShape]?.data.type ?? 'line',
+                    shapes[targetShape]?.type ?? 'line',
                     tmpShape,
-                    layers[targetLayer]?.data.color ?? '',
+                    layers[targetLayer]?.color ?? '',
                     targetShape,
                   );
                 } else {
                   const s = await createShape(tmpShapeType, tmpShape, targetLayer, shapeName);
                   if (targetPlace.length > 0) {
-                    await setPlaceShape(targetPlace, s);
+                    await places[targetPlace]?.setShape(s.id);
                   } else {
                     if (!shapeMap[targetLayer]) {
                       shapeMap[targetLayer] = [];
@@ -542,12 +528,7 @@ onMounted(async () => {
                     shapeMap[targetLayer]?.push(s);
                   }
                   map.removeShape(`${prevShape}`);
-                  map.createShape(
-                    tmpShapeType,
-                    tmpShape,
-                    layers[targetLayer]?.data.color ?? '',
-                    s.Id,
-                  );
+                  map.createShape(tmpShapeType, tmpShape, layers[targetLayer]?.color ?? '', s.id);
                 }
                 prevShape = 0;
                 drawMode = false;
@@ -564,19 +545,19 @@ onMounted(async () => {
                 if (lastChangedIndex > 0 && lastChangedIndex < tmpShape.length - 1) {
                   const split1 = tmpShape.slice(0, lastChangedIndex);
                   const split2 = tmpShape.slice(lastChangedIndex + 1, tmpShape.length);
-                  await setShapePath(targetShape, split1);
+                  await shapes[targetShape]?.setPoints(split1);
                   map.removeShape(targetShape);
                   map.createShape(
-                    shapes[targetShape]?.data.type ?? 'line',
+                    shapes[targetShape]?.type ?? 'line',
                     split1,
-                    layers[targetLayer]?.data.color ?? '',
+                    layers[targetLayer]?.color ?? '',
                     targetShape,
                   );
                   const newShape = await createShape(
                     tmpShapeType,
                     split2,
                     targetLayer,
-                    `${shapes[targetShape]?.data.name} - Split`,
+                    `${shapes[targetShape]?.name} - Split`,
                   );
                   if (!shapeMap[targetLayer]) {
                     shapeMap[targetLayer] = [];
@@ -585,8 +566,8 @@ onMounted(async () => {
                   map.createShape(
                     tmpShapeType,
                     split2,
-                    layers[targetLayer]?.data.color ?? '',
-                    newShape.Id,
+                    layers[targetLayer]?.color ?? '',
+                    newShape.id,
                   );
                   drawMode = false;
                 }
@@ -663,7 +644,7 @@ onMounted(async () => {
             async () => {
               const layer = await createLayer(layerName);
               layerList.push(layer);
-              placeMap[layer.Id] = [];
+              placeMap[layer.id] = [];
               layerDialog = false;
               layerName = '';
             }
@@ -676,14 +657,14 @@ onMounted(async () => {
   </v-dialog>
   <v-dialog v-model="createDialog">
     <v-card>
-      <v-card-title>Add a Location to {{ layers[targetLayer]?.data.name }}</v-card-title>
+      <v-card-title>Add a Location to {{ layers[targetLayer]?.name }}</v-card-title>
       <v-card-text>
         <v-text-field v-model="placeName" label="Name" />
         Category: <v-select v-model="placeCategory" :items="categories" />
         <div class="map-container">
           <div ref="newPlaceMapEl" class="map" />
         </div>
-        Selected position: {{ position }}<br />
+        Selected position: {{ position }}<br>
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>
@@ -695,9 +676,9 @@ onMounted(async () => {
               placeMap[targetLayer]?.push(p);
               map.createMarker(
                 locToString(position),
-                p.Id,
+                p.id,
                 placeCategory,
-                layers[targetLayer]?.data.color,
+                layers[targetLayer]?.color,
                 placeName,
               );
               createDialog = false;
@@ -737,7 +718,7 @@ onMounted(async () => {
   </v-dialog>
   <v-dialog v-model="changeLayerDialog">
     <v-card>
-      <v-card-title>Change Layer of {{ places[targetPlace]?.data.name }}</v-card-title>
+      <v-card-title>Change Layer of {{ places[targetPlace]?.name }}</v-card-title>
       <v-card-text>
         <v-select v-model="layerChangeTarget" :items="layerEntryList" />
       </v-card-text>
@@ -748,22 +729,22 @@ onMounted(async () => {
           color="primary"
           @click="
             async () => {
-              const prevLayer = places[targetPlace]?.data.layer;
+              const prevLayer = places[targetPlace]?.layer;
               if (prevLayer) {
                 placeMap[prevLayer]?.splice(
-                  placeMap[prevLayer]?.findIndex(p => p.Id === targetPlace),
+                  placeMap[prevLayer]?.findIndex(p => p.id === targetPlace),
                   1,
                 );
               }
-              await setPlaceLayer(targetPlace, layerChangeTarget);
               const p = places[targetPlace];
               if (p) {
+                p.setLayer(layerChangeTarget);
                 placeMap[layerChangeTarget]?.push(p);
-                const polygon = p.data.shape;
+                const polygon = p.shape;
                 if (polygon.length > 0) {
-                  await setShapeLayer(polygon, layerChangeTarget);
+                  await shapes[polygon]?.setLayer(layerChangeTarget);
                 }
-                setPlaceColor(p, layers[layerChangeTarget]?.data.color ?? '');
+                setPlaceColor(p, layers[layerChangeTarget]?.color ?? '');
               }
               changeLayerDialog = false;
               layerChangeTarget = '';
@@ -777,7 +758,7 @@ onMounted(async () => {
   </v-dialog>
   <v-dialog v-model="changeShapeLayerDialog">
     <v-card>
-      <v-card-title>Change Layer of {{ shapes[targetShape]?.data.name }}</v-card-title>
+      <v-card-title>Change Layer of {{ shapes[targetShape]?.name }}</v-card-title>
       <v-card-text>
         <v-select v-model="layerChangeTarget" :items="layerEntryList" />
       </v-card-text>
@@ -788,18 +769,18 @@ onMounted(async () => {
           color="primary"
           @click="
             async () => {
-              const prevLayer = shapes[targetShape]?.data.layer;
+              const prevLayer = shapes[targetShape]?.layer;
               if (prevLayer) {
                 shapeMap[prevLayer]?.splice(
-                  shapeMap[prevLayer].findIndex(s => s.Id === targetShape),
+                  shapeMap[prevLayer].findIndex(s => s.id === targetShape),
                   1,
                 );
               }
               const s = shapes[targetShape];
               if (s) {
                 shapeMap[layerChangeTarget]?.push(s);
-                await setShapeLayer(targetShape, layerChangeTarget);
-                setShapeColor(s, layers[layerChangeTarget]?.data.color ?? '');
+                await shapes[targetShape]?.setLayer(layerChangeTarget);
+                setShapeColor(s, layers[layerChangeTarget]?.color ?? '');
               }
               changeShapeLayerDialog = false;
               layerChangeTarget = '';
@@ -814,19 +795,19 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.main {
-  margin: 8px;
-}
+  .main {
+    margin: 8px;
+  }
 
-.map-container {
-  flex: 2;
-}
+  .map-container {
+    flex: 2;
+  }
 
-.map {
-  height: 824px;
-}
+  .map {
+    height: 824px;
+  }
 
-.layer {
-  width: 100%;
-}
+  .layer {
+    width: 100%;
+  }
 </style>

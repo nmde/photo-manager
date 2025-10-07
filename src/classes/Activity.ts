@@ -1,12 +1,15 @@
-import { Entity } from './Entity';
+export class Activity {
+  public constructor(private _id: string, private _icon: string, private _name: string) {}
 
-type ActivityData = {
-  icon: string;
-  name: string;
-};
+  public get id() {
+    return this._id;
+  }
 
-export class Activity extends Entity<ActivityData> {
-  public constructor(data: ActivityData) {
-    super('Activity', data);
+  public get icon() {
+    return this._icon;
+  }
+
+  public get name() {
+    return this._name;
   }
 }
