@@ -2,6 +2,7 @@ import type { PlaceType, Position } from '../classes/Map';
 import { invoke } from '@tauri-apps/api/core';
 import { EventEmitter } from 'ee-ts';
 import { v4 as uuid } from 'uuid';
+import { decrypt } from '@/util/encrypt';
 import { Activity } from '../classes/Activity';
 import { Camera } from '../classes/Camera';
 import { Graph } from '../classes/Graph';
@@ -17,7 +18,6 @@ import { Setting, type SettingKey } from '../classes/Setting';
 import { Shape, type ShapeType } from '../classes/Shape';
 import { Tag } from '../classes/Tag';
 import { WikiPage } from '../classes/WikiPage';
-import { decrypt } from '@/util/encrypt';
 
 export type FolderStructure = {
   dirs: string[];
@@ -104,8 +104,6 @@ class FileStore extends EventEmitter<{
 
   public thumbnailProgress = 0;
 
-  public workingDir = '';
-
   public places: Record<string, Place> = {};
 
   public layers: Record<string, Layer> = {};
@@ -163,15 +161,6 @@ class FileStore extends EventEmitter<{
   private settingsRecord: Record<string, Setting> = {};
 
   private key!: CryptoKey;
-
-  /**
-   * Sets the working dir name.
-   * @param path - The path to the working dir.
-   */
-  public setWorkingDir = async (path: string) => {
-    this.workingDir = path;
-    await invoke('set_working_dir', { path });
-  };
 
   /**
    * Adds a group.
@@ -381,6 +370,7 @@ class FileStore extends EventEmitter<{
     );
     const tagList: string[] = [];
     const encounteredGroups: string[] = [];
+    console.log('reading places');
     for (const place of (
       await invoke<
         {
@@ -990,136 +980,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Generates thumbnails in the background.
-   * @param raws - RAW photo files to generate thumbnails for.
-   * @param videos - Video files to generate thumbnails for.
-   */
-  public generateThumbnails = async (raws: string[], videos: string[]) => {
-    const { readDir, exists, mkdir } = await import('@tauri-apps/plugin-fs');
-    const { join, appDataDir } = await import('@tauri-apps/api/path');
-    const { convertFileSrc } = await import('@tauri-apps/api/core');
-    const { Command } = await import('@tauri-apps/plugin-shell');
-    this.generatingThumbnails = true;
-    this.thumbnailProgress = 0;
-    let progress = 0;
-    let lastProgressInt = 0;
-    /**
-     * Helper function to clean a thumbnail file name.
-     * @param path - The path to the thumbnail file.
-     * @returns The "cleaned" thumbnail name.
-     */
-    const clean = (path: string) => {
-      return path.replace(/[/\\]/g, '-').replace(':', '');
-    };
-    const dir = await appDataDir();
-    if (!(await exists(dir))) {
-      await mkdir(dir);
-    }
-    const thumbnailDir = await join(dir, 'thumbnails');
-    if (!(await exists(thumbnailDir))) {
-      await mkdir(thumbnailDir);
-    }
-    const projectThumbnailDir = await join(
-      thumbnailDir,
-      this.workingDir.replace(/[/\\]/g, '-').replace(':', ''),
-    );
-    if (!(await exists(projectThumbnailDir))) {
-      await mkdir(projectThumbnailDir);
-    }
-    const thumbnails = new Set((await readDir(projectThumbnailDir)).map(p => p.name));
-    const newThumbnails: {
-      type: 'raw' | 'video';
-      raw: string;
-      thumbnailPath: string;
-    }[] = [];
-    // Identify ungenerated thumbnails
-    for (const raw of raws) {
-      const thumbnailFile = `${clean(raw).replace(/\..*$/, '')}.jpg`;
-      const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`; // tauri's join() slowed down this one line by like 10,000%
-      const f = this.files[raw];
-      if (f) {
-        if (thumbnails.has(thumbnailFile)) {
-          if (f.thumbnail.length === 0) {
-            await this.setThumbnail(raw, convertFileSrc(thumbnailPath));
-            this.emit('updatePhoto', f);
-          }
-          f.awaitingThumbnail = false;
-        } else {
-          newThumbnails.push({ raw, thumbnailPath, type: 'raw' });
-        }
-      }
-    }
-    for (const video of videos) {
-      const thumbnailFile = `${clean(video).replace(/\..*$/, '')}.png`;
-      const thumbnailPath = `${projectThumbnailDir}/${thumbnailFile}`;
-      const f = this.files[video];
-      if (f) {
-        if (thumbnails.has(thumbnailFile)) {
-          if (f.thumbnail.length === 0) {
-            await this.setThumbnail(video, convertFileSrc(thumbnailPath));
-            this.emit('updatePhoto', f);
-          }
-          f.awaitingThumbnail = false;
-        } else {
-          newThumbnails.push({ raw: video, thumbnailPath, type: 'video' });
-        }
-      }
-    }
-    // Generate new thumbnails
-    for (const data of newThumbnails) {
-      if (!(await exists(data.thumbnailPath))) {
-        if (data.type === 'raw') {
-          const convertOutput = await Command.create('magick', [
-            data.raw,
-            data.thumbnailPath,
-          ]).execute();
-          if (convertOutput.code !== 0) {
-            console.error(convertOutput.stderr);
-          }
-          const resizeOutput = await Command.create('magick', [
-            data.thumbnailPath,
-            '-resize',
-            '800x800',
-            data.thumbnailPath,
-          ]).execute();
-          if (resizeOutput.code !== 0) {
-            console.error(resizeOutput.stderr);
-          }
-        } else {
-          const convertOutput = await Command.create('ffmpeg', [
-            '-i',
-            data.raw,
-            '-ss',
-            '00:00:01.00',
-            '-vframes',
-            '1',
-            data.thumbnailPath,
-          ]).execute();
-          if (convertOutput.code !== 0) {
-            console.error(convertOutput.stderr);
-          }
-        }
-      }
-      const f = this.files[data.raw];
-      if (f) {
-        if (f.thumbnail.length === 0) {
-          await this.setThumbnail(data.raw, convertFileSrc(data.thumbnailPath));
-          this.emit('updatePhoto', f);
-        }
-        f.awaitingThumbnail = false;
-      }
-      progress += 1;
-      const p = Math.round((progress / newThumbnails.length) * 100);
-      if (p > lastProgressInt) {
-        this.thumbnailProgress = p;
-        lastProgressInt = p;
-        this.emit('thumbnailProgress', this.thumbnailProgress);
-      }
-    }
-    this.generatingThumbnails = false;
-  };
-
-  /**
    * Gets a file.
    * @param name - The name of the file.
    * @returns The file object.
@@ -1669,6 +1529,19 @@ class FileStore extends EventEmitter<{
    */
   public setWikiPageTitle = async (page: string, newTitle: string) => {
     await this.wikiPages[page]?.setName(newTitle, this.settings.encrypt === 'true', this.key);
+  };
+
+  /**
+   * Creates a new advTag entry.
+   * @param name - The name of the tag.
+   */
+  public createTag = async (name: string) => {
+    const id = uuid();
+    await invoke('create_tag', {
+      id,
+      name,
+    });
+    this.advTags.push(new Tag(id, name, '', '', '', ''));
   };
 
   /**

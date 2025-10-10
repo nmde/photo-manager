@@ -1,62 +1,11 @@
-use sqlite::Connection;
-use std::sync::Mutex;
-
-pub struct PhotoState {
-    db: Mutex<Connection>,
-}
-
-impl Default for PhotoState {
-    fn default() -> Self {
-        Self {
-            db: Mutex::new(sqlite::open(":memory:").ok().unwrap()),
-        }
-    }
-}
+use crate::photos;
+use crate::types;
 
 #[tauri::command]
-pub async fn set_working_dir(
-    state: tauri::State<'_, PhotoState>,
-    path: String,
-) -> Result<(), String> {
-    let conn = sqlite::open(format!("{path}/photos.db")).ok().unwrap();
-
-    conn.execute("CREATE TABLE IF NOT EXISTS Activity (Id TEXT PRIMARY KEY, name TEXT, icon TEXT)")
-        .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Camera (Id TEXT PRIMARY KEY, name TEXT)")
-        .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Journal (Id TEXT PRIMARY KEY, date TEXT, mood INTEGER, text TEXT, activities TEXT, steps INTEGER, iv TEXT)").unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Layer (Id TEXT PRIMARY KEY, name TEXT, color TEXT)")
-        .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Person (Id TEXT PRIMARY KEY, name TEXT, photo TEXT, notes TEXT, category TEXT)").unwrap();
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS PersonCategory (Id TEXT PRIMARY KEY, name TEXT, color TEXT)",
-    )
-    .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Photo (Id TEXT , name TEXT PRIMARY KEY, path TEXT, title TEXT, description TEXT, tags TEXT, isDuplicate INTEGER, rating INTEGER, location TEXT, thumbnail TEXT, video INTEGER, photoGroup TEXT, date TEXT, raw INTEGER, people TEXT, hideThumbnail INTEGER, photographer TEXT, camera TEXT)").unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS PhotoGroup (Id TEXT PRIMARY KEY, name TEXT)")
-        .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Place (Id TEXT PRIMARY KEY, name TEXT, lat INTEGER, lng INTEGER, layer TEXT, category TEXT, shape TEXT, tags TEXT, notes TEXT)").unwrap();
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS Setting (Id TEXT , setting TEXT PRIMARY KEY, value INTEGER)",
-    )
-    .unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Shape (Id TEXT PRIMARY KEY, type TEXT, points TEXT, layer TEXT, name TEXT)").unwrap();
-    conn.execute("CREATE TABLE IF NOT EXISTS Tag (Id TEXT , name TEXT PRIMARY KEY, color TEXT, prereqs TEXT, coreqs TEXT, incompatible TEXT)").unwrap();
-
-    *state.db.lock().unwrap() = conn;
-    Ok(())
-}
-
-#[derive(serde::Serialize)]
-pub struct Activity {
-    id: String,
-    name: String,
-    icon: String,
-}
-
-#[tauri::command]
-pub async fn get_activities(state: tauri::State<'_, PhotoState>) -> Result<Vec<Activity>, String> {
-    let mut activities = Vec::<Activity>::new();
+pub async fn get_activities(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Activity>, String> {
+    let mut activities = Vec::<types::Activity>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -66,7 +15,7 @@ pub async fn get_activities(state: tauri::State<'_, PhotoState>) -> Result<Vec<A
         .map(|row| row.unwrap());
 
     for row in rows {
-        activities.push(Activity {
+        activities.push(types::Activity {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             icon: row.read::<&str, _>("icon").to_string(),
@@ -78,7 +27,7 @@ pub async fn get_activities(state: tauri::State<'_, PhotoState>) -> Result<Vec<A
 
 #[tauri::command]
 pub async fn create_activity(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     icon: String,
@@ -94,15 +43,11 @@ pub async fn create_activity(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Camera {
-    id: String,
-    name: String,
-}
-
 #[tauri::command]
-pub async fn get_cameras(state: tauri::State<'_, PhotoState>) -> Result<Vec<Camera>, String> {
-    let mut cameras = Vec::<Camera>::new();
+pub async fn get_cameras(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Camera>, String> {
+    let mut cameras = Vec::<types::Camera>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -112,7 +57,7 @@ pub async fn get_cameras(state: tauri::State<'_, PhotoState>) -> Result<Vec<Came
         .map(|row| row.unwrap());
 
     for row in rows {
-        cameras.push(Camera {
+        cameras.push(types::Camera {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
         });
@@ -123,7 +68,7 @@ pub async fn get_cameras(state: tauri::State<'_, PhotoState>) -> Result<Vec<Came
 
 #[tauri::command]
 pub async fn create_camera(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
 ) -> Result<(), String> {
@@ -136,15 +81,11 @@ pub async fn create_camera(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Group {
-    id: String,
-    name: String,
-}
-
 #[tauri::command]
-pub async fn get_groups(state: tauri::State<'_, PhotoState>) -> Result<Vec<Group>, String> {
-    let mut groups: Vec<Group> = Vec::<Group>::new();
+pub async fn get_groups(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Group>, String> {
+    let mut groups = Vec::<types::Group>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -154,7 +95,7 @@ pub async fn get_groups(state: tauri::State<'_, PhotoState>) -> Result<Vec<Group
         .map(|row| row.unwrap());
 
     for row in rows {
-        groups.push(Group {
+        groups.push(types::Group {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
         });
@@ -165,7 +106,7 @@ pub async fn get_groups(state: tauri::State<'_, PhotoState>) -> Result<Vec<Group
 
 #[tauri::command]
 pub async fn create_group(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
 ) -> Result<(), String> {
@@ -178,20 +119,11 @@ pub async fn create_group(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Journal {
-    id: String,
-    date: String,
-    mood: i64,
-    text: String,
-    activities: String,
-    steps: i64,
-    iv: String,
-}
-
 #[tauri::command]
-pub async fn get_journals(state: tauri::State<'_, PhotoState>) -> Result<Vec<Journal>, String> {
-    let mut journals = Vec::<Journal>::new();
+pub async fn get_journals(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Journal>, String> {
+    let mut journals = Vec::<types::Journal>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -201,7 +133,7 @@ pub async fn get_journals(state: tauri::State<'_, PhotoState>) -> Result<Vec<Jou
         .map(|row| row.unwrap());
 
     for row in rows {
-        journals.push(Journal {
+        journals.push(types::Journal {
             id: row.read::<&str, _>("Id").to_string(),
             date: row.read::<&str, _>("date").to_string(),
             mood: row.read::<i64, _>("mood"),
@@ -217,7 +149,7 @@ pub async fn get_journals(state: tauri::State<'_, PhotoState>) -> Result<Vec<Jou
 
 #[tauri::command]
 pub async fn create_journal_entry(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     date: String,
     mood: i32,
@@ -238,7 +170,7 @@ pub async fn create_journal_entry(
 
 #[tauri::command]
 pub async fn set_journal_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     journal: String,
     property: String,
     value: String,
@@ -256,7 +188,7 @@ pub async fn set_journal_str(
 
 #[tauri::command]
 pub async fn set_journal_mood(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     journal: String,
     mood: i32,
 ) -> Result<(), String> {
@@ -271,16 +203,11 @@ pub async fn set_journal_mood(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Layer {
-    id: String,
-    name: String,
-    color: String,
-}
-
 #[tauri::command]
-pub async fn get_layers(state: tauri::State<'_, PhotoState>) -> Result<Vec<Layer>, String> {
-    let mut layers: Vec<Layer> = Vec::<Layer>::new();
+pub async fn get_layers(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Layer>, String> {
+    let mut layers = Vec::<types::Layer>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -290,7 +217,7 @@ pub async fn get_layers(state: tauri::State<'_, PhotoState>) -> Result<Vec<Layer
         .map(|row| row.unwrap());
 
     for row in rows {
-        layers.push(Layer {
+        layers.push(types::Layer {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             color: row.read::<&str, _>("color").to_string(),
@@ -302,7 +229,7 @@ pub async fn get_layers(state: tauri::State<'_, PhotoState>) -> Result<Vec<Layer
 
 #[tauri::command]
 pub async fn create_layer(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     color: String,
@@ -320,7 +247,7 @@ pub async fn create_layer(
 
 #[tauri::command]
 pub async fn set_layer_color(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     layer: String,
     color: String,
 ) -> Result<(), String> {
@@ -335,18 +262,11 @@ pub async fn set_layer_color(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Person {
-    id: String,
-    name: String,
-    photo: String,
-    notes: String,
-    category: String,
-}
-
 #[tauri::command]
-pub async fn get_people(state: tauri::State<'_, PhotoState>) -> Result<Vec<Person>, String> {
-    let mut people = Vec::<Person>::new();
+pub async fn get_people(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Person>, String> {
+    let mut people = Vec::<types::Person>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -356,7 +276,7 @@ pub async fn get_people(state: tauri::State<'_, PhotoState>) -> Result<Vec<Perso
         .map(|row| row.unwrap());
 
     for row in rows {
-        people.push(Person {
+        people.push(types::Person {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             photo: row.read::<&str, _>("photo").to_string(),
@@ -370,7 +290,7 @@ pub async fn get_people(state: tauri::State<'_, PhotoState>) -> Result<Vec<Perso
 
 #[tauri::command]
 pub async fn create_person(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     photo: String,
@@ -390,7 +310,7 @@ pub async fn create_person(
 
 #[tauri::command]
 pub async fn set_person_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     person: String,
     property: String,
     value: String,
@@ -406,28 +326,21 @@ pub async fn set_person_str(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct PersonCategory {
-    id: String,
-    name: String,
-    color: String,
-}
-
 #[tauri::command]
 pub async fn get_person_categories(
-    state: tauri::State<'_, PhotoState>,
-) -> Result<Vec<PersonCategory>, String> {
-    let mut categories = Vec::<PersonCategory>::new();
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::PersonCategory>, String> {
+    let mut categories = Vec::<types::PersonCategory>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
-        .prepare("SELECT * FROM PersonCategories")
+        .prepare("SELECT * FROM PersonCategory")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap());
 
     for row in rows {
-        categories.push(PersonCategory {
+        categories.push(types::PersonCategory {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             color: row.read::<&str, _>("color").to_string(),
@@ -439,7 +352,7 @@ pub async fn get_person_categories(
 
 #[tauri::command]
 pub async fn create_person_category(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     color: String,
@@ -455,22 +368,9 @@ pub async fn create_person_category(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Place {
-    id: String,
-    name: String,
-    lat: i64,
-    lng: i64,
-    layer: String,
-    category: String,
-    shape: String,
-    tags: String,
-    notes: String,
-}
-
 #[tauri::command]
-pub async fn get_places(state: tauri::State<'_, PhotoState>) -> Result<Vec<Place>, String> {
-    let mut places = Vec::<Place>::new();
+pub async fn get_places(state: tauri::State<'_, photos::PhotoState>) -> Result<Vec<types::Place>, String> {
+    let mut places = Vec::<types::Place>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -480,11 +380,11 @@ pub async fn get_places(state: tauri::State<'_, PhotoState>) -> Result<Vec<Place
         .map(|row| row.unwrap());
 
     for row in rows {
-        places.push(Place {
+        places.push(types::Place {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
-            lat: row.read::<i64, _>("lat"),
-            lng: row.read::<i64, _>("lng"),
+            lat: row.read::<f64, _>("lat"),
+            lng: row.read::<f64, _>("lng"),
             layer: row.read::<&str, _>("layer").to_string(),
             category: row.read::<&str, _>("category").to_string(),
             shape: row.read::<&str, _>("shape").to_string(),
@@ -498,7 +398,7 @@ pub async fn get_places(state: tauri::State<'_, PhotoState>) -> Result<Vec<Place
 
 #[tauri::command]
 pub async fn create_place(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     lat: i32,
@@ -518,7 +418,7 @@ pub async fn create_place(
 
 #[tauri::command]
 pub async fn set_place_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     place: String,
     property: String,
     value: String,
@@ -536,7 +436,7 @@ pub async fn set_place_str(
 
 #[tauri::command]
 pub async fn set_place_position(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     place: String,
     lat: i32,
     lng: i32,
@@ -554,7 +454,7 @@ pub async fn set_place_position(
 
 #[tauri::command]
 pub async fn delete_place(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     place: String,
 ) -> Result<(), String> {
     state
@@ -566,16 +466,11 @@ pub async fn delete_place(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Setting {
-    id: String,
-    setting: String,
-    value: String,
-}
-
 #[tauri::command]
-pub async fn get_settings(state: tauri::State<'_, PhotoState>) -> Result<Vec<Setting>, String> {
-    let mut settings = Vec::<Setting>::new();
+pub async fn get_settings(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Setting>, String> {
+    let mut settings = Vec::<types::Setting>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -585,10 +480,10 @@ pub async fn get_settings(state: tauri::State<'_, PhotoState>) -> Result<Vec<Set
         .map(|row| row.unwrap());
 
     for row in rows {
-        settings.push(Setting {
+        settings.push(types::Setting {
             id: row.read::<&str, _>("Id").to_string(),
             setting: row.read::<&str, _>("setting").to_string(),
-            value: row.read::<&str, _>("value").to_string(),
+            value: row.read::<i64, _>("value"),
         });
     }
 
@@ -597,7 +492,7 @@ pub async fn get_settings(state: tauri::State<'_, PhotoState>) -> Result<Vec<Set
 
 #[tauri::command]
 pub async fn set_setting(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     setting: String,
     value: String,
@@ -610,30 +505,25 @@ pub async fn set_setting(
         .map(|row| row.unwrap());
 
     if rows.count() == 0 {
-        connection.execute(format!(
-            "INSERT INTO Settings VALUES ('{id}', '{setting}', '{value}')"
-        ));
+        connection
+            .execute(format!(
+                "INSERT INTO Setting VALUES ('{id}', '{setting}', '{value}')"
+            ))
+            .unwrap();
     } else {
-        connection.execute(format!(
-            "UPDATE Settings SET value='{value}' WHERE setting='{setting}'"
-        ));
+        connection
+            .execute(format!(
+                "UPDATE Setting SET value='{value}' WHERE setting='{setting}'"
+            ))
+            .unwrap();
     }
 
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Shape {
-    id: String,
-    shape_type: String,
-    points: String,
-    layer: String,
-    name: String,
-}
-
 #[tauri::command]
-pub async fn get_shapes(state: tauri::State<'_, PhotoState>) -> Result<Vec<Shape>, String> {
-    let mut shapes: Vec<Shape> = Vec::<Shape>::new();
+pub async fn get_shapes(state: tauri::State<'_, photos::PhotoState>) -> Result<Vec<types::Shape>, String> {
+    let mut shapes = Vec::<types::Shape>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -643,7 +533,7 @@ pub async fn get_shapes(state: tauri::State<'_, PhotoState>) -> Result<Vec<Shape
         .map(|row| row.unwrap());
 
     for row in rows {
-        shapes.push(Shape {
+        shapes.push(types::Shape {
             id: row.read::<&str, _>("Id").to_string(),
             shape_type: row.read::<&str, _>("type").to_string(),
             points: row.read::<&str, _>("points").to_string(),
@@ -657,7 +547,7 @@ pub async fn get_shapes(state: tauri::State<'_, PhotoState>) -> Result<Vec<Shape
 
 #[tauri::command]
 pub async fn create_shape(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     shape_type: String,
     points: String,
@@ -677,7 +567,7 @@ pub async fn create_shape(
 
 #[tauri::command]
 pub async fn set_shape_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     shape: String,
     property: String,
     value: String,
@@ -695,7 +585,7 @@ pub async fn set_shape_str(
 
 #[tauri::command]
 pub async fn delete_shape(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     shape: String,
 ) -> Result<(), String> {
     state
@@ -707,19 +597,11 @@ pub async fn delete_shape(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Tag {
-    id: String,
-    name: String,
-    color: String,
-    prereqs: String,
-    coreqs: String,
-    incompatible: String,
-}
-
 #[tauri::command]
-pub async fn get_tags(state: tauri::State<'_, PhotoState>) -> Result<Vec<Tag>, String> {
-    let mut tags = Vec::<Tag>::new();
+pub async fn get_tags(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::Tag>, String> {
+    let mut tags = Vec::<types::Tag>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -729,7 +611,7 @@ pub async fn get_tags(state: tauri::State<'_, PhotoState>) -> Result<Vec<Tag>, S
         .map(|row| row.unwrap());
 
     for row in rows {
-        tags.push(Tag {
+        tags.push(types::Tag {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             color: row.read::<&str, _>("color").to_string(),
@@ -743,8 +625,25 @@ pub async fn get_tags(state: tauri::State<'_, PhotoState>) -> Result<Vec<Tag>, S
 }
 
 #[tauri::command]
+pub async fn create_tag(
+    state: tauri::State<'_, photos::PhotoState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .execute(format!(
+            "INSERT INTO Tag VALUES ('{id}', '{name}', '', '', '', '')"
+        ))
+        .unwrap();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn set_tag_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     tag: String,
     property: String,
     value: String,
@@ -760,27 +659,21 @@ pub async fn set_tag_str(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct WikiPage {
-    id: String,
-    name: String,
-    content: String,
-    iv: String,
-}
-
 #[tauri::command]
-pub async fn get_wiki_pages(state: tauri::State<'_, PhotoState>) -> Result<Vec<WikiPage>, String> {
-    let mut pages = Vec::<WikiPage>::new();
+pub async fn get_wiki_pages(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<Vec<types::WikiPage>, String> {
+    let mut pages = Vec::<types::WikiPage>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
-        .prepare("SELECT * FROM Journal")
+        .prepare("SELECT * FROM WikiPage")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap());
 
     for row in rows {
-        pages.push(WikiPage {
+        pages.push(types::WikiPage {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             content: row.read::<&str, _>("content").to_string(),
@@ -793,7 +686,7 @@ pub async fn get_wiki_pages(state: tauri::State<'_, PhotoState>) -> Result<Vec<W
 
 #[tauri::command]
 pub async fn create_wiki_page(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
     content: String,
@@ -812,7 +705,7 @@ pub async fn create_wiki_page(
 
 #[tauri::command]
 pub async fn set_wiki_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     page: String,
     property: String,
     value: String,
@@ -828,31 +721,9 @@ pub async fn set_wiki_str(
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct Photo {
-    id: String,
-    name: String,
-    path: String,
-    title: String,
-    description: String,
-    tags: String,
-    is_duplicate: i64,
-    rating: i64,
-    location: String,
-    thumbnail: String,
-    video: i64,
-    photo_group: String,
-    date: String,
-    raw: i64,
-    people: String,
-    hide_thumbnail: i64,
-    photographer: String,
-    camera: String,
-}
-
 #[tauri::command]
-pub async fn get_photos(state: tauri::State<'_, PhotoState>) -> Result<Vec<Photo>, String> {
-    let mut photos = Vec::<Photo>::new();
+pub async fn get_photos(state: tauri::State<'_, photos::PhotoState>) -> Result<Vec<types::Photo>, String> {
+    let mut photos = Vec::<types::Photo>::new();
 
     let connection = state.db.lock().unwrap();
     let rows = connection
@@ -862,7 +733,7 @@ pub async fn get_photos(state: tauri::State<'_, PhotoState>) -> Result<Vec<Photo
         .map(|row| row.unwrap());
 
     for row in rows {
-        photos.push(Photo {
+        photos.push(types::Photo {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             path: row.read::<&str, _>("path").to_string(),
@@ -872,7 +743,7 @@ pub async fn get_photos(state: tauri::State<'_, PhotoState>) -> Result<Vec<Photo
             is_duplicate: row.read::<i64, _>("isDuplicate"),
             rating: row.read::<i64, _>("rating"),
             location: row.read::<&str, _>("location").to_string(),
-            thumbnail: row.read::<&str, _>("location").to_string(),
+            thumbnail: row.read::<&str, _>("thumbnail").to_string(),
             video: row.read::<i64, _>("video"),
             photo_group: row.read::<&str, _>("photoGroup").to_string(),
             date: row.read::<&str, _>("date").to_string(),
@@ -889,7 +760,7 @@ pub async fn get_photos(state: tauri::State<'_, PhotoState>) -> Result<Vec<Photo
 
 #[tauri::command]
 pub async fn set_photo_str(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     photo: String,
     property: String,
     value: String,
@@ -907,7 +778,7 @@ pub async fn set_photo_str(
 
 #[tauri::command]
 pub async fn set_photo_rating(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     photo: String,
     rating: i32,
 ) -> Result<(), String> {
@@ -924,7 +795,7 @@ pub async fn set_photo_rating(
 
 #[tauri::command]
 pub async fn set_photo_bool(
-    state: tauri::State<'_, PhotoState>,
+    state: tauri::State<'_, photos::PhotoState>,
     photo: String,
     property: String,
     value: bool,

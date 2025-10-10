@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { v4 as uuid } from 'uuid';
 
 export class Photo {
   public awaitingThumbnail = true;
@@ -266,27 +265,4 @@ export class Photo {
   public hasTag(tag: string) {
     return this.tags.includes(tag);
   }
-}
-
-export function createPhoto(name: string, path: string): Photo {
-  return new Photo(
-    uuid(),
-    name,
-    path,
-    name,
-    '',
-    '',
-    '',
-    false,
-    '',
-    0,
-    false,
-    '',
-    '',
-    false,
-    '',
-    false,
-    '',
-    '',
-  );
 }

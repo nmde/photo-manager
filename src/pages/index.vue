@@ -1,19 +1,12 @@
 <script setup lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
-  import { createPhoto, type Photo } from '../classes/Photo';
+  import { Photo } from '../classes/Photo';
   import { fileStore } from '../stores/fileStore';
 
   const router = useRouter();
-  const {
-    setWorkingDir,
-    loadPhotos,
-    setFiles,
-    generateThumbnails,
-    groupRaws,
-    removeDeleted,
-    setFolderStructure,
-  } = fileStore;
+  const { setFiles, removeDeleted } = fileStore;
 
   const loading = ref(false);
   const deletedDialog = ref(false);
@@ -24,114 +17,93 @@
   const reading = ref('');
 
   /**
-   * Uses dir to quickly read a directory's contents.
-   * @param path - The path to read.
-   */
-  async function readDir(path: string, top = true) {
-    const { join } = await import('@tauri-apps/api/path');
-    const { Command } = await import('@tauri-apps/plugin-shell');
-    console.log(`Reading ${path}`);
-    reading.value = path;
-    let files: string[] = [];
-    let dirs: string[] = [];
-    const output = await Command.create('cmd', ['/C', 'dir', path]).execute();
-    console.log(output.stdout);
-    if (output.stderr.length > 0) {
-      console.error(output.stderr);
-    } else {
-      const it = output.stdout.matchAll(/[0-9]{2}\/[0-9]{2}\/[0-9]{4}.*$/gm);
-      let curr = it.next();
-      while (!curr.done) {
-        if (curr.value[0].indexOf('<DIR>') > 0) {
-          const dir = curr.value[0].replace(
-            /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+<DIR>\s+/,
-            '',
-          );
-          if (!['.', '..'].includes(dir) && !dir.includes('.dropbox.cache')) {
-            dirs.push(await join(path, dir));
-          }
-        } else {
-          files.push(
-            await join(
-              path,
-              curr.value[0].replace(
-                /[0-9]{2}\/[0-9]{2}\/[0-9]{4}\s+[0-9]{2}:[0-9]{2}\s[AP]M\s+[0-9,]+\s+/,
-                '',
-              ),
-            ),
-          );
-        }
-        curr = it.next();
-      }
-      if (top) {
-        fileCount.value += dirs.length;
-      }
-      for (const dir of dirs) {
-        const r = await readDir(dir, false);
-        files = files.concat(r.files);
-        dirs = dirs.concat(r.dirs);
-      }
-    }
-    if (top) {
-      initializingProgress.value += 1;
-    }
-    return { dirs, files };
-  }
-
-  /**
    * Prompts the user to select the folder to manage.
    */
   async function openFolder() {
     loading.value = true;
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const { convertFileSrc } = await import('@tauri-apps/api/core');
     const selected = await open({
       directory: true,
       multiple: false,
     });
     if (selected && typeof selected === 'string') {
       initializing.value = true;
-      await setWorkingDir(selected);
+      const data = await invoke<{
+        photos: {
+          id: string;
+          name: string;
+          path: string;
+          title: string;
+          description: string;
+          tags: string;
+          is_duplicate: number;
+          rating: number;
+          location: string;
+          thumbnail: string;
+          video: number;
+          photo_group: string;
+          date: string;
+          raw: number;
+          people: string;
+          hide_thumbnail: number;
+          photographer: string;
+          camera: string;
+        }[];
+        deleted: string[];
+      }>('open_folder', { path: selected });
+      console.log(deleted);
       const files: Record<string, Photo> = {};
-      const existing = { ...(await loadPhotos()) };
-      let fullFileList: string[] = [];
-      const raws: string[] = [];
-      const videos: string[] = [];
-      console.log('Loaded photos');
-      const folder = await readDir(selected);
-      setFolderStructure(folder);
-      fullFileList = folder.files;
-      console.log('Read dir');
-      const rawPhotos: Photo[] = [];
-      for (const file of fullFileList) {
-        if (existing[file]) {
-          files[file] = existing[file];
-          delete existing[file];
-        } else {
-          files[file] = createPhoto(file, convertFileSrc(file));
-        }
-        if (/^.*\.(ORF|NRW|HEIC|TIFF|TIF)$/.test(file.toUpperCase())) {
-          await files[file].setRaw(true);
-          raws.push(file);
-        } else if (/^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$/.test(file.toUpperCase())) {
-          await files[file].setVideo(true);
-          videos.push(file);
-        }
-        if (files[file].raw) {
-          rawPhotos.push(files[file]);
-        }
+      for (const photo of data.photos.map(
+        ({
+          id,
+          name,
+          path,
+          title,
+          description,
+          tags,
+          is_duplicate,
+          rating,
+          location,
+          thumbnail,
+          video,
+          photo_group,
+          date,
+          raw,
+          people,
+          hide_thumbnail,
+          photographer,
+          camera,
+        }) =>
+          new Photo(
+            id,
+            name,
+            path,
+            title,
+            description,
+            location,
+            tags,
+            is_duplicate === 1,
+            thumbnail,
+            rating,
+            video === 1,
+            photo_group,
+            date,
+            raw === 1,
+            people,
+            hide_thumbnail === 1,
+            photographer,
+            camera,
+          ),
+      )) {
+        files[photo.name] = photo;
       }
-      deleted.value = Object.keys(existing);
+      console.log('Loaded photos');
+      // const folder = await readDir(selected);
+      // setFolderStructure(folder);
+      console.log('Read dir');
+      deleted.value = data.deleted;
       setFiles(files);
-      groupRaws(rawPhotos);
-      if (raws.length > 0 || videos.length > 0) {
-        await generateThumbnails(raws, videos);
-        if (deleted.value.length > 0) {
-          deletedDialog.value = true;
-        } else {
-          await router.push('/tagger');
-        }
-      } else if (deleted.value.length > 0) {
+      if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
         await router.push('/tagger');

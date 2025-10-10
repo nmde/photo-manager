@@ -2,15 +2,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod database;
+mod photos;
+mod types;
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(database::PhotoState::default())
+        .manage(photos::PhotoState::default())
         .invoke_handler(tauri::generate_handler![
-            database::set_working_dir,
             database::get_activities,
             database::create_activity,
             database::get_cameras,
@@ -41,6 +42,7 @@ fn main() {
             database::set_shape_str,
             database::delete_shape,
             database::get_tags,
+            database::create_tag,
             database::set_tag_str,
             database::get_wiki_pages,
             database::create_wiki_page,
@@ -48,7 +50,8 @@ fn main() {
             database::get_photos,
             database::set_photo_str,
             database::set_photo_rating,
-            database::set_photo_bool
+            database::set_photo_bool,
+            photos::open_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

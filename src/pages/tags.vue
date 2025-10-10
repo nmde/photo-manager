@@ -20,6 +20,7 @@
     tagCounts,
     advTags,
     files,
+    createTag,
   } = fileStore;
 
   const cutoff = ref(30);
@@ -31,6 +32,7 @@
   const filterColor = ref('');
   const relative = ref(false);
   const showGraphs = ref(false);
+  const isNewTag = ref(false);
 
   const avgRating = computed(() => {
     let sum = 0;
@@ -153,6 +155,16 @@
       ],
     };
   });
+
+  /**
+   * Ensures the tag exists in the database before operations to set individual values
+   */
+  async function ensureTag() {
+    if (isNewTag.value) {
+      await createTag(selected.value);
+      isNewTag.value = false;
+    }
+  }
 </script>
 
 <template>
@@ -160,6 +172,7 @@
     <v-container fluid>
       <v-row>
         <v-col cols="6">
+          {{ isNewTag }}
           <tag-input
             label="Select a tag"
             single
@@ -174,33 +187,37 @@
                   prereqTags = adv.prereqs;
                   coreqTags = adv.coreqs;
                   incompatibleTags = adv.incompatible;
+                  isNewTag = false;
                 } else {
                   prereqTags = [];
                   coreqTags = [];
                   incompatibleTags = [];
+                  isNewTag = true;
                 }
               }
             "
           />
           <div v-if="selected">
             Editing properties of <span :style="{ color: selectedColor }">{{ selected }}</span>
-            <br />
+            <br>
             Set color:
             <color-options
               @select="
                 async color => {
                   selectedColor = color;
-                  await advTags.find(t => t.id === selected)?.setColor(color);
+                  await ensureTag();
+                  await advTags.find(t => t.name === selected)?.setColor(color);
                 }
               "
             />
-            <br />
+            <br>
             <tag-input
               label="Prerequisite Tags"
               :value="prereqTags"
               @update="
                 async tags => {
-                  await advTags.find(t => t.id === selected)?.setPrereqs(tags);
+                  await ensureTag();
+                  await advTags.find(t => t.name === selected)?.setPrereqs(tags);
                   handleTagChange(selected);
                 }
               "
@@ -210,7 +227,8 @@
               :value="coreqTags"
               @update="
                 async tags => {
-                  await advTags.find(t => t.id === selected)?.setCoreqs(tags);
+                  await ensureTag();
+                  await advTags.find(t => t.name === selected)?.setCoreqs(tags);
                   handleTagChange(selected);
                 }
               "
@@ -220,7 +238,8 @@
               :value="incompatibleTags"
               @update="
                 async tags => {
-                  await advTags.find(t => t.id === selected)?.setIncompatible(tags);
+                  await ensureTag();
+                  await advTags.find(t => t.name === selected)?.setIncompatible(tags);
                   handleTagChange(selected);
                 }
               "
