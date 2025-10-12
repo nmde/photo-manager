@@ -26,7 +26,19 @@ impl Default for PhotoState {
 #[derive(serde::Serialize)]
 pub struct OpenFolderResponse {
     photos: Vec<types::Photo>,
-    deleted: Vec<String>
+    deleted: Vec<String>,
+    tags: Vec<types::Tag>,
+    places: Vec<types::Place>,
+    person_categories: Vec<types::PersonCategory>,
+    people: Vec<types::Person>,
+    cameras: Vec<types::Camera>,
+    groups: Vec<types::Group>,
+    layers: Vec<types::Layer>,
+    shapes: Vec<types::Shape>,
+    activities: Vec<types::Activity>,
+    settings: Vec<types::Setting>,
+    journals: Vec<types::Journal>,
+    wiki_pages: Vec<types::WikiPage>,
 }
 
 /**
@@ -107,6 +119,86 @@ pub async fn open_folder<R: tauri::Runtime>(
     let thumbnail_dir = format!("{data_dir}/thumbnails/");
     fs::create_dir_all(&thumbnail_dir).unwrap();
 
+    let mut tags = Vec::<types::Tag>::new();
+    for row in conn
+        .prepare("SELECT * FROM Tag")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        tags.push(types::Tag {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            color: row.read::<&str, _>("color").to_string(),
+            prereqs: row.read::<&str, _>("prereqs").to_string(),
+            coreqs: row.read::<&str, _>("coreqs").to_string(),
+            incompatible: row.read::<&str, _>("incompatible").to_string(),
+        });
+    }
+
+    let mut places = Vec::<types::Place>::new();
+    for row in conn
+        .prepare("SELECT * FROM Place")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        places.push(types::Place {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            lat: row.read::<f64, _>("lat"),
+            lng: row.read::<f64, _>("lng"),
+            layer: row.read::<&str, _>("layer").to_string(),
+            category: row.read::<&str, _>("category").to_string(),
+            shape: row.read::<&str, _>("shape").to_string(),
+            tags: row.read::<&str, _>("tags").to_string(),
+            notes: row.read::<&str, _>("notes").to_string(),
+        });
+    }
+
+    let mut categories = Vec::<types::PersonCategory>::new();
+    for row in conn
+        .prepare("SELECT * FROM PersonCategory")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        categories.push(types::PersonCategory {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            color: row.read::<&str, _>("color").to_string(),
+        });
+    }
+
+    let mut people = Vec::<types::Person>::new();
+    for row in conn
+        .prepare("SELECT * FROM Person")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        people.push(types::Person {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            photo: row.read::<&str, _>("photo").to_string(),
+            notes: row.read::<&str, _>("notes").to_string(),
+            category: row.read::<&str, _>("category").to_string(),
+        });
+    }
+
+    let mut cameras = Vec::<types::Camera>::new();
+    for row in conn
+        .prepare("SELECT * FROM Camera")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        cameras.push(types::Camera {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+        });
+    }
+
     // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
     let mut photos = Vec::<types::Photo>::new();
 
@@ -118,7 +210,10 @@ pub async fn open_folder<R: tauri::Runtime>(
         if file.metadata().unwrap().is_file() {
             let filename = file.path().display();
             if existing.contains_key(&filename.to_string()) {
-                unmatched.remove(unmatched.binary_search(&filename.to_string()).unwrap());
+                let idx = unmatched.binary_search(&filename.to_string());
+                if idx.is_ok() {
+                    unmatched.remove(idx.unwrap());
+                }
                 photos.push(existing.get(&filename.to_string()).unwrap().clone());
             } else {
                 let tmp = &filename.to_string();
@@ -154,7 +249,6 @@ pub async fn open_folder<R: tauri::Runtime>(
                         .expect(&format!("Could not generate thumbnail for {tmp}"));
                 }
                 let asset_path = url_escape::encode_component(tmp);
-                println!("{}", format!("https://asset.localhost/{asset_path}"));
                 let photo = types::Photo {
                     id: id_generator.next_id(),
                     name: filename.to_string(),
@@ -181,10 +275,126 @@ pub async fn open_folder<R: tauri::Runtime>(
         }
     }
 
+    let mut groups = Vec::<types::Group>::new();
+    for row in conn
+        .prepare("SELECT * FROM PhotoGroup")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        groups.push(types::Group {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+        });
+    }
+
+    let mut layers = Vec::<types::Layer>::new();
+    for row in conn
+        .prepare("SELECT * FROM Layer")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        layers.push(types::Layer {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            color: row.read::<&str, _>("color").to_string(),
+        });
+    }
+
+    let mut shapes = Vec::<types::Shape>::new();
+    for row in conn
+        .prepare("SELECT * FROM Shape")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        shapes.push(types::Shape {
+            id: row.read::<&str, _>("Id").to_string(),
+            shape_type: row.read::<&str, _>("type").to_string(),
+            points: row.read::<&str, _>("points").to_string(),
+            layer: row.read::<&str, _>("layer").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+        });
+    }
+
+    let mut activities = Vec::<types::Activity>::new();
+    for row in conn
+        .prepare("SELECT * FROM Activity")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        activities.push(types::Activity {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            icon: row.read::<&str, _>("icon").to_string(),
+        });
+    }
+
+    let mut settings = Vec::<types::Setting>::new();
+    for row in conn
+        .prepare("SELECT * FROM Setting")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        settings.push(types::Setting {
+            id: row.read::<&str, _>("Id").to_string(),
+            setting: row.read::<&str, _>("setting").to_string(),
+            value: row.read::<i64, _>("value"),
+        });
+    }
+
+    let mut journals = Vec::<types::Journal>::new();
+    for row in conn
+        .prepare("SELECT * FROM Journal")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        journals.push(types::Journal {
+            id: row.read::<&str, _>("Id").to_string(),
+            date: row.read::<&str, _>("date").to_string(),
+            mood: row.read::<i64, _>("mood"),
+            text: row.read::<&str, _>("text").to_string(),
+            activities: row.read::<&str, _>("activities").to_string(),
+            steps: row.read::<i64, _>("steps"),
+            iv: row.read::<&str, _>("iv").to_string(),
+        });
+    }
+
+    let mut wiki_pages = Vec::<types::WikiPage>::new();
+    for row in conn
+        .prepare("SELECT * FROM WikiPage")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        wiki_pages.push(types::WikiPage {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            content: row.read::<&str, _>("content").to_string(),
+            iv: row.read::<&str, _>("iv").to_string(),
+        });
+    }
+
     *state.db.lock().unwrap() = conn;
 
     Ok(OpenFolderResponse {
         photos,
-        deleted: unmatched
+        deleted: unmatched,
+        tags,
+        places,
+        person_categories: categories,
+        people,
+        cameras,
+        groups,
+        layers,
+        shapes,
+        activities,
+        settings,
+        journals,
+        wiki_pages,
     })
 }

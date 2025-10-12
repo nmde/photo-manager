@@ -1,12 +1,10 @@
 <script setup lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
-  import { Photo } from '../classes/Photo';
   import { fileStore } from '../stores/fileStore';
 
   const router = useRouter();
-  const { setFiles, removeDeleted } = fileStore;
+  const { removeDeleted, loadPhotos } = fileStore;
 
   const loading = ref(false);
   const deletedDialog = ref(false);
@@ -28,79 +26,11 @@
     });
     if (selected && typeof selected === 'string') {
       initializing.value = true;
-      const data = await invoke<{
-        photos: {
-          id: string;
-          name: string;
-          path: string;
-          title: string;
-          description: string;
-          tags: string;
-          is_duplicate: number;
-          rating: number;
-          location: string;
-          thumbnail: string;
-          video: number;
-          photo_group: string;
-          date: string;
-          raw: number;
-          people: string;
-          hide_thumbnail: number;
-          photographer: string;
-          camera: string;
-        }[];
-        deleted: string[];
-      }>('open_folder', { path: selected });
-      console.log(deleted);
-      const files: Record<string, Photo> = {};
-      for (const photo of data.photos.map(
-        ({
-          id,
-          name,
-          path,
-          title,
-          description,
-          tags,
-          is_duplicate,
-          rating,
-          location,
-          thumbnail,
-          video,
-          photo_group,
-          date,
-          raw,
-          people,
-          hide_thumbnail,
-          photographer,
-          camera,
-        }) =>
-          new Photo(
-            id,
-            name,
-            path,
-            title,
-            description,
-            location,
-            tags,
-            is_duplicate === 1,
-            thumbnail,
-            rating,
-            video === 1,
-            photo_group,
-            date,
-            raw === 1,
-            people,
-            hide_thumbnail === 1,
-            photographer,
-            camera,
-          ),
-      )) {
-        files[photo.name] = photo;
-      }
+      await loadPhotos(selected);
       console.log('Loaded photos');
       // const folder = await readDir(selected);
       // setFolderStructure(folder);
-      console.log('Read dir');
+      /*
       deleted.value = data.deleted;
       setFiles(files);
       if (deleted.value.length > 0) {
@@ -108,6 +38,8 @@
       } else {
         await router.push('/tagger');
       }
+      */
+      await router.push('/tagger');
     }
     loading.value = false;
   }

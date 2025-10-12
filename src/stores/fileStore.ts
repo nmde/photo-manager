@@ -136,10 +136,10 @@ class FileStore extends EventEmitter<{
   public sort = [0, 1];
 
   public settings: {
-    [key in SettingKey]: string;
+    [key in SettingKey]: number;
   } = {
-    encrypt: 'false',
-    theme: 'false',
+    encrypt: 0,
+    theme: 0,
   };
 
   public encrypted = false;
@@ -351,41 +351,80 @@ class FileStore extends EventEmitter<{
    * Loads photos from the database.
    */
   // eslint-disable-next-line complexity
-  public loadPhotos = async () => {
-    this.files = {};
-    this.advTags = (
-      await invoke<
-        {
-          id: string;
-          name: string;
-          color: string;
-          prereqs: string;
-          coreqs: string;
-          incompatible: string;
-        }[]
-      >('get_tags')
-    ).map(
+  public loadPhotos = async (path: string) => {
+    const data = await invoke<{
+      photos: {
+        id: string;
+        name: string;
+        path: string;
+        title: string;
+        description: string;
+        tags: string;
+        is_duplicate: number;
+        rating: number;
+        location: string;
+        thumbnail: string;
+        video: number;
+        photo_group: string;
+        date: string;
+        raw: number;
+        people: string;
+        hide_thumbnail: number;
+        photographer: string;
+        camera: string;
+      }[];
+      deleted: string[];
+      tags: {
+        id: string;
+        name: string;
+        color: string;
+        prereqs: string;
+        coreqs: string;
+        incompatible: string;
+      }[];
+      places: {
+        id: string;
+        name: string;
+        lat: number;
+        lng: number;
+        layer: string;
+        category: PlaceType;
+        shape: string;
+        tags: string;
+        notes: string;
+      }[];
+      person_categories: {
+        id: string;
+        name: string;
+        color: string;
+      }[];
+      people: { id: string; name: string; photo: string; notes: string; category: string }[];
+      cameras: { id: string; name: string }[];
+      groups: { id: string; name: string }[];
+      layers: { id: string; name: string; color: string }[];
+      shapes: { id: string; shape_type: ShapeType; points: string; layer: string; name: string }[];
+      activities: { id: string; name: string; icon: string }[];
+      settings: { id: string; setting: SettingKey; value: number }[];
+      journals: {
+        id: string;
+        date: string;
+        mood: number;
+        text: string;
+        activities: string;
+        steps: number;
+        iv: string;
+      }[];
+      wiki_pages: { id: string; name: string; content: string; iv: string }[];
+    }>('open_folder', { path });
+    this.photoCount = data.photos.length;
+    this.advTags = data.tags.map(
       ({ id, name, color, prereqs, coreqs, incompatible }) =>
         new Tag(id, name, color, prereqs, coreqs, incompatible),
     );
     const tagList: string[] = [];
     const encounteredGroups: string[] = [];
     console.log('reading places');
-    for (const place of (
-      await invoke<
-        {
-          id: string;
-          name: string;
-          lat: number;
-          lng: number;
-          layer: string;
-          category: PlaceType;
-          shape: string;
-          tags: string;
-          notes: string;
-        }[]
-      >('get_places')
-    ).map(
+    for (const place of data.places.map(
       ({ id, name, lat, lng, layer, category, shape, tags, notes }) =>
         new Place(id, name, lat, lng, layer, category, shape, tags, notes),
     )) {
@@ -397,56 +436,23 @@ class FileStore extends EventEmitter<{
         }
       }
     }
-    for (const pcat of (
-      await invoke<
-        {
-          id: string;
-          name: string;
-          color: string;
-        }[]
-      >('get_person_categories')
-    ).map(({ id, name, color }) => new PersonCategory(id, name, color))) {
+    for (const pcat of data.person_categories.map(
+      ({ id, name, color }) => new PersonCategory(id, name, color),
+    )) {
       this.peopleCategories[pcat.id] = pcat;
       this.peopleMap[pcat.id] = [];
     }
-    for (const person of (
-      await invoke<{ id: string; name: string; photo: string; notes: string; category: string }[]>(
-        'get_people',
-      )
-    ).map(({ id, name, photo, notes, category }) => new Person(id, name, photo, notes, category))) {
+    for (const person of data.people.map(
+      ({ id, name, photo, notes, category }) => new Person(id, name, photo, notes, category),
+    )) {
       this.peopleMap[person.category]?.push(person);
       this.people[person.id] = person;
     }
-    for (const camera of (await invoke<{ id: string; name: string }[]>('get_cameras')).map(
-      ({ id, name }) => new Camera(id, name),
-    )) {
+    for (const camera of data.cameras.map(({ id, name }) => new Camera(id, name))) {
       this.cameras[camera.id] = camera;
     }
     const raws: Photo[] = [];
-    for (const photo of (
-      await invoke<
-        {
-          id: string;
-          name: string;
-          path: string;
-          title: string;
-          description: string;
-          tags: string;
-          is_duplicate: number;
-          rating: number;
-          location: string;
-          thumbnail: string;
-          video: number;
-          photo_group: string;
-          date: string;
-          raw: number;
-          people: string;
-          hide_thumbnail: number;
-          photographer: string;
-          camera: string;
-        }[]
-      >('get_photos')
-    ).map(
+    for (const photo of data.photos.map(
       ({
         id,
         name,
@@ -555,56 +561,36 @@ class FileStore extends EventEmitter<{
       }
     }
     this.groupRaws(raws);
-    this.groups = (await invoke<{ id: string; name: string }[]>('get_groups')).map(
-      ({ id, name }) => new Group(id, name),
-    );
+    this.groups = data.groups.map(({ id, name }) => new Group(id, name));
     this.groupNames = this.groups.map(g => g.name);
-    for (const layer of (
-      await invoke<{ id: string; name: string; color: string }[]>('get_layers')
-    ).map(({ id, name, color }) => new Layer(id, name, color))) {
+    for (const layer of data.layers.map(({ id, name, color }) => new Layer(id, name, color))) {
       this.layers[layer.id] = layer;
     }
-    for (const shape of (
-      await invoke<
-        { id: string; shape_type: ShapeType; points: string; layer: string; name: string }[]
-      >('get_shapes')
-    ).map(
+    for (const shape of data.shapes.map(
       ({ id, shape_type, points, layer, name }) => new Shape(id, shape_type, points, layer, name),
     )) {
       this.shapes[shape.id] = shape;
     }
-    for (const activity of (
-      await invoke<{ id: string; name: string; icon: string }[]>('get_activities')
-    ).map(({ id, name, icon }) => new Activity(id, icon, name))) {
+    for (const activity of data.activities.map(
+      ({ id, name, icon }) => new Activity(id, icon, name),
+    )) {
       this.activities[activity.id] = activity;
     }
-    for (const setting of (
-      await invoke<{ id: string; setting: SettingKey; value: string }[]>('get_settings')
-    ).map(({ id, setting, value }) => new Setting(id, setting, value))) {
+    for (const setting of data.settings.map(
+      ({ id, setting, value }) => new Setting(id, setting, value),
+    )) {
       this.settings[setting.setting] = setting.value;
       this.settingsRecord[setting.setting] = setting;
       if (setting.setting === 'encrypt' && typeof setting.value === 'boolean') {
         this.encrypted = setting.value;
       } else if (setting.setting === 'theme' && typeof setting.value === 'boolean') {
-        this.theme = setting.value;
+        this.theme = setting.value === 1;
         if (this.theme) {
           this.emit('toggleTheme');
         }
       }
     }
-    for (const entry of (
-      await invoke<
-        {
-          id: string;
-          date: string;
-          mood: number;
-          text: string;
-          activities: string;
-          steps: number;
-          iv: string;
-        }[]
-      >('get_journals')
-    ).map(
+    for (const entry of data.journals.map(
       ({ id, date, mood, text, activities, steps, iv }) =>
         new JournalEntry(id, date, mood, text, activities, steps, iv),
     )) {
@@ -617,9 +603,9 @@ class FileStore extends EventEmitter<{
           .filter(a => a !== undefined);
       }
     }
-    for (const page of (
-      await invoke<{ id: string; name: string; content: string; iv: string }[]>('get_wiki_pages')
-    ).map(({ id, name, content, iv }) => new WikiPage(id, name, content, iv))) {
+    for (const page of data.wiki_pages.map(
+      ({ id, name, content, iv }) => new WikiPage(id, name, content, iv),
+    )) {
       this.wikiPages[page.id] = page;
     }
     this.tags = tagList;
@@ -646,15 +632,6 @@ class FileStore extends EventEmitter<{
         await removeFile(thumbnailPath);
       }
      */
-  };
-
-  /**
-   * Initializes the files object.
-   * @param data - The files data.
-   */
-  public setFiles = (data: Record<string, Photo>) => {
-    this.files = data;
-    this.photoCount = Object.values(data).length;
   };
 
   /**
@@ -1199,7 +1176,7 @@ class FileStore extends EventEmitter<{
    * @param text - The entry text.
    */
   public setEntryText = async (date: string, text: string) => {
-    await this.journals[date]?.setText(text, this.settings.encrypt === 'true', this.key);
+    await this.journals[date]?.setText(text, this.settings.encrypt === 1, this.key);
     return this.journals[date];
   };
 
@@ -1354,7 +1331,7 @@ class FileStore extends EventEmitter<{
         setting: 'encrypt',
         value: 'true',
       });
-      this.settings.encrypt = 'true';
+      this.settings.encrypt = 1;
       const total = Object.values(this.journals).length;
       let done = 0;
       let pw = password;
@@ -1371,7 +1348,7 @@ class FileStore extends EventEmitter<{
         ['encrypt', 'decrypt'],
       );
       for (const entry of Object.values(this.journals)) {
-        await entry.setText(entry.displayText, this.settings.encrypt === 'true', this.key);
+        await entry.setText(entry.displayText, this.settings.encrypt === 1, this.key);
         done += 1;
         this.emit('encryptionProgress', (done / total) * 100);
       }
@@ -1462,7 +1439,7 @@ class FileStore extends EventEmitter<{
     this.theme = !this.theme;
     this.emit('toggleTheme');
     const id = uuid();
-    const s = new Setting(id, 'theme', this.theme);
+    const s = new Setting(id, 'theme', this.theme ? 1 : 0);
     this.settingsRecord.theme = s;
     await invoke('set_setting', {
       id,
@@ -1519,7 +1496,7 @@ class FileStore extends EventEmitter<{
    * @param content - The content to set.
    */
   public setWikiPageText = async (path: string, content: string) => {
-    await this.wikiPages[path]?.setContent(content, this.settings.encrypt === 'true', this.key);
+    await this.wikiPages[path]?.setContent(content, this.settings.encrypt === 1, this.key);
   };
 
   /**
@@ -1528,7 +1505,7 @@ class FileStore extends EventEmitter<{
    * @param newTitle - The new title.
    */
   public setWikiPageTitle = async (page: string, newTitle: string) => {
-    await this.wikiPages[page]?.setName(newTitle, this.settings.encrypt === 'true', this.key);
+    await this.wikiPages[page]?.setName(newTitle, this.settings.encrypt === 1, this.key);
   };
 
   /**
