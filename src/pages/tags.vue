@@ -14,14 +14,7 @@
 
   ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-  const {
-    getTagColor,
-    handleTagChange,
-    tagCounts,
-    advTags,
-    files,
-    createTag,
-  } = fileStore;
+  const { getTagColor, handleTagChange, tagCounts, advTags, files, createTag } = fileStore;
 
   const cutoff = ref(30);
   const selected = ref('');
@@ -108,17 +101,17 @@
       sorted.push(tag);
       ratingsMap[tag] = [0, 0];
       for (const photo of Object.values(files).filter(photo => photo.hasTag(tag))) {
-        if (photo.rating) {
+        if (photo.rating && ratingsMap[tag][0] && ratingsMap[tag][1]) {
           ratingsMap[tag][0] += 1;
           ratingsMap[tag][1] += photo.rating;
         }
       }
     }
     sorted = sorted
-      .filter(tag => ratingsMap[tag][0] >= cutoff.value)
+      .filter(tag => ratingsMap[tag]?.[0] && ratingsMap[tag][0] >= cutoff.value)
       .toSorted((a, b) => {
-        let aa = ratingsMap[a][1] / ratingsMap[a][0];
-        let ba = ratingsMap[b][1] / ratingsMap[b][0];
+        let aa = ratingsMap[a]?.[1] / ratingsMap[a][0];
+        let ba = ratingsMap[b]?.[1] / ratingsMap[b][0];
         if (relative.value) {
           aa -= avgRating.value;
           ba -= avgRating.value;
@@ -138,7 +131,7 @@
           axis: 'y',
           label: 'Avg. Rating',
           data: sorted.map(tag => {
-            let avg = ratingsMap[tag][1] / ratingsMap[tag][0];
+            let avg = ratingsMap[tag]?.[1] ?? 0 / (ratingsMap[tag]?.[0] ?? 1);
             if (relative.value) {
               avg -= avgRating.value;
             }

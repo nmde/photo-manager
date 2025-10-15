@@ -421,7 +421,7 @@ class FileStore extends EventEmitter<{
       ({ id, name, color, prereqs, coreqs, incompatible }) =>
         new Tag(id, name, color, prereqs, coreqs, incompatible),
     );
-    const tagList: string[] = [];
+    this.tags = [];
     const encounteredGroups: string[] = [];
     console.log('reading places');
     for (const place of data.places.map(
@@ -431,8 +431,8 @@ class FileStore extends EventEmitter<{
       this.places[place.id] = place;
       this.locationMap[place.id] = [];
       for (const tag of place.tags) {
-        if (!tagList.includes(tag)) {
-          tagList.push(tag);
+        if (!this.tags.includes(tag)) {
+          this.tags.push(tag);
         }
       }
     }
@@ -504,8 +504,8 @@ class FileStore extends EventEmitter<{
       if (photo.group === undefined || firstInGroup) {
         this.photoCount += 1;
         for (const tag of photo.tags) {
-          if (!tagList.includes(tag)) {
-            tagList.push(tag);
+          if (!this.tags.includes(tag)) {
+            this.tags.push(tag);
           }
           if (!this.tagCounts[tag]) {
             this.tagCounts[tag] = 0;
@@ -608,7 +608,6 @@ class FileStore extends EventEmitter<{
     )) {
       this.wikiPages[page.id] = page;
     }
-    this.tags = tagList;
     this.sortTags();
     this.initialized = true;
     return this.files;
@@ -1452,7 +1451,7 @@ class FileStore extends EventEmitter<{
    * Performs a search.
    * @param query - The query terms.
    */
-  public search = (...query: string[]) => {
+  public search = (query: string[]) => {
     this.query = query;
     // TODO: Perform SELECT using non-tag fields
     let results = Object.values(this.files);
@@ -1560,12 +1559,8 @@ class FileStore extends EventEmitter<{
     this.tags = tagGraph.toSorted();
   }
 
-  private normalizeJournalDate(date: string | Date) {
-    if (typeof date === 'string') {
-      return formatDate(new Date(date));
-    }
-    return formatDate(date);
-  }
+  private normalizeJournalDate = (date: string | Date) =>
+    typeof date === 'string' ? formatDate(new Date(date)) : formatDate(date);
 
   private parseSearchTerms() {
     const terms: SearchTerm[] = [];

@@ -38,7 +38,8 @@ fn main() {
             database::set_photo_str,
             database::set_photo_rating,
             database::set_photo_bool,
-            photos::open_folder
+            photos::open_folder,
+            photos::search_photos
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

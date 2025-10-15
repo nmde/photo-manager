@@ -1,6 +1,7 @@
 use crate::types;
 use regex::Regex;
 use sqlite::Connection;
+use sqlite::Row;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
@@ -41,8 +42,38 @@ pub struct OpenFolderResponse {
     wiki_pages: Vec<types::WikiPage>,
 }
 
+fn rows_to_photos<T: Iterator<Item = Row>>(rows: T) -> Result<Vec<types::Photo>, String> {
+    let mut photos = Vec::<types::Photo>::new();
+
+    for row in rows {
+        photos.push(types::Photo {
+            id: row.read::<&str, _>("Id").to_string(),
+            name: row.read::<&str, _>("name").to_string(),
+            path: row.read::<&str, _>("path").to_string(),
+            title: row.read::<&str, _>("title").to_string(),
+            description: row.read::<&str, _>("description").to_string(),
+            tags: row.read::<&str, _>("tags").to_string(),
+            is_duplicate: row.read::<i64, _>("isDuplicate"),
+            rating: row.read::<i64, _>("rating"),
+            location: row.read::<&str, _>("location").to_string(),
+            thumbnail: row.read::<&str, _>("thumbnail").to_string(),
+            video: row.read::<i64, _>("video"),
+            photo_group: row.read::<&str, _>("photoGroup").to_string(),
+            date: row.read::<&str, _>("date").to_string(),
+            raw: row.read::<i64, _>("raw"),
+            people: row.read::<&str, _>("people").to_string(),
+            hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
+            photographer: row.read::<&str, _>("photographer").to_string(),
+            camera: row.read::<&str, _>("camera").to_string(),
+        });
+    }
+
+    Ok(photos)
+}
+
 /**
  * Sets the working folder path & initializes the SQLite database connection.
+ * Returns initial information from the database.
  */
 #[tauri::command]
 pub async fn open_folder<R: tauri::Runtime>(
@@ -397,4 +428,140 @@ pub async fn open_folder<R: tauri::Runtime>(
         journals,
         wiki_pages,
     })
+}
+
+/**
+ * Performs a search of the photos using the given query.
+ * Returns a list of photos matching the query.
+ * This is not currently used, I went through all the trouble of writing this just to find out that
+ * re-loading the photos list in the UI is infinitely slower than doing the search calculations on the frontend.
+ */
+#[tauri::command]
+pub async fn search_photos(
+    state: tauri::State<'_, PhotoState>,
+    query: Vec<String>,
+) -> Result<Vec<types::Photo>, String> {
+    let mut unmet_terms = Vec::<String>::new();
+
+    // Construct a SQL statement using terms that require no additional processing (is:..., at:..., only:..., by:..., has:...)
+    let mut statement = "SELECT * FROM Photo WHERE isDuplicate=0".to_string();
+    for term in query {
+        let mut chars = term.chars();
+        let negated = term.get(0..1).unwrap() == "-";
+        if negated {
+            chars.next();
+        }
+        let tmp_term = chars.as_str().to_string();
+        if tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
+            let location = tmp_term.get(4..).unwrap();
+            if negated {
+                statement.push_str(&format!(" AND location!='{location}'"));
+            } else {
+                statement.push_str(&format!(" AND location='{location}'"));
+            }
+        } else if tmp_term.get(0..3).unwrap().to_uppercase() == "IS:" {
+            if tmp_term.get(4..).unwrap().to_uppercase() == "VIDEO" {
+                if negated {
+                    statement.push_str(" AND video=0");
+                } else {
+                    statement.push_str(" AND video=1");
+                }
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "RAW" {
+                if negated {
+                    statement.push_str(" AND raw=0");
+                } else {
+                    statement.push_str(" AND raw=1");
+                }
+            }
+        } else if tmp_term.get(0..5).unwrap().to_uppercase() == "ONLY:" {
+            let person = tmp_term.get(6..).unwrap();
+            if negated {
+                statement.push_str(&format!(" AND people!='{person}'"));
+            } else {
+                statement.push_str(&format!(" AND people='{person}'"));
+            }
+        } else if tmp_term.get(0..3).unwrap().to_uppercase() == "BY:" {
+            let person = tmp_term.get(4..).unwrap();
+            if negated {
+                statement.push_str(&format!(" AND photographer!='{person}'"));
+            } else {
+                statement.push_str(&format!(" AND photographer='{person}'"));
+            }
+        } else if tmp_term.get(0..4).unwrap().to_uppercase() == "HAS:" {
+            if tmp_term.get(5..).unwrap().to_uppercase() == "RATING" {
+                if negated {
+                    statement.push_str(" AND rating=0");
+                } else {
+                    statement.push_str(" AND rating>0");
+                }
+            } else if tmp_term.get(5..).unwrap().to_uppercase() == "PHOTOGRAPHER" {
+                if negated {
+                    statement.push_str(" AND length(photographer)=0");
+                } else {
+                    statement.push_str(" AND length(photographer)>0");
+                }
+            } else if tmp_term.get(5..).unwrap().to_uppercase() == "DATE" {
+                if negated {
+                    statement.push_str(" AND length(date)=0");
+                } else {
+                    statement.push_str(" AND length(date)>0");
+                }
+            } else if tmp_term.get(5..).unwrap().to_uppercase() == "LOCATION" {
+                if negated {
+                    statement.push_str(" AND length(location)=0");
+                } else {
+                    statement.push_str(" AND length(location)>0");
+                }
+            }
+        } else {
+            unmet_terms.push(term);
+        }
+    }
+
+    let mut results = Vec::<types::Photo>::new();
+
+    println!("Executing {}", statement);
+    let connection = state.db.lock().unwrap();
+    let photos = rows_to_photos(
+        connection
+            .prepare(statement)
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap()),
+    )
+    .unwrap();
+
+    // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
+    if unmet_terms.len() > 0 {
+        for photo in &photos {
+            for term in &unmet_terms {
+                let mut chars = term.chars();
+                let negated = term.get(0..1).unwrap() == "-";
+                if negated {
+                    chars.next();
+                }
+                let tmp_term = chars.as_str().to_string();
+                if tmp_term.get(0..3).unwrap().to_uppercase() == "OF:" {
+                    let person = tmp_term.get(4..).unwrap();
+                    let in_photo = photo.people.split(',').any(|p| p == person);
+                    if (negated && !in_photo) || (!negated && in_photo) {
+                        results.push(photo.clone());
+                    }
+                } else if tmp_term.get(0..5).unwrap().to_uppercase() == "DATE:" {
+                    // TODO
+                } else {
+                    // Treat all remaining terms as tags
+                    let in_tags = photo.tags.split(',').any(|t| t == tmp_term);
+                    if (negated && !in_tags) || (!negated && in_tags) {
+                        results.push(photo.clone());
+                    }
+                }
+            }
+        }
+    } else {
+        results = photos;
+    }
+    println!("Returning {} photos", results.len());
+
+    Ok(results)
 }

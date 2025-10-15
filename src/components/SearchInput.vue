@@ -21,5 +21,5 @@
     multiple
     @update:model-value="() => {}"
   />
-  <v-btn @click="search()">Search</v-btn>
+  <v-btn @click="search(localQuery)">Search</v-btn>
 </template>

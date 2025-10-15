@@ -33,7 +33,6 @@
     value: string | number;
   };
 
-  const targetFileCount = ref(0);
   const targetOptions = ref<Target[]>([
     {
       title: 'People',
@@ -75,7 +74,6 @@
 
   fileStore.on('search', results => {
     targetFiles = results;
-    targetFileCount.value = results.length;
   });
 
   const chartData = ref<{
@@ -275,7 +273,7 @@
   }
 
   onMounted(() => {
-    search();
+    search([]);
   });
 </script>
 
@@ -296,7 +294,7 @@
           </template>
         </v-col>
         <v-col cols="4">
-          <SearchInput :value="query" /> Computing stats for {{ targetFileCount }} photos.
+          <SearchInput :value="query" /> Computing stats for {{ targetFiles.length }} photos.
           <v-select
             v-model="graphTarget"
             :disabled="running"

@@ -26,8 +26,8 @@
     const groups: string[] = [];
     for (const photo of Object.values(files)) {
       if (
-        (photo.hasDate && photo.group === undefined) ||
-        (photo.group && !groups.includes(photo.group))
+        photo.hasDate &&
+        (photo.group === undefined || (photo.group && !groups.includes(photo.group)))
       ) {
         const k = photo.date.toISOString();
         if (!eventMap[k]) {

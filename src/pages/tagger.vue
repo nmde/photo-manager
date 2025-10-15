@@ -38,7 +38,7 @@
   function setDate(date: Date) {
     currentDate.value = date;
     const d = currentDate.value.toISOString();
-    search();
+    search([`date=${d}`]);
     if (journals[d]) {
       mood.value = journals[d].mood;
       entryText.value = journals[d].displayText;
@@ -110,19 +110,19 @@
 
   onMounted(() => {
     if (route.query.place) {
-      search(`at=${route.query.place as string}`);
+      search([`at=${route.query.place as string}`]);
       filterByLocation.value = true;
     } else if (route.query.date) {
       setDate(moment(route.query.date as string).toDate());
       filterByDate.value = true;
     } else if (route.query.person) {
-      search(`of=${route.query.person as string}`);
+      search([`of=${route.query.person as string}`]);
       filterByPerson.value = true;
     } else if (route.query.photographer) {
-      search(`by=${route.query.photographer as string}`);
+      search([`by=${route.query.photographer as string}`]);
       filterByPhotographer.value = true;
     } else {
-      search(...query);
+      search(query);
     }
     localQuery.value = query;
     localViewMode.value = viewMode;
