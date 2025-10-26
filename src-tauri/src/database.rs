@@ -200,8 +200,8 @@ pub async fn create_place(
     state: tauri::State<'_, photos::PhotoState>,
     id: String,
     name: String,
-    lat: i32,
-    lng: i32,
+    lat: f32,
+    lng: f32,
     layer: String,
     category: String,
 ) -> Result<(), String> {
@@ -209,7 +209,7 @@ pub async fn create_place(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Place VALUES ('{id}', '{name}', {lat}, {lng}, '{layer}', '{category}'. '', '', '')"
+            "INSERT INTO Place VALUES ('{id}', '{name}', {lat}, {lng}, '{layer}', '{category}', '', '', '')"
         ))
         .unwrap();
     Ok(())
@@ -237,8 +237,8 @@ pub async fn set_place_str(
 pub async fn set_place_position(
     state: tauri::State<'_, photos::PhotoState>,
     place: String,
-    lat: i32,
-    lng: i32,
+    lat: f32,
+    lng: f32,
 ) -> Result<(), String> {
     state
         .db
@@ -310,7 +310,7 @@ pub async fn create_shape(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Shape VALUES ('{id}', '{shape_type}', '{points}', '{layer}'. '{name}')"
+            "INSERT INTO Shape VALUES ('{id}', '{shape_type}', '{points}', '{layer}', '{name}')"
         ))
         .unwrap();
     Ok(())

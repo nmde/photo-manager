@@ -788,7 +788,7 @@ class FileStore extends EventEmitter<{
    */
   // eslint-disable-next-line complexity
   public checkFilter = (photo: Photo) => {
-    if (photo.hidden) {
+    if (photo.hidden || photo.isDuplicate) {
       return false;
     }
     const terms = this.parseSearchTerms();
@@ -1095,7 +1095,7 @@ class FileStore extends EventEmitter<{
     this.shapes[id] = s;
     await invoke('create_shape', {
       id,
-      type,
+      shapeType: type,
       points: JSON.stringify(points),
       layer,
       name,
