@@ -10,7 +10,6 @@
   const deletedDialog = ref(false);
   const deleted = ref<string[]>([]);
   const initializing = ref(false);
-  const initializingProgress = ref(0);
   const fileCount = ref(0);
   const reading = ref('');
 
@@ -96,7 +95,7 @@
           <p v-if="reading.length > 0">Reading {{ reading }}</p>
           <v-progress-linear
             color="primary"
-            :model-value="(initializingProgress / fileCount) * 100"
+            indeterminate
           />
         </v-card-text>
       </v-card>

@@ -9,6 +9,7 @@ pub struct Activity {
 pub struct Camera {
     pub id: String,
     pub name: String,
+    pub count: i64,
 }
 
 #[derive(serde::Serialize)]
@@ -42,6 +43,8 @@ pub struct Person {
     pub photo: String,
     pub notes: String,
     pub category: String,
+    pub photographer_count: i64,
+    pub photo_count: i64
 }
 
 #[derive(serde::Serialize)]
@@ -58,7 +61,7 @@ pub struct Photo {
     pub path: String,
     pub title: String,
     pub description: String,
-    pub tags: String,
+    pub tags: Vec<String>,
     pub is_duplicate: i64,
     pub rating: i64,
     pub location: String,
@@ -67,10 +70,12 @@ pub struct Photo {
     pub photo_group: String,
     pub date: String,
     pub raw: i64,
-    pub people: String,
+    pub people: Vec<String>,
     pub hide_thumbnail: i64,
     pub photographer: String,
     pub camera: String,
+    pub valid_tags: bool,
+    pub validation_msg: String
 }
 
 #[derive(serde::Serialize)]
@@ -84,6 +89,7 @@ pub struct Place {
     pub shape: String,
     pub tags: String,
     pub notes: String,
+    pub count: i64
 }
 
 #[derive(serde::Serialize)]
@@ -102,14 +108,15 @@ pub struct Shape {
     pub name: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub struct Tag {
     pub id: String,
     pub name: String,
     pub color: String,
-    pub prereqs: String,
-    pub coreqs: String,
-    pub incompatible: String,
+    pub prereqs: Vec::<String>,
+    pub coreqs: Vec::<String>,
+    pub incompatible: Vec::<String>,
+    pub count: i64
 }
 
 #[derive(serde::Serialize)]

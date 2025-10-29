@@ -1,5 +1,28 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export type PhotoData = {
+  id: string;
+  name: string;
+  path: string;
+  title: string;
+  description: string;
+  tags: string[];
+  is_duplicate: number;
+  rating: number;
+  location: string;
+  thumbnail: string;
+  video: number;
+  photo_group: string;
+  date: string;
+  raw: number;
+  people: string[];
+  hide_thumbnail: number;
+  photographer: string;
+  camera: string;
+  valid_tags: boolean;
+  validation_msg: string;
+};
+
 export class Photo {
   public awaitingThumbnail = true;
 
@@ -8,8 +31,6 @@ export class Photo {
   public hidden = false;
 
   public rawFile = '';
-
-  public valid = true;
 
   public validationMsg = '';
 
@@ -20,7 +41,7 @@ export class Photo {
     private _title: string,
     private _description: string,
     private _location: string,
-    private _tags: string,
+    private _tags: string[],
     private _isDuplicate: boolean,
     private _thumbnail: string,
     private _rating: number,
@@ -28,10 +49,12 @@ export class Photo {
     private photoGroup: string,
     private _date: string,
     private _raw: boolean,
-    private _people: string,
+    private _people: string[],
     private _hideThumbnail: boolean,
     private _photographer: string,
     private _camera: string,
+    public valid: boolean,
+    public validationMessage: string,
   ) {}
 
   public get id() {
@@ -67,7 +90,7 @@ export class Photo {
   }
 
   public get tags() {
-    return this._tags.length === 0 ? [] : this._tags.split(',');
+    return this._tags;
   }
 
   public get isDuplicate() {
@@ -112,7 +135,7 @@ export class Photo {
   }
 
   public get people() {
-    return this._people.length === 0 ? [] : this._people.split(',');
+    return this._people;
   }
 
   public get photographer() {
@@ -121,6 +144,55 @@ export class Photo {
 
   public get camera() {
     return this._camera;
+  }
+
+  public static createPhotos(data: PhotoData[]) {
+    return data.map(
+      ({
+        id,
+        name,
+        path,
+        title,
+        description,
+        tags,
+        is_duplicate,
+        rating,
+        location,
+        thumbnail,
+        video,
+        photo_group,
+        date,
+        raw,
+        people,
+        hide_thumbnail,
+        photographer,
+        camera,
+        valid_tags,
+        validation_msg,
+      }) =>
+        new Photo(
+          id,
+          name,
+          path,
+          title,
+          description,
+          location,
+          tags,
+          is_duplicate === 1,
+          thumbnail,
+          rating,
+          video === 1,
+          photo_group,
+          date,
+          raw === 1,
+          people,
+          hide_thumbnail === 1,
+          photographer,
+          camera,
+          valid_tags,
+          validation_msg,
+        ),
+    );
   }
 
   public async setTitle(value: string) {
@@ -143,19 +215,17 @@ export class Photo {
 
   public async setLocation(value: string) {
     this._location = value;
-    await invoke('set_photo_str', {
+    await invoke('set_photo_location', {
       photo: this._id,
-      property: 'location',
       value,
     });
   }
 
   public async setTags(value: string[]) {
-    this._tags = value.join(',');
-    await invoke('set_photo_str', {
+    this._tags = value;
+    await invoke('set_photo_tags', {
       photo: this._id,
-      property: 'tags',
-      value: this._tags,
+      value,
     });
   }
 
@@ -187,18 +257,16 @@ export class Photo {
 
   public async setGroup(group: string) {
     this.photoGroup = group;
-    await invoke('set_photo_str', {
+    await invoke('set_photo_group', {
       photo: this._id,
-      property: 'photoGroup',
       value: group,
     });
   }
 
   public async setDate(value: string) {
     this._date = value;
-    await invoke('set_photo_str', {
+    await invoke('set_photo_date', {
       photo: this._id,
-      property: 'date',
       value,
     });
   }
@@ -213,10 +281,9 @@ export class Photo {
   }
 
   public async setPeople(people: string[]) {
-    this._people = people.join(',');
-    await invoke('set_photo_str', {
+    this._people = people;
+    await invoke('set_photo_people', {
       photo: this._id,
-      property: 'people',
       value: this._people,
     });
   }
@@ -232,9 +299,8 @@ export class Photo {
 
   public async setPhotographer(value: string) {
     this._photographer = value;
-    await invoke('set_photo_str', {
+    await invoke('set_photographer', {
       photo: this._id,
-      property: 'photographer',
       value,
     });
   }
@@ -250,9 +316,8 @@ export class Photo {
 
   public async setCamera(value: string) {
     this._camera = value;
-    await invoke('set_photo_str', {
+    await invoke('set_photo_camera', {
       photo: this._id,
-      property: 'camera',
       value,
     });
   }

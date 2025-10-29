@@ -1,8 +1,10 @@
 <script setup lang="ts">
   import { computed, ref } from 'vue';
   import { fileStore } from '../stores/fileStore';
+  import { invoke } from '@tauri-apps/api/core';
+  import { v4 as uuid } from 'uuid';
 
-  const { encryptJournalEntries, settings, addCamera, cameras, theme, toggleTheme } = fileStore;
+  const { encryptJournalEntries, settings, theme, toggleTheme } = fileStore;
 
   const encryptDialog = ref(false);
   const password = ref('');
@@ -25,9 +27,7 @@
     <v-btn @click="toggleTheme()">{{ theme ? 'Dark Mode' : 'Light Mode' }}</v-btn>
     <h3>Cameras</h3>
     <v-btn color="primary" @click="cameraDialog = true">Add Camera</v-btn>
-    <div v-for="camera in cameraList" :key="camera.id">
-      {{ camera.name }} ({{ camera.count }})
-    </div>
+    <div v-for="camera in cameraList" :key="camera.id">{{ camera.name }} ({{ camera.count }})</div>
     <h3>Encrypt Journal Entries</h3>
     <div v-if="settings.encrypt">Journal entries are encrypted.</div>
     <v-btn
@@ -97,7 +97,10 @@
           color="primary"
           @click="
             async () => {
-              await addCamera(cameraName);
+              await invoke('create_camera', {
+                id: uuid(),
+                name: cameraName,
+              });
               cameraDialog = false;
               cameraName = '';
             }

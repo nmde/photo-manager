@@ -88,10 +88,6 @@
     transition: all 100ms ease-in;
   }
 
-  .photo {
-    display: inline-block;
-  }
-
   .photo-name {
     opacity: 0;
   }

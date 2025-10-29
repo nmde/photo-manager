@@ -12,18 +12,7 @@
     (e: 'update-date', date: Date): void;
   }>();
 
-  const {
-    setTitle,
-    setDescription,
-    updateTagsForGroup,
-    setGroup,
-    setDate,
-    setLocation,
-    setPeople,
-    setHideThumbnail,
-    setPhotographer,
-    setCamera,
-  } = fileStore;
+  const { setDate } = fileStore;
 
   const current = ref(0);
 
@@ -70,10 +59,10 @@
     :photo="currentPhoto"
     :prev-date="prevDate"
     @update:camera="
-      value => {
-        props.photos.forEach(photo => {
-          setCamera(photo.name, value);
-        });
+      async value => {
+        for (const photo of props.photos) {
+          await photo.setCamera(value);
+        }
       }
     "
     @update:date="
@@ -85,24 +74,26 @@
       }
     "
     @update:description="
-      description => {
+      async description => {
         if (currentPhoto) {
-          setDescription(currentPhoto.name, description);
+          await currentPhoto.setDescription(description);
         }
       }
     "
     @update:group="
-      group => {
-        props.photos.forEach(photo => {
-          setGroup(photo.name, group);
-        });
+      async group => {
+        if (group) {
+          for (const photo of props.photos) {
+            await photo.setGroup(group);
+          }
+        }
       }
     "
     @update:hide-thumbnail="
-      value => {
-        props.photos.forEach(photo => {
-          setHideThumbnail(photo.name, value);
-        });
+      async value => {
+        for (const photo of photos) {
+          await photo.setHideThumbnail(value);
+        }
       }
     "
     @update:is-duplicate="
@@ -113,23 +104,24 @@
       }
     "
     @update:location="
-      location =>
-        props.photos.forEach(photo => {
-          setLocation(photo.name, location);
-        })
+      async location => {
+        for (const photo of props.photos) {
+          await photo.setLocation(location);
+        }
+      }
     "
     @update:people="
-      people => {
-        props.photos.forEach(photo => {
-          setPeople(photo.name, people);
-        });
+      async people => {
+        for (const photo of props.photos) {
+          await photo.setPeople(people);
+        }
       }
     "
     @update:photographer="
-      value => {
-        props.photos.forEach(photo => {
-          setPhotographer(photo.name, value);
-        });
+      async value => {
+        for (const photo of props.photos) {
+          await photo.setPhotographer(value);
+        }
       }
     "
     @update:rating="
@@ -140,28 +132,17 @@
       }
     "
     @update:tags="
-      (tags) => {
-        let expandedTags: string[] = [];
-        tags.forEach((tag) => {
-          if (tag.indexOf(',') > 0) {
-            tag.split(',').forEach((s) => {
-              if (!expandedTags.includes(s)) {
-                expandedTags.push(s);
-              }
-            });
-          } else if (!expandedTags.includes(tag)) {
-            expandedTags.push(tag);
-          }
-        });
-        props.photos.forEach((photo) => {
-          updateTagsForGroup(photo.name, expandedTags);
-        });
+      async tags => {
+        console.log(tags);
+        for (const photo of props.photos) {
+          await photo.setTags(tags);
+        }
       }
     "
     @update:title="
-      title => {
+      async title => {
         if (currentPhoto) {
-          setTitle(currentPhoto.name, title);
+          await currentPhoto.setTitle(title);
         }
       }
     "

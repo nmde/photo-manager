@@ -1,4 +1,6 @@
 <script setup lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
+  import { v4 as uuid } from 'uuid';
   import type { Layer } from '../classes/Layer';
   import type { Place } from '../classes/Place';
   import type { Shape, ShapeType } from '../classes/Shape';
@@ -9,17 +11,8 @@
 
   const router = useRouter();
 
-  const {
-    places,
-    layers,
-    shapes,
-    createPlace,
-    createLayer,
-    createShape,
-    deletePlace,
-    deleteShape,
-    updateTags,
-  } = fileStore;
+  const { layers, shapes, createLayer, createShape, deletePlace, deleteShape, updateTags } =
+    fileStore;
 
   const layerDialog = ref(false);
   const layerName = ref('');
@@ -149,12 +142,7 @@
           shapeMap.value[shape.layer]?.push(shape);
         }
         totalArea.value += shape.area;
-        map.createShape(
-          shape.type,
-          shape.points,
-          layers[shape.layer]?.color ?? '',
-          shape.id,
-        );
+        map.createShape(shape.type, shape.points, layers[shape.layer]?.color ?? '', shape.id);
       }
     }
     map.on('click', pos => {
@@ -664,7 +652,7 @@
         <div class="map-container">
           <div ref="newPlaceMapEl" class="map" />
         </div>
-        Selected position: {{ position }}<br>
+        Selected position: {{ position }}<br />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>
@@ -672,7 +660,14 @@
           color="primary"
           @click="
             async () => {
-              const p = await createPlace(placeName, position, placeCategory, targetLayer);
+              await invoke('create_place', {
+                id: uuid(),
+                name: placeName,
+                lat: position.lat,
+                lng: position.lng,
+                layer: targetLayer,
+                category: placeCategory,
+              });
               placeMap[targetLayer]?.push(p);
               map.createMarker(
                 locToString(position),

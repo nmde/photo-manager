@@ -8,11 +8,8 @@
   const route = useRoute();
 
   const {
-    checkFilter,
     setEntryText,
     journals,
-    folder,
-    workingDir,
     viewMode,
     setViewMode,
     search,
@@ -59,6 +56,7 @@
       files: [],
       children: {},
     };
+    /* TODO
     for (const dir of folder.dirs) {
       const split = dir.replace(workingDir, '').split(/[/\\]/).slice(1);
       let curr = structure;
@@ -87,6 +85,7 @@
       }
       curr.files.push(file);
     }
+      */
     return structure;
   });
 
@@ -94,35 +93,21 @@
     photos.value = results;
   });
 
-  fileStore.on('updatePhoto', photo => {
-    const idx = photos.value.findIndex(p => p.name === photo?.name);
-    if (photo && checkFilter(photo)) {
-      if (idx === -1) {
-        photos.value.push(photo);
-      }
-    } else {
-      if (idx >= 0) {
-        photos.value.splice(idx, 1);
-      }
-    }
-    // photos.value = filteredPhotos(filterByLocation.value, filterByDate.value);
-  });
-
   onMounted(() => {
     if (route.query.place) {
-      search([`at=${route.query.place as string}`]);
+      //search([`at=${route.query.place as string}`]);
       filterByLocation.value = true;
     } else if (route.query.date) {
       setDate(moment(route.query.date as string).toDate());
       filterByDate.value = true;
     } else if (route.query.person) {
-      search([`of=${route.query.person as string}`]);
+      //search([`of=${route.query.person as string}`]);
       filterByPerson.value = true;
     } else if (route.query.photographer) {
-      search([`by=${route.query.photographer as string}`]);
+      //search([`by=${route.query.photographer as string}`]);
       filterByPhotographer.value = true;
     } else {
-      search(query);
+      //search(query);
     }
     localQuery.value = query;
     localViewMode.value = viewMode;
@@ -159,7 +144,7 @@
               View Grid
             </v-btn>
           </div>
-          <photo-grid v-if="localViewMode === 0" :photos="photos" @select="s => (selected = s)" />
+          <photo-grid v-if="localViewMode === 0" :photos="photos as Photo[]" @select="s => (selected = s)" />
           <div v-if="localViewMode === 1">
             <directory-panels :folder-structure="folderStructure" @select="s => (selected = s)" />
           </div>
@@ -191,7 +176,7 @@
             </v-btn>
             <photo-group
               v-if="selected.length > 0"
-              :photos="selected"
+              :photos="selected as Photo[]"
               :prev-date="prevDate"
               @update-date="
                 date => {

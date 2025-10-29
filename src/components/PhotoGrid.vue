@@ -1,163 +1,116 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { Photo } from '../classes/Photo';
-import { fileStore } from '../stores/fileStore';
+  import { invoke } from '@tauri-apps/api/core';
+  import { onMounted, onUnmounted, ref } from 'vue';
+  import { Photo, type PhotoData } from '../classes/Photo';
+  import { fileStore } from '../stores/fileStore';
 
-const props = defineProps<{
-  photos: Photo[];
-}>();
+  type PhotoGridResponse = {
+    photos: PhotoData[];
+    total: number;
+  };
 
-const emit = defineEmits<{
-  (e: 'select', photos: Photo[]): void;
-}>();
+  const props = defineProps<{
+    photos: Photo[];
+  }>();
 
-const { getByGroup, addGroup, setGroup, photoCount, updateTagsForGroup, sort, setSortMode } =
-  fileStore;
+  const emit = defineEmits<{
+    (e: 'select', photos: Photo[]): void;
+  }>();
 
-const selectMultiple = ref(false);
-const selected = ref<Photo[]>([]);
-const itemsPerRow = ref(4);
-const size = ref(0);
-const gridCol = ref<any>();
-const sortBy = ref(0);
-const sortDir = ref(1);
+  const { addGroup, photoCount, sort, setSortMode } = fileStore;
 
-/**
- * Resizes the grid items when the window size changes
- */
-function resizeGrid() {
-  size.value = gridCol.value?.$el.getBoundingClientRect().width / itemsPerRow.value - 8;
-}
+  const photoScroller = ref<HTMLDivElement | undefined>();
+  const fakeScroller = ref<HTMLDivElement | undefined>();
+  const spacerBottom = ref(0);
+  const displayPhotos = ref<Photo[]>([]);
+  const selectMultiple = ref(false);
+  const selected = ref<Photo[]>([]);
+  const itemsPerRow = ref(4);
+  const size = ref(0);
+  const sortBy = ref(0);
+  const sortDir = ref(1);
+  const currentRow = ref(0);
 
-const rows = computed(() => {
-  return 8;
-});
+  /**
+   * Resizes the grid items when the window size changes
+   */
+  function resizeGrid() {
+    size.value = (photoScroller.value?.getBoundingClientRect()?.width ?? 0) / itemsPerRow.value - 8;
+  }
 
-type GridRow = Photo[];
+  const rows = 8;
 
-const forceRefresh = ref(false);
-
-// Filters the photos based on the options
-const filteredPhotos = computed(() => {
-  // This variable has to be here to trigger filteredPhotos being recomputed
-  let f = forceRefresh.value;
-  const rows: GridRow[] = [];
-  let row: GridRow = [];
-  const tempphotos = [...props.photos].sort((a, b) => {
-    if (sortBy.value === 1) {
-      if (!b.rating) {
-        return 1 * sortDir.value;
+  /**
+   * Handles selecting one or more photos.
+   * @param photo - The photo being selected.
+   */
+  function selectPhoto(photo: Photo) {
+    const s: Photo[] = [photo];
+    if (photo.group) {
+      // s = getByGroup(photo.group);
+    }
+    if (selectMultiple.value) {
+      for (const x of s) {
+        const idx = selected.value.findIndex(p => p.name === x.name);
+        if (idx !== -1) {
+          selected.value.splice(idx, 1);
+        } else {
+          selected.value.push(x);
+        }
       }
-      if (!a.rating) {
-        return -1 * sortDir.value;
-      }
-      if (a.rating > b.rating) {
-        return 1 * sortDir.value;
-      }
-      if (a.rating < b.rating) {
-        return -1 * sortDir.value;
-      }
-      return 0;
-    } else if (sortBy.value === 2) {
-      if (b.hasDate) {
-        return -1 * sortDir.value;
-      }
-      if (a.date > b.date) {
-        return 1 * sortDir.value;
-      }
-      if (a.date < b.date) {
-        return -1 * sortDir.value;
-      }
-      return 0;
     } else {
-      if (a.name > b.name) {
-        return 1 * sortDir.value;
-      }
-      if (a.name < b.name) {
-        return -1 * sortDir.value;
-      }
-      return 0;
+      selected.value = s;
+    }
+    emit('select', selected.value as Photo[]);
+  }
+
+  // Tag add/replace dialogs
+  const tagReplaceDialog = ref(false);
+  const tagAddDialog = ref(false);
+  const targetTags = ref<string[]>([]);
+  const tagAction = ref<'remove' | 'replace'>('remove');
+  const replacementTag = ref<string[]>([]);
+  const loading = ref(false);
+
+  onMounted(async () => {
+    sortBy.value = sort[0] ?? 0;
+    sortDir.value = sort[1] ?? 0;
+    resizeGrid();
+    window.addEventListener('resize', resizeGrid);
+    if (fakeScroller.value !== undefined) {
+      const { photos, total } = await invoke<PhotoGridResponse>('photo_grid', {
+        start: 0,
+        count: itemsPerRow.value * rows,
+      });
+      spacerBottom.value = ((total - itemsPerRow.value * rows) / itemsPerRow.value) * size.value;
+      displayPhotos.value = Photo.createPhotos(photos);
+      fakeScroller.value.addEventListener('scroll', async ev => {
+        const scroll = (ev.target as HTMLDivElement).scrollTop;
+        const scrolledToRow = Math.floor(scroll / size.value);
+        if (scrolledToRow < currentRow.value) {
+          currentRow.value = scrolledToRow;
+          const { photos } = await invoke<PhotoGridResponse>('photo_grid', {
+            start: scrolledToRow * itemsPerRow.value,
+            count: itemsPerRow.value,
+          });
+          displayPhotos.value.unshift(...Photo.createPhotos(photos));
+          displayPhotos.value.splice(displayPhotos.value.length - itemsPerRow.value);
+        } else if (scrolledToRow > currentRow.value) {
+          currentRow.value = scrolledToRow;
+          const { photos } = await invoke<PhotoGridResponse>('photo_grid', {
+            start: (scrolledToRow + rows) * itemsPerRow.value,
+            count: itemsPerRow.value,
+          });
+          displayPhotos.value.splice(0, itemsPerRow.value);
+          displayPhotos.value.push(...Photo.createPhotos(photos));
+        }
+      });
     }
   });
-  const groups: string[] = [];
-  while (tempphotos.length > 0) {
-    const file = tempphotos[0];
-    if (file) {
-      let grouped = false;
-      if (typeof file.group === 'string') {
-        if (groups.indexOf(file.group) >= 0) {
-          grouped = true;
-        } else {
-          groups.push(file.group);
-        }
-      }
-      if (!grouped) {
-        row.push(file);
-        if (row.length === itemsPerRow.value) {
-          rows.push(row);
-          row = [];
-        }
-      }
-    }
-    tempphotos.shift();
-  }
-  rows.push(row);
-  return rows;
-});
 
-fileStore.on('updatePhoto', () => {
-  forceRefresh.value = !forceRefresh.value;
-});
-
-// The number of visible photos after filter rules are applied
-const visiblePhotoCount = computed(
-  () =>
-    (filteredPhotos.value.length - 1) * itemsPerRow.value +
-    (filteredPhotos.value[filteredPhotos.value.length - 1]?.length ?? 0),
-);
-
-/**
- * Handles selecting one or more photos.
- * @param photo - The photo being selected.
- */
-function selectPhoto(photo: Photo) {
-  let s: Photo[] = [photo];
-  if (photo.group) {
-    s = getByGroup(photo.group);
-  }
-  if (selectMultiple.value) {
-    s.forEach(x => {
-      const idx = selected.value.findIndex(p => p.name === x.name);
-      if (idx >= 0) {
-        selected.value.splice(idx, 1);
-      } else {
-        selected.value.push(x);
-      }
-    });
-  } else {
-    selected.value = s;
-  }
-  emit('select', selected.value);
-}
-
-// Tag add/replace dialogs
-const tagReplaceDialog = ref(false);
-const tagAddDialog = ref(false);
-const targetTags = ref<string[]>([]);
-const tagAction = ref<'remove' | 'replace'>('remove');
-const replacementTag = ref<string[]>([]);
-const loading = ref(false);
-
-onMounted(() => {
-  sortBy.value = sort[0] ?? 0;
-  sortDir.value = sort[1] ?? 0;
-  resizeGrid();
-  window.addEventListener('resize', resizeGrid);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', resizeGrid);
-});
+  onUnmounted(() => {
+    window.removeEventListener('resize', resizeGrid);
+  });
 </script>
 
 <template>
@@ -230,7 +183,7 @@ onUnmounted(() => {
         () => {
           if (!selectMultiple) {
             selected = [];
-            $emit('select', selected);
+            // $emit('select', selected);
           }
         }
       "
@@ -285,7 +238,7 @@ onUnmounted(() => {
                 const target = [...selected];
                 selected = [];
                 target.forEach(async photo => {
-                  await setGroup(photo.name, groupName);
+                  // await setGroup(photo.name, groupName);
                 });
               }
             }
@@ -314,25 +267,34 @@ onUnmounted(() => {
       </v-list>
     </v-menu>
   </div>
-  Showing {{ visiblePhotoCount }} / {{ photoCount }} photos
-  <v-virtual-scroll
-    :height="rows * size + 8"
-    :item-height="size"
-    :items="filteredPhotos"
-    ref="gridCol"
-  >
-    <template v-slot:default="{ item }">
+  Showing {{ displayPhotos.length }} / {{ photoCount }} photos
+  <div class="scroller-container">
+    <div class="photo-scroller" ref="photoScroller" :style="{ height: `${rows * size}px` }">
       <photo-icon
-        v-for="(photo, i) in item"
+        v-for="(photo, i) in displayPhotos"
         :key="i"
-        :photo="photo"
+        :photo="photo as Photo"
         :size="size"
         :selected="selected.findIndex(p => p.name === photo.name) >= 0"
         :invalid="!photo.valid"
-        @select="selectPhoto(photo)"
-      ></photo-icon>
-    </template>
-  </v-virtual-scroll>
+        @select="selectPhoto(photo as Photo)"
+      />
+    </div>
+    <div
+      class="fake-scroll"
+      :style="{
+        height: `${rows * size}px`,
+        top: `-${rows * size}px`,
+        width: `${12 + itemsPerRow * size}px`,
+      }"
+      ref="fakeScroller"
+      @click="event => {
+        selectPhoto(displayPhotos[(itemsPerRow * Math.floor(event.offsetY / size)) + Math.floor(event.offsetX / size) - (itemsPerRow * currentRow)] as Photo);
+      }"
+    >
+      <div class="spacer" :style="{ height: `${spacerBottom}px` }" />
+    </div>
+  </div>
   <v-checkbox
     color="primary"
     class="collection-control"
@@ -343,11 +305,11 @@ onUnmounted(() => {
       () => {
         if (!selectMultiple) {
           selected = [];
-          $emit('select', selected);
+          $emit('select', selected as Photo[]);
         }
       }
     "
-  ></v-checkbox>
+  />
   <v-dialog v-model="tagAddDialog">
     <v-card>
       <v-card-title>Add Tags</v-card-title>
@@ -364,9 +326,13 @@ onUnmounted(() => {
             @click="
               async () => {
                 loading = true;
-                selected.forEach(async photo => {
-                  await updateTagsForGroup(photo.name, photo.tags.concat(...targetTags));
-                });
+                for (const photo of selected) {
+                  const combinedTags = new Set(photo.tags);
+                  for (const tag of targetTags) {
+                    combinedTags.add(tag);
+                  }
+                  await photo.setTags(combinedTags.values().toArray());
+                }
                 loading = false;
                 tagAddDialog = false;
               }
@@ -411,20 +377,20 @@ onUnmounted(() => {
               loading = true;
               const tag = targetTags[0];
               if (tag) {
-                selected.forEach(async photo => {
+                for (const photo of selected) {
                   if (tagAction === 'remove') {
                     const updatedTags = [...photo.tags];
                     updatedTags.splice(updatedTags.indexOf(tag), 1);
-                    await updateTagsForGroup(photo.name, updatedTags);
+                    await photo.setTags(updatedTags);
                   } else {
                     const updatedTags = [...photo.tags];
                     updatedTags.splice(updatedTags.indexOf(tag), 1);
                     if (replacementTag[0]) {
                       updatedTags.push(replacementTag[0]);
                     }
-                    await updateTagsForGroup(photo.name, updatedTags);
+                    await photo.setTags(updatedTags);
                   }
-                });
+                }
               }
               loading = false;
               tagReplaceDialog = false;
@@ -440,11 +406,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.controls {
-  display: flex;
-}
+  .controls {
+    display: flex;
+  }
 
-.collection-control {
-  margin-top: 4px;
-}
+  .collection-control {
+    margin-top: 4px;
+  }
+
+  .fake-scroll {
+    overflow-y: scroll;
+    position: relative;
+  }
+
+  .photo-scroller {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: hidden;
+  }
 </style>

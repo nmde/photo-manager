@@ -1,5 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export type TagData = {
+  id: string;
+  name: string;
+  color: string;
+  prereqs: string[];
+  coreqs: string[];
+  incompatible: string[];
+};
+
 /**
  * Table to store information about tags.
  */
@@ -8,9 +17,9 @@ export class Tag {
     private _id: string,
     private _name: string,
     private _color: string,
-    private _prereqs: string,
-    private _coreqs: string,
-    private _incompatible: string,
+    private _prereqs: string[],
+    private _coreqs: string[],
+    private _incompatible: string[],
   ) {}
 
   public get id() {
@@ -26,15 +35,22 @@ export class Tag {
   }
 
   public get prereqs() {
-    return this._prereqs.length === 0 ? [] : this._prereqs.split(',');
+    return this._prereqs;
   }
 
   public get coreqs() {
-    return this._coreqs.length === 0 ? [] : this._coreqs.split(',');
+    return this._coreqs;
   }
 
   public get incompatible() {
-    return this._incompatible.length === 0 ? [] : this._incompatible.split(',');
+    return this._incompatible;
+  }
+
+  public static createTags(data: TagData[]) {
+    return data.map(
+      ({ id, name, color, prereqs, coreqs, incompatible }) =>
+        new Tag(id, name, color, prereqs, coreqs, incompatible),
+    );
   }
 
   public async setColor(color: string) {
@@ -47,7 +63,7 @@ export class Tag {
   }
 
   public async setPrereqs(tags: string[]) {
-    this._prereqs = tags.join(',');
+    this._prereqs = tags;
     await invoke('set_tag_str', {
       tag: this.id,
       property: 'prereqs',
@@ -56,7 +72,7 @@ export class Tag {
   }
 
   public async setCoreqs(tags: string[]) {
-    this._coreqs = tags.join(',');
+    this._coreqs = tags;
     await invoke('set_tag_str', {
       tag: this.id,
       property: 'coreqs',
@@ -65,7 +81,7 @@ export class Tag {
   }
 
   public async setIncompatible(tags: string[]) {
-    this._incompatible = tags.join(',');
+    this._incompatible = tags;
     await invoke('set_tag_str', {
       tag: this.id,
       property: 'incompatible',

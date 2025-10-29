@@ -84,12 +84,6 @@
       prevPeople.value = tempPeople.value;
     },
   );
-
-  onMounted(() => {
-    for (const person of Object.values(people)) {
-      counts.value[person.id] = [person.count, person.photographerCount];
-    }
-  });
 </script>
 
 <template>

@@ -1,35 +1,24 @@
-import type { PlaceType, Position } from '../classes/Map';
+import type { Position } from '../classes/Map';
+import type { Photo } from '../classes/Photo';
 import { invoke } from '@tauri-apps/api/core';
 import { EventEmitter } from 'ee-ts';
 import { v4 as uuid } from 'uuid';
 import { decrypt } from '@/util/encrypt';
 import { Activity } from '../classes/Activity';
-import { Camera } from '../classes/Camera';
 import { Graph } from '../classes/Graph';
 import { GraphNode } from '../classes/GraphNode';
 import { Group } from '../classes/Group';
 import { JournalEntry } from '../classes/JournalEntry';
 import { Layer } from '../classes/Layer';
-import { Person } from '../classes/Person';
 import { PersonCategory } from '../classes/PersonCategory';
-import { Photo } from '../classes/Photo';
-import { Place } from '../classes/Place';
 import { Setting, type SettingKey } from '../classes/Setting';
 import { Shape, type ShapeType } from '../classes/Shape';
-import { Tag } from '../classes/Tag';
+import { Tag, type TagData } from '../classes/Tag';
 import { WikiPage } from '../classes/WikiPage';
 
 export type FolderStructure = {
   dirs: string[];
   files: string[];
-};
-
-type SearchTerm = {
-  type: 'rule' | 'tag';
-  target?: string;
-  comparison?: string;
-  value: string;
-  negated: boolean;
 };
 
 export const moods = [
@@ -82,8 +71,6 @@ class FileStore extends EventEmitter<{
 
   public advTags: Tag[] = [];
 
-  public files: Record<string, Photo> = {};
-
   public generatingThumbnails = false;
 
   public groups: Group[] = [];
@@ -98,13 +85,7 @@ class FileStore extends EventEmitter<{
 
   public saveError = false;
 
-  public tagCounts: Record<string, number> = {};
-
-  public tags: string[] = [];
-
   public thumbnailProgress = 0;
-
-  public places: Record<string, Place> = {};
 
   public layers: Record<string, Layer> = {};
 
@@ -113,18 +94,6 @@ class FileStore extends EventEmitter<{
   public calendarViewDate = new Date();
 
   public peopleCategories: Record<string, PersonCategory> = {};
-
-  public peopleMap: Record<string, Person[]> = {};
-
-  public people: Record<string, Person> = {};
-
-  public dateMap: Record<string, Photo[]> = {};
-
-  public locationMap: Record<string, Photo[]> = {};
-
-  public peoplePhotoMap: Record<string, Photo[]> = {};
-
-  public photographerMap: Record<string, Photo[]> = {};
 
   public folder: FolderStructure = {
     dirs: [],
@@ -144,8 +113,6 @@ class FileStore extends EventEmitter<{
 
   public encrypted = false;
 
-  public cameras: Record<string, Camera> = {};
-
   public theme = false;
 
   public firstDate = new Date();
@@ -155,8 +122,6 @@ class FileStore extends EventEmitter<{
   public query: string[] = [];
 
   public wikiPages: Record<string, WikiPage> = {};
-
-  private newestPlace = '';
 
   private settingsRecord: Record<string, Setting> = {};
 
@@ -178,141 +143,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Gets all photos in a group.
-   * @param group - The group to get photos from.
-   */
-  public getByGroup = (group: string) => Object.values(this.files).filter(p => p.group === group);
-
-  /**
-   * Sets a photo's group.
-   * @param photo - The photo to set.
-   * @param group - The group to set.
-   */
-  public setGroup = async (photo: string, group?: string) => {
-    const f = this.files[photo];
-    if (f) {
-      if (group === undefined) {
-        await f.setGroup('');
-        return;
-      }
-      await f.setGroup(group);
-      const collectedTags: string[] = [];
-      const collectedPeople: string[] = [];
-      let location = this.files[photo]?.location;
-      let photographer = this.files[photo]?.photographer;
-      for (const photo of this.getByGroup(group)) {
-        const f2 = this.files[photo.name];
-        if (f2) {
-          for (const tag of f2.tags) {
-            if (!collectedTags.includes(tag)) {
-              collectedTags.push(tag);
-            }
-          }
-          for (const person of f2.people) {
-            if (!collectedPeople.includes(person)) {
-              collectedPeople.push(person);
-            }
-          }
-        }
-        if (location?.length === 0 && photo.location.length > 0) {
-          location = photo.location;
-        }
-        if (photographer?.length === 0 && photo.photographer.length > 0) {
-          photographer = photo.photographer;
-        }
-      }
-      if (!this.files[photo]?.hasLocation && location) {
-        await this.setLocation(photo, location);
-      }
-      if (this.files[photo]?.photographer.length === 0 && photographer) {
-        await this.setPhotographer(photo, photographer);
-      }
-      await this.updatePeopleForGroup(photo, collectedPeople);
-      await this.updateTagsForGroup(photo, collectedTags);
-      this.emit('updatePhoto', f);
-    }
-  };
-
-  /**
-   * Removes a photo from its group.
-   * @param photo - The photo to remove from its group.
-   */
-  public removeGroup = async (photo: string) => {
-    await this.files[photo]?.setGroup('');
-    this.emit('updatePhoto', this.files[photo]);
-  };
-
-  /**
-   * Updates tags for photo groups.
-   * @param photo - The base photo.
-   * @param t - The list of tags.
-   */
-  public updateTagsForGroup = async (photo: string, t: string[]) => {
-    const newTags: string[] = [];
-    for (const tag of t) {
-      if (this.files[photo]?.group === undefined || this.files[photo].firstInGroup) {
-        if (!this.tagCounts[tag]) {
-          this.tagCounts[tag] = 0;
-        }
-        if (this.files[photo] && !this.files[photo].tags.includes(tag)) {
-          this.tagCounts[tag] += 1;
-        }
-      }
-      if (!this.tags.includes(tag)) {
-        this.tags.push(tag);
-        newTags.push(tag);
-      }
-    }
-    if (
-      this.files[photo] &&
-      (this.files[photo].group === undefined || this.files[photo].firstInGroup)
-    ) {
-      for (const tag of this.files[photo].tags) {
-        if (!t.includes(tag) && this.tagCounts[tag]) {
-          this.tagCounts[tag] -= 1;
-          if (this.tagCounts[tag] <= 0) {
-            delete this.tagCounts[tag];
-            this.tags.splice(this.tags.indexOf(tag), 1);
-          }
-        }
-      }
-    }
-    await this.files[photo]?.setTags(t);
-    this.sortTags();
-    this.emit('updatePhoto', this.files[photo]);
-    // TODO: inform of newly created tags
-  };
-
-  /**
-   * Updates people for photo groups.
-   * @param photo - The base photo.
-   * @param p - The list of people.
-   */
-  public async updatePeopleForGroup(photo: string, p: string[]) {
-    const f = this.files[photo];
-    if (f) {
-      for (const person of p) {
-        if (
-          (f.group === undefined || f.firstInGroup) &&
-          !f.people.includes(person) &&
-          this.people[person]
-        ) {
-          this.people[person].count += 1;
-        }
-      }
-      if (f.group === undefined || f.firstInGroup) {
-        for (const person of f.people) {
-          if (!p.includes(person) && this.people[person]) {
-            this.people[person].count -= 1;
-          }
-        }
-      }
-      await f.setPeople(p);
-      this.emit('updatePhoto', f);
-    }
-  }
-
-  /**
    * Adds new tags to the master list.
    * @param t - The tags to apply.
    */
@@ -328,78 +158,17 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Sets a photo's title.
-   * @param photo - The photo.
-   * @param title - The title to set.
-   */
-  public setTitle = async (photo: string, title: string) => {
-    await this.files[photo]?.setTitle(title);
-    this.emit('updatePhoto', this.files[photo]);
-  };
-
-  /**
-   * Sets a photo's description.
-   * @param photo - The photo.
-   * @param description - The description to set.
-   */
-  public setDescription = async (photo: string, description: string) => {
-    await this.files[photo]?.setDescription(description);
-    this.emit('updatePhoto', this.files[photo]);
-  };
-
-  /**
    * Loads photos from the database.
    */
-  // eslint-disable-next-line complexity
   public loadPhotos = async (path: string) => {
     const data = await invoke<{
-      photos: {
-        id: string;
-        name: string;
-        path: string;
-        title: string;
-        description: string;
-        tags: string;
-        is_duplicate: number;
-        rating: number;
-        location: string;
-        thumbnail: string;
-        video: number;
-        photo_group: string;
-        date: string;
-        raw: number;
-        people: string;
-        hide_thumbnail: number;
-        photographer: string;
-        camera: string;
-      }[];
       deleted: string[];
-      tags: {
-        id: string;
-        name: string;
-        color: string;
-        prereqs: string;
-        coreqs: string;
-        incompatible: string;
-      }[];
-      places: {
-        id: string;
-        name: string;
-        lat: number;
-        lng: number;
-        layer: string;
-        category: PlaceType;
-        shape: string;
-        tags: string;
-        notes: string;
-      }[];
+      tags: TagData[];
       person_categories: {
         id: string;
         name: string;
         color: string;
       }[];
-      people: { id: string; name: string; photo: string; notes: string; category: string }[];
-      cameras: { id: string; name: string }[];
       groups: { id: string; name: string }[];
       layers: { id: string; name: string; color: string }[];
       shapes: { id: string; shape_type: ShapeType; points: string; layer: string; name: string }[];
@@ -415,129 +184,17 @@ class FileStore extends EventEmitter<{
         iv: string;
       }[];
       wiki_pages: { id: string; name: string; content: string; iv: string }[];
+      photo_count: number;
     }>('open_folder', { path });
-    this.photoCount = data.photos.length;
-    this.advTags = data.tags.map(
-      ({ id, name, color, prereqs, coreqs, incompatible }) =>
-        new Tag(id, name, color, prereqs, coreqs, incompatible),
-    );
+    this.photoCount = data.photo_count;
+    this.advTags = Tag.createTags(data.tags);
     this.tags = [];
-    const encounteredGroups: string[] = [];
-    console.log('reading places');
-    for (const place of data.places.map(
-      ({ id, name, lat, lng, layer, category, shape, tags, notes }) =>
-        new Place(id, name, lat, lng, layer, category, shape, tags, notes),
-    )) {
-      this.places[place.id] = place;
-      this.locationMap[place.id] = [];
-      for (const tag of place.tags) {
-        if (!this.tags.includes(tag)) {
-          this.tags.push(tag);
-        }
-      }
-    }
     for (const pcat of data.person_categories.map(
       ({ id, name, color }) => new PersonCategory(id, name, color),
     )) {
       this.peopleCategories[pcat.id] = pcat;
-      this.peopleMap[pcat.id] = [];
     }
-    for (const person of data.people.map(
-      ({ id, name, photo, notes, category }) => new Person(id, name, photo, notes, category),
-    )) {
-      this.peopleMap[person.category]?.push(person);
-      this.people[person.id] = person;
-    }
-    for (const camera of data.cameras.map(({ id, name }) => new Camera(id, name))) {
-      this.cameras[camera.id] = camera;
-    }
-    const raws: Photo[] = [];
-    for (const photo of data.photos.map(
-      ({
-        id,
-        name,
-        path,
-        title,
-        description,
-        tags,
-        is_duplicate,
-        rating,
-        location,
-        thumbnail,
-        video,
-        photo_group,
-        date,
-        raw,
-        people,
-        hide_thumbnail,
-        photographer,
-        camera,
-      }) =>
-        new Photo(
-          id,
-          name,
-          path,
-          title,
-          description,
-          location,
-          tags,
-          is_duplicate === 1,
-          thumbnail,
-          rating,
-          video === 1,
-          photo_group,
-          date,
-          raw === 1,
-          people,
-          hide_thumbnail === 1,
-          photographer,
-          camera,
-        ),
-    )) {
-      this.files[photo.name] = photo;
-      let firstInGroup = false;
-      if (photo.group && !encounteredGroups.includes(photo.group)) {
-        photo.firstInGroup = true;
-        firstInGroup = true;
-        encounteredGroups.push(photo.group);
-      }
-      if (photo.group === undefined || firstInGroup) {
-        this.photoCount += 1;
-        for (const tag of photo.tags) {
-          if (!this.tags.includes(tag)) {
-            this.tags.push(tag);
-          }
-          if (!this.tagCounts[tag]) {
-            this.tagCounts[tag] = 0;
-          }
-          this.tagCounts[tag] += 1;
-        }
-      }
-      const p = this.places[photo.location];
-      if (photo.hasLocation && p) {
-        p.count += 1;
-        if (!this.locationMap[photo.location]) {
-          this.locationMap[photo.location] = [];
-        }
-        this.locationMap[photo.location]?.push(photo);
-      }
-      for (const id of photo.people) {
-        if (this.people[id]) {
-          this.people[id].count += 1;
-        }
-        if (!this.peoplePhotoMap[id]) {
-          this.peoplePhotoMap[id] = [];
-        }
-        this.peoplePhotoMap[id].push(photo);
-      }
-      const p2 = this.people[photo.photographer];
-      if (photo.photographer.length > 0 && p2) {
-        p2.photographerCount += 1;
-        if (!this.photographerMap[photo.photographer]) {
-          this.photographerMap[photo.photographer] = [];
-        }
-        this.photographerMap[photo.photographer]?.push(photo);
-      }
+    /*
       if (photo.hasDate) {
         const date = formatDate(photo.date);
         if (!this.dateMap[date]) {
@@ -551,16 +208,8 @@ class FileStore extends EventEmitter<{
           this.lastDate = photo.date;
         }
       }
-      const c = this.cameras[photo.camera];
-      if (photo.camera && photo.camera.length > 0 && c) {
-        c.count += 1;
-      }
-      this.validateTags(photo.name);
-      if (photo.raw) {
-        raws.push(photo);
-      }
-    }
-    this.groupRaws(raws);
+        */
+
     this.groups = data.groups.map(({ id, name }) => new Group(id, name));
     this.groupNames = this.groups.map(g => g.name);
     for (const layer of data.layers.map(({ id, name, color }) => new Layer(id, name, color))) {
@@ -610,7 +259,6 @@ class FileStore extends EventEmitter<{
     }
     this.sortTags();
     this.initialized = true;
-    return this.files;
   };
 
   /**
@@ -631,26 +279,6 @@ class FileStore extends EventEmitter<{
         await removeFile(thumbnailPath);
       }
      */
-  };
-
-  /**
-   * Automatically groups raw photos that already have a JPG or PNG version.
-   * @param raws - The list of raw files.
-   */
-  public groupRaws = (raws: Photo[]) => {
-    for (const raw of raws) {
-      const baseName = raw.name.replace('.ORF', '').replace('.NRW', '');
-      const jpg = this.files[`${baseName}.JPG`];
-      const png = this.files[`${baseName}.PNG`];
-      const base = this.files[raw.name];
-      if (jpg && base) {
-        jpg.rawFile = raw.thumbnail;
-        base.hidden = true;
-      } else if (png && base) {
-        png.rawFile = raw.thumbnail;
-        base.hidden = true;
-      }
-    }
   };
 
   /**
@@ -684,379 +312,6 @@ class FileStore extends EventEmitter<{
       this.dateMap[d].push(f);
       this.emit('updatePhoto', f);
     }
-  };
-
-  /**
-   * Validates photos when a tag's requirements change.
-   * @param tag - The tag that changed.
-   */
-  public handleTagChange = (tag: string) => {
-    for (const [name, photo] of Object.entries(this.files)) {
-      if (photo.tags.includes(tag)) {
-        this.validateTags(name);
-      }
-    }
-  };
-
-  /**
-   * Helper method for getting a tag's color;
-   * @param tag - The tag to get.
-   */
-  public getTagColor = (tag: string) => {
-    const at = this.advTags.find(t => t.name === tag);
-    if (at) {
-      return at.color;
-    }
-    return 'black';
-  };
-
-  /**
-   * Validates tags for a photo.
-   * TODO - cache the validation status so it doesn't call this function a billion times
-   * @param photo - The photo to validate.
-   */
-  public validateTags = (photo: string) => {
-    let valid = true;
-    let msg = '';
-    const tags = this.files[photo]?.tags;
-    if (tags) {
-      for (const tag of tags) {
-        const a = this.advTags.find(t => t.name === tag);
-        if (a) {
-          if (a.prereqs.length > 0) {
-            let allPrereqsMet = true;
-            let missingPrereq = '';
-            let i = 0;
-            while (allPrereqsMet && i < a.prereqs.length) {
-              const p = a.prereqs[i];
-              if (p) {
-                allPrereqsMet = allPrereqsMet && tags.includes(p);
-                if (!tags.includes(p)) {
-                  missingPrereq = `${p} (required by ${a.name})`;
-                }
-              }
-              i += 1;
-            }
-            if (!allPrereqsMet) {
-              valid = false;
-              msg = `Missing prerequisite: ${missingPrereq}`;
-            }
-          }
-          if (a.coreqs.length > 0) {
-            let allCoreqsMet = true;
-            let missingCoreq = '';
-            let i = 0;
-            while (allCoreqsMet && i < a.coreqs.length) {
-              const c = a.coreqs[i];
-              if (c) {
-                allCoreqsMet = allCoreqsMet && tags.includes(c);
-                if (!tags.includes(c)) {
-                  missingCoreq = `${c} (required by ${a.name})`;
-                }
-              }
-              i += 1;
-            }
-            if (!allCoreqsMet) {
-              valid = false;
-              msg = `Missing corequisite: ${missingCoreq}`;
-            }
-          }
-          let i = 0;
-          while (valid && i < a.incompatible.length) {
-            const c = a.incompatible[i];
-            if (c && tags.includes(c)) {
-              valid = false;
-              msg = `Tag '${tag}' is incompatible!`;
-            }
-            i += 1;
-          }
-        }
-      }
-      const f = this.files[photo];
-      if (f) {
-        f.valid = valid;
-        f.validationMsg = msg;
-        this.emit('updatePhoto', f);
-        this.emit('validationUpdate', photo);
-      }
-    }
-  };
-
-  /**
-   * Checks a single photo to see if it matches the current search query.
-   * @param photo - The photo to check.
-   */
-  // eslint-disable-next-line complexity
-  public checkFilter = (photo: Photo) => {
-    if (photo.hidden || photo.isDuplicate) {
-      return false;
-    }
-    const terms = this.parseSearchTerms();
-    let satisfiesRules = true;
-    const rules = terms.filter(t => t.type === 'rule');
-    for (const rule of rules) {
-      switch (rule.comparison) {
-        case 'is': {
-          if (rule.value === 'video') {
-            satisfiesRules = rule.negated
-              ? satisfiesRules && !photo.video
-              : satisfiesRules && photo.video;
-          }
-          break;
-        }
-        case 'of': {
-          const mappedPeople = new Set(photo.people.map(p => this.people[p]?.name));
-          satisfiesRules = rule.negated
-            ? satisfiesRules && !mappedPeople.has(rule.value)
-            : satisfiesRules && mappedPeople.has(rule.value);
-          break;
-        }
-        case 'only': {
-          const mappedPeople = photo.people.map(p => this.people[p]?.name);
-          satisfiesRules = rule.negated
-            ? satisfiesRules && (!mappedPeople.includes(rule.value) || mappedPeople.length > 1)
-            : satisfiesRules && mappedPeople.indexOf(rule.value) === 0 && mappedPeople.length === 1;
-          break;
-        }
-        case 'by': {
-          if (photo.photographer.length > 0) {
-            const name = this.people[photo.photographer]?.name;
-            satisfiesRules = rule.negated
-              ? satisfiesRules && name !== rule.value
-              : satisfiesRules && name === rule.value;
-          } else {
-            if (!rule.negated) {
-              satisfiesRules = false;
-            }
-          }
-          break;
-        }
-        case 'at': {
-          if (photo.hasLocation) {
-            const name = this.places[photo.location]?.name;
-            satisfiesRules = rule.negated
-              ? satisfiesRules && name !== rule.value
-              : satisfiesRules && name === rule.value;
-          } else if (!rule.negated) {
-            satisfiesRules = false;
-          }
-
-          break;
-        }
-        case 'has': {
-          switch (rule.value) {
-            case 'location': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && !photo.hasLocation
-                : satisfiesRules && photo.hasLocation;
-              break;
-            }
-            case 'rating': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && !photo.hasRating
-                : satisfiesRules && photo.hasRating;
-              break;
-            }
-            case 'photographer': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && photo.photographer.length === 0
-                : satisfiesRules && photo.photographer.length > 0;
-              break;
-            }
-            case 'date': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && !photo.hasDate
-                : satisfiesRules && photo.hasDate;
-              break;
-            }
-          }
-
-          break;
-        }
-        case 'include': {
-          break;
-        }
-        case '=': {
-          switch (rule.target) {
-            case 'date': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && formatDate(photo.date) !== rule.value
-                : satisfiesRules && formatDate(photo.date) === rule.value;
-
-              break;
-            }
-            case 'at': {
-              if (photo.hasLocation) {
-                satisfiesRules = rule.negated
-                  ? satisfiesRules && photo.location !== rule.value
-                  : satisfiesRules && photo.location === rule.value;
-              } else if (!rule.negated) {
-                satisfiesRules = false;
-              }
-
-              break;
-            }
-            case 'of': {
-              satisfiesRules = rule.negated
-                ? satisfiesRules && !photo.people.includes(rule.value)
-                : satisfiesRules && photo.people.includes(rule.value);
-              break;
-            }
-            case 'by': {
-              if (photo.photographer.length > 0) {
-                satisfiesRules = rule.negated
-                  ? satisfiesRules && photo.photographer !== rule.value
-                  : satisfiesRules && photo.photographer === rule.value;
-              } else {
-                if (!rule.negated) {
-                  satisfiesRules = false;
-                }
-              }
-              break;
-            }
-          }
-          break;
-        }
-        case '<': {
-          if (rule.target === 'date') {
-            if (photo.hasDate) {
-              const v = new Date(rule.value);
-              satisfiesRules = rule.negated
-                ? satisfiesRules && photo.date > v
-                : satisfiesRules && photo.date < v;
-            } else {
-              satisfiesRules = false;
-            }
-          }
-          break;
-        }
-        case '>': {
-          if (rule.target === 'date') {
-            if (photo.hasDate) {
-              const v = new Date(rule.value);
-              satisfiesRules = rule.negated
-                ? satisfiesRules && photo.date < v
-                : satisfiesRules && photo.date > v;
-            } else {
-              satisfiesRules = false;
-            }
-          }
-          break;
-        }
-      }
-    }
-    const tags = terms.filter(t => t.type === 'tag');
-    let hasAllTags = true;
-    for (const tag of tags) {
-      hasAllTags = tag.negated
-        ? hasAllTags && !photo.hasTag(tag.value)
-        : hasAllTags && photo.hasTag(tag.value);
-    }
-    return satisfiesRules && hasAllTags;
-  };
-
-  /**
-   * Gets a file.
-   * @param name - The name of the file.
-   * @returns The file object.
-   */
-  public getFile = (name: string) => {
-    return this.files[name];
-  };
-
-  /**
-   * Sets a photo's location.
-   * @param photo - The target photo.
-   * @param location - The location to set.
-   */
-  public setLocation = async (photo: string, location: string) => {
-    if (this.files[photo]?.hasLocation) {
-      const oldPos = this.files[photo].location;
-      if (this.places[oldPos]) {
-        this.places[oldPos].count -= 1;
-      }
-      if (this.locationMap[oldPos]) {
-        const idx = this.locationMap[oldPos].findIndex(p => p.name === photo);
-        if (idx !== -1) {
-          this.locationMap[oldPos].splice(idx, 1);
-        }
-      }
-    }
-    const f = this.files[photo];
-    if (f) {
-      await f.setLocation(location);
-      if (this.places[location]) {
-        this.places[location].count += 1;
-      }
-      if (!this.locationMap[location]) {
-        this.locationMap[location] = [];
-      }
-      this.locationMap[location].push(f);
-      this.emit('updatePhoto', f);
-      this.emit('updateLocations');
-    }
-  };
-
-  /**
-   * Sets a photo's people.
-   * @param photo - The target photo.
-   * @param people - The people in the photo.
-   */
-  public setPeople = async (photo: string, people: string[]) => {
-    const oldPeople = this.files[photo]?.people;
-    if (oldPeople) {
-      for (const person of oldPeople) {
-        if (this.peoplePhotoMap[person]) {
-          const idx = this.peoplePhotoMap[person].findIndex(p => p.name === photo);
-          if (idx !== -1) {
-            this.peoplePhotoMap[person].splice(idx, 1);
-          }
-        }
-        if (this.people[person]) {
-          this.people[person].count -= 1;
-        }
-      }
-    }
-    const f = this.files[photo];
-    if (f) {
-      await f.setPeople(people);
-      for (const id of people) {
-        if (this.people[id]) {
-          this.people[id].count += 1;
-        }
-        if (!this.peoplePhotoMap[id]) {
-          this.peoplePhotoMap[id] = [];
-        }
-        this.peoplePhotoMap[id].push(f);
-      }
-    }
-  };
-
-  /**
-   * Creates a Place entry.
-   * @param name - The name of the place.
-   * @param pos - The latitude & longitude of the place.
-   * @param layer - The layer the place belongs to.
-   */
-  public createPlace = async (name: string, pos: Position, category: PlaceType, layer: string) => {
-    const id = uuid();
-    const p = new Place(id, name, pos.lat, pos.lng, layer, category, '', '', '');
-    p.isNewestPlace = true;
-    const prev = this.places[this.newestPlace];
-    if (prev) {
-      prev.isNewestPlace = false;
-    }
-    this.newestPlace = id;
-    this.places[id] = p;
-    await invoke('create_place', {
-      id,
-      name,
-      lat: pos.lat,
-      lng: pos.lng,
-      layer,
-      category,
-    });
-    return p;
   };
 
   /**
@@ -1101,24 +356,6 @@ class FileStore extends EventEmitter<{
       name,
     });
     return s;
-  };
-
-  /**
-   * Deletes a place.
-   * @param place - The target place.
-   */
-  public deletePlace = async (place: string) => {
-    await invoke('delete_place', { place });
-    delete this.places[place];
-  };
-
-  /**
-   * Deletes a shape.
-   * @param shape - The target shape.
-   */
-  public deleteShape = async (shape: string) => {
-    await invoke('delete_shape', { shape });
-    delete this.shapes[shape];
   };
 
   /**
@@ -1197,49 +434,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Adds a person.
-   * @param name - The name of the person.
-   * @param notes - Initial notes for the person.
-   * @param category - Category color.
-   */
-  public addPerson = async (name: string, notes: string, category: string) => {
-    const id = uuid();
-    const p = new Person(id, name, '', notes, category);
-    this.peopleMap[category]?.push(p);
-    this.people[id] = p;
-    await invoke('create_person', {
-      id,
-      name,
-      photo: '',
-      notes,
-      category,
-    });
-    return p;
-  };
-
-  /**
-   * Updates a person.
-   * @param name - The name of the person.
-   * @param notes - Initial notes for the person.
-   * @param category - Category color.
-   */
-  public updatePerson = async (id: string, name: string, notes: string, category: string) => {
-    const p = this.people[id];
-    if (p) {
-      if (name !== p.name) {
-        await p.setName(name);
-      }
-      if (notes !== p.notes) {
-        await p.setNotes(notes);
-      }
-      if (category !== p.category) {
-        await p.setCategory(category);
-      }
-      return this.people[id];
-    }
-  };
-
-  /**
    * Adds a person category.
    * @param name - The name of the category.
    * @param color - The color of the category.
@@ -1249,49 +443,7 @@ class FileStore extends EventEmitter<{
     const c = new PersonCategory(id, name, color);
     await invoke('create_person_category', { id, name, color });
     this.peopleCategories[id] = c;
-    this.peopleMap[id] = [];
     return c;
-  };
-
-  /**
-   * Hides a photo's thumbnail.
-   * @param photo - The target photo.
-   * @param value - If the thumbnail should be shown.
-   */
-  public setHideThumbnail = async (photo: string, value: boolean) => {
-    await this.files[photo]?.setHideThumbnail(value);
-    this.emit('updatePhoto', this.files[photo]);
-  };
-
-  /**
-   * Sets a photo's photographer
-   * @param photo - The target photo.
-   * @param value - The target person.
-   */
-  public setPhotographer = async (photo: string, value: string) => {
-    const old = this.files[photo]?.photographer;
-    if (old && this.people[old]) {
-      this.people[old].photographerCount -= 1;
-    }
-    if (old && this.photographerMap[old]) {
-      const idx = this.photographerMap[old].findIndex(p => p.name === photo);
-      if (idx !== -1) {
-        this.photographerMap[old].splice(idx, 1);
-      }
-    }
-    const f = this.files[photo];
-    if (f) {
-      await f.setPhotographer(value);
-      const p = this.people[value];
-      if (p) {
-        p.photographerCount += 1;
-      }
-      if (!this.photographerMap[value]) {
-        this.photographerMap[value] = [];
-      }
-      this.photographerMap[value].push(f);
-      this.emit('updatePhoto', f);
-    }
   };
 
   /**
@@ -1405,33 +557,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Adds a new camera.
-   * @param name - The name of the camera.
-   */
-  public addCamera = async (name: string) => {
-    const id = uuid();
-    const c = new Camera(id, name);
-    this.cameras[id] = c;
-    await invoke('create_camera', {
-      id,
-      name,
-    });
-  };
-
-  /**
-   * Sets a photo's camera.
-   * @param photo - The target photo.
-   * @param camera - The camera to set.
-   */
-  public setCamera = async (photo: string, camera: string) => {
-    const old = this.files[photo]?.camera;
-    if (old && old.length > 0 && this.cameras[old]) {
-      this.cameras[old].count -= 1;
-    }
-    await this.files[photo]?.setCamera(camera);
-  };
-
-  /**
    * Toggles light/dark mode.
    */
   public toggleTheme = async () => {
@@ -1451,13 +576,10 @@ class FileStore extends EventEmitter<{
    * Performs a search.
    * @param query - The query terms.
    */
-  public search = (query: string[]) => {
+  public search = async (query: string[]) => {
     this.query = query;
-    // TODO: Perform SELECT using non-tag fields
-    let results = Object.values(this.files);
-    // Filter results by tags
-    results = results.filter(photo => this.checkFilter(photo));
-    this.emit('search', results);
+    await invoke('search_photos', { query });
+    this.emit('search', await invoke('photo_grid', { start: 0 }));
   };
 
   /**
@@ -1517,18 +639,8 @@ class FileStore extends EventEmitter<{
       id,
       name,
     });
-    this.advTags.push(new Tag(id, name, '', '', '', ''));
+    this.advTags.push(new Tag(id, name, '', [], [], []));
   };
-
-  /**
-   * Sets a photo's thumbnail property.
-   * @param photo - The photo to set for.
-   * @param thumbnail - The path to the thumbnail.
-   */
-  private async setThumbnail(photo: string, thumbnail: string) {
-    await this.files[photo]?.setThumbnail(thumbnail);
-    this.emit('updatePhoto', this.files[photo]);
-  }
 
   /**
    * Sets & sorts the tag list.
@@ -1561,102 +673,6 @@ class FileStore extends EventEmitter<{
 
   private normalizeJournalDate = (date: string | Date) =>
     typeof date === 'string' ? formatDate(new Date(date)) : formatDate(date);
-
-  private parseSearchTerms() {
-    const terms: SearchTerm[] = [];
-    for (let term of this.query) {
-      let matched = false;
-      let negated = false;
-      if (term[0] === '-') {
-        negated = true;
-        term = term.slice(1);
-      }
-      if (term.includes('=')) {
-        const [target, value] = term.split('=');
-        if (target && value && ['date', 'at', 'of', 'by'].includes(target)) {
-          terms.push({
-            type: 'rule',
-            target,
-            comparison: '=',
-            value,
-            negated,
-          });
-          matched = true;
-        }
-      } else if (term.includes('<')) {
-        const [target, value] = term.split('<');
-        if (target === 'date' && value) {
-          terms.push({
-            type: 'rule',
-            target: 'date',
-            comparison: '<',
-            value,
-            negated,
-          });
-          matched = true;
-        }
-      } else if (term.includes('>')) {
-        const [target, value] = term.split('>');
-        if (target === 'date' && value) {
-          terms.push({
-            type: 'rule',
-            target: 'date',
-            comparison: '>',
-            value,
-            negated,
-          });
-          matched = true;
-        }
-      } else if (term.includes(':')) {
-        const [target, value] = term.split(':');
-        if (target === 'is') {
-          if (value === 'video') {
-            terms.push({
-              type: 'rule',
-              comparison: 'is',
-              value: 'video',
-              negated,
-            });
-            matched = true;
-          }
-        } else if (target && value && ['of', 'by', 'at', 'only'].includes(target)) {
-          terms.push({
-            type: 'rule',
-            comparison: target,
-            value,
-            negated,
-          });
-          matched = true;
-        } else if (target === 'has' && value) {
-          if (['location', 'rating', 'photographer', 'date'].includes(value)) {
-            terms.push({
-              type: 'rule',
-              comparison: 'has',
-              value,
-              negated,
-            });
-            matched = true;
-          }
-        } else if (target === 'include' && value && ['duplicates'].includes(value)) {
-          terms.push({
-            type: 'rule',
-            comparison: 'include',
-            value,
-            negated,
-          });
-        }
-      }
-      if (!matched) {
-        // Fallback to tag search
-        terms.push({
-          type: 'tag',
-          value: term,
-          negated,
-        });
-      }
-    }
-    return terms;
-  }
 
   private findWikiPageByName = (name: string) =>
     Object.values(this.wikiPages).find(p => p.name === name);

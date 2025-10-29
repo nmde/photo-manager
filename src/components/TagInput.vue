@@ -1,12 +1,14 @@
 <script setup lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { computed, ref, watch } from 'vue';
+  import { Tag, type TagData } from '@/classes/Tag';
   import { fileStore } from '../stores/fileStore';
 
-  const { getTagColor, validateTags, getFile, tags, advTags } = fileStore;
+  const { getFile, advTags } = fileStore;
 
   const props = defineProps<{
     label: string;
-    value: string | string[];
+    value: string[];
     single?: boolean;
     filtered?: boolean;
     validate?: string;
@@ -18,25 +20,28 @@
     (e: 'change' | 'update', tags: string[]): void;
   }>();
 
-  const selected = ref<string[]>([]);
+  const selected = ref<Tag[]>([]);
   const valid = ref<boolean | undefined>(true);
   const validationMsg = ref<string | undefined>(undefined);
   const hasChanged = ref(false);
+  const tags = ref<Tag[]>([]);
 
   const targetPhoto = computed(() => (props.target ? getFile(props.target) : undefined));
 
-  const filteredTags = computed(() => {
+  async function initialize() {
+    selected.value = props.value.map(t => tags.value.find(tag => tag.name === t));
+    const allTags = Tag.createTags(await invoke<TagData[]>('get_tags'));
     if (!props.filtered) {
-      return tags;
+      tags.value = allTags;
     }
-    const filtered: string[] = [];
-    for (const tag of tags) {
-      if (props.value.includes(tag)) {
+    const filtered: Tag[] = [];
+    for (const tag of allTags) {
+      if (props.value.includes(tag.name)) {
         // Always show tags that are already enabled regardless of prereqs
         filtered.push(tag);
         continue;
       }
-      const a = advTags.find(t => t.name === tag);
+      const a = advTags.find(t => t.name === tag.name);
       if (a) {
         if (a.prereqs.length > 0) {
           let anyPrereqMet = false;
@@ -53,23 +58,7 @@
         filtered.push(tag);
       }
     }
-    return filtered;
-  });
-
-  /**
-   * Validates the tags.
-   */
-  function validateTagsWrapper() {
-    if (props.validate) {
-      validateTags(props.validate);
-    }
-  }
-
-  function initialize() {
-    selected.value = typeof props.value === 'string' ? [props.value] : props.value;
-    if (props.validate) {
-      validateTagsWrapper();
-    }
+    tags.value = filtered;
   }
 
   watch(() => props.value, initialize);
@@ -80,7 +69,6 @@
   });
 </script>
 
-// The global sorted tag list is not updating when new tags are added, links are created
 <template>
   <v-combobox
     v-model="selected"
@@ -88,30 +76,30 @@
     clearable
     :error="!valid"
     :error-messages="validationMsg"
-    :items="filteredTags"
+    item-title="name"
+    item-value="name"
+    :items="tags"
     :label="props.label"
     :multiple="props.single ? false : true"
     @update:focused="
       () => {
         if (hasChanged) {
-          emit('update', selected);
-          validateTagsWrapper();
+          emit('update', selected.map(t => t.name));
         }
       }
     "
     @update:model-value="
       () => {
         hasChanged = true;
-        emit('change', selected);
-        validateTagsWrapper();
+        emit('change', selected.map(t => t.name));
       }
     "
   >
     <template #item="{ item, props: lprops }">
-      <v-list-item v-bind="lprops" :style="{ color: getTagColor(item.title) }" />
+      <v-list-item v-bind="lprops" :style="{ color: item.raw.color }" :title="item.title" />
     </template>
     <template #chip="{ item, props: cprops }">
-      <v-chip v-bind="cprops" :color="getTagColor(item.title)" />
+      <v-chip v-bind="cprops" :color="tags.find(t => t.name === item.value)?.color" />
     </template>
   </v-combobox>
   <div v-if="advanced" />

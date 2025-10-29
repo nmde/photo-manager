@@ -1,4 +1,6 @@
 <script setup lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
+  import { v4 as uuid } from 'uuid';
   import type { Person } from '../classes/Person';
   import type { PersonCategory } from '../classes/PersonCategory';
   import { computed, onMounted, ref } from 'vue';
@@ -7,10 +9,10 @@
 
   const router = useRouter();
 
-  const { addPerson, peopleMap, peopleCategories, addPersonCategory, updatePerson } = fileStore;
+  const { peopleCategories, addPersonCategory } = fileStore;
 
   const editing = ref(false);
-  const editTarget = ref('');
+  const editTarget = ref<Person | undefined>();
   const addDialog = ref(false);
   const addName = ref('');
   const addNotes = ref('');
@@ -51,10 +53,6 @@
 
   onMounted(() => {
     localCategories.value = peopleCategories;
-    localPeople.value = {};
-    for (const [category, people] of Object.entries(peopleMap)) {
-      localPeople.value[category] = people.toSorted((a, b) => b.count - a.count);
-    }
   });
 </script>
 
@@ -104,7 +102,7 @@
                           @click="
                             () => {
                               editing = true;
-                              editTarget = person.id;
+                              editTarget = person;
                               addName = person.name;
                               addNotes = person.notes;
                               addCategory = person.category;
@@ -137,9 +135,9 @@
                   </v-card-title>
                   <v-card-text>
                     Photo count: {{ person.count }}
-                    <br>
+                    <br />
                     Photos taken: {{ person.photographerCount }}
-                    <br>
+                    <br />
                     <p class="notes">{{ person.notes }}</p>
                   </v-card-text>
                 </v-card>
@@ -195,9 +193,23 @@
             @click="
               async () => {
                 if (editing) {
-                  await updatePerson(editTarget, addName, addNotes, addCategory);
+                  if (addName !== editTarget?.name) {
+                    await editTarget?.setName(addName);
+                  }
+                  if (addNotes !== editTarget?.notes) {
+                    await editTarget?.setNotes(addNotes);
+                  }
+                  if (addCategory !== editTarget?.category) {
+                    await editTarget?.setCategory(addCategory);
+                  }
                 } else {
-                  await addPerson(addName, addNotes, addCategory);
+                  await invoke('create_person', {
+                    id: uuid(),
+                    name: addName,
+                    photo: '',
+                    notes: addNotes,
+                    category: addCategory,
+                  });
                 }
                 addDialog = false;
                 addName = '';

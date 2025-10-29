@@ -36,10 +36,19 @@ fn main() {
             database::create_wiki_page,
             database::set_wiki_str,
             database::set_photo_str,
+            database::set_photographer,
+            database::set_photo_people,
+            database::set_photo_camera,
+            database::set_photo_location,
+            database::set_photo_tags,
+            database::set_photo_date,
+            database::set_photo_group,
             database::set_photo_rating,
             database::set_photo_bool,
             photos::open_folder,
-            photos::search_photos
+            photos::search_photos,
+            photos::photo_grid,
+            photos::get_tags,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import type { Photo } from '../classes/Photo';
+  import { invoke } from '@tauri-apps/api/core';
   import { VideoPlayer } from '@videojs-player/vue';
   import { computed, onMounted, ref, watch } from 'vue';
   import { fileStore } from '../stores/fileStore';
@@ -8,7 +9,7 @@
   import TagInput from './TagInput.vue';
   import 'video.js/dist/video-js.css';
 
-  const { groupNames, addGroup, removeGroup, places, layers, people, cameras } = fileStore;
+  const { groupNames, addGroup, places, layers, people, cameras } = fileStore;
 
   const emit = defineEmits<{
     (
@@ -59,32 +60,9 @@
   const setPhotoTarget = ref<string[]>([]);
   const viewConfirmation = ref(false);
 
-  const placeList = computed(() =>
-    Object.values(places)
-      .toSorted((a, b) => {
-        if (a.isNewestPlace) {
-          return -1;
-        }
-        if (b.isNewestPlace) {
-          return 1;
-        }
-        return b.count - a.count;
-      })
-      .map(p => ({
-        color: layers[p.layer]?.color,
-        title: `${p.name} (${p.count.toString()})`,
-        value: p.id,
-      })),
-  );
+  const placeList = computed(() => []);
 
-  const cameraList = computed(() =>
-    Object.values(cameras)
-      .toSorted((a, b) => b.count - a.count)
-      .map(x => ({
-        title: `${x.name} (${x.count.toString()})`,
-        value: x.id,
-      })),
-  );
+  const cameraList = computed(() => []);
 
   function initialize() {
     rating.value = props.photo.rating ?? 0;
@@ -225,7 +203,16 @@
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
   </v-btn>
-  <v-btn icon @click="removeGroup(photo.name)">
+  <v-btn
+    icon
+    @click="
+      async () =>
+        await invoke('set_photo_group', {
+          photo: photo.id,
+          value: '',
+        })
+    "
+  >
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
   <v-btn
