@@ -1,14 +1,17 @@
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue';
   import { fileStore } from '../stores/fileStore';
 
-  const { tags, search, query } = fileStore;
+  defineEmits<{
+    (e: 'search', query: string[]): void;
+  }>();
+
+  defineProps<{
+    loading?: boolean;
+  }>();
+
+  const { tags } = fileStore;
 
   const localQuery = ref<string[]>([]);
-
-  onMounted(() => {
-    localQuery.value = query;
-  });
 </script>
 
 <template>
@@ -18,8 +21,9 @@
     clearable
     :items="tags"
     label="Search"
+    :loading="loading"
     multiple
     @update:model-value="() => {}"
   />
-  <v-btn @click="search(localQuery)">Search</v-btn>
+  <v-btn @click="$emit('search', localQuery)">Search</v-btn>
 </template>

@@ -5,8 +5,6 @@ import { EventEmitter } from 'ee-ts';
 import { v4 as uuid } from 'uuid';
 import { decrypt } from '@/util/encrypt';
 import { Activity } from '../classes/Activity';
-import { Graph } from '../classes/Graph';
-import { GraphNode } from '../classes/GraphNode';
 import { Group } from '../classes/Group';
 import { JournalEntry } from '../classes/JournalEntry';
 import { Layer } from '../classes/Layer';
@@ -64,7 +62,6 @@ class FileStore extends EventEmitter<{
   encryptionProgress: (progress: number) => void;
   decrypted: () => void;
   toggleTheme: () => void;
-  search: (results: Photo[]) => void;
   updateWiki: () => void;
 }> {
   public activities: Record<string, Activity> = {};
@@ -102,8 +99,6 @@ class FileStore extends EventEmitter<{
 
   public viewMode = 0;
 
-  public sort = [0, 1];
-
   public settings: {
     [key in SettingKey]: number;
   } = {
@@ -118,8 +113,6 @@ class FileStore extends EventEmitter<{
   public firstDate = new Date();
 
   public lastDate = new Date();
-
-  public query: string[] = [];
 
   public wikiPages: Record<string, WikiPage> = {};
 
@@ -143,27 +136,12 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Adds new tags to the master list.
-   * @param t - The tags to apply.
-   */
-  public updateTags = (t: string[]) => {
-    const newTags: string[] = [];
-    for (const tag of t) {
-      if (!this.tags.includes(tag)) {
-        this.tags.push(tag);
-        newTags.push(tag);
-      }
-    }
-    this.sortTags();
-  };
-
-  /**
    * Loads photos from the database.
    */
   public loadPhotos = async (path: string) => {
     const data = await invoke<{
       deleted: string[];
-      tags: TagData[];
+      tags: Record<string, TagData>;
       person_categories: {
         id: string;
         name: string;
@@ -187,8 +165,7 @@ class FileStore extends EventEmitter<{
       photo_count: number;
     }>('open_folder', { path });
     this.photoCount = data.photo_count;
-    this.advTags = Tag.createTags(data.tags);
-    this.tags = [];
+    this.advTags = Tag.createTags(Object.values(data.tags));
     for (const pcat of data.person_categories.map(
       ({ id, name, color }) => new PersonCategory(id, name, color),
     )) {
@@ -257,61 +234,9 @@ class FileStore extends EventEmitter<{
     )) {
       this.wikiPages[page.id] = page;
     }
-    this.sortTags();
+    // this.sortTags();
     this.initialized = true;
-  };
-
-  /**
-   * Removes database entries for deleted photos.
-   * @param photo - The name of the photo to remove.
-   */
-  public removeDeleted = async (photo: string) => {
-    /*
-    await this.database?.execute(`DELETE FROM Photo WHERE Name='${photo}'`);
-    delete this.files[photo];
-    /**
-     * TODO: delete thumbnails
-     *       const thumbnailPath = await join(
-        projectThumbnailDir,
-        `${deleted.value[i].replace(/\..*$/, '')}.jpg`,
-      );
-      if (await exists(thumbnailPath)) {
-        await removeFile(thumbnailPath);
-      }
-     */
-  };
-
-  /**
-   * Sets a photo's date.
-   * @param photo - The target photo.
-   * @param date - The date to set.
-   */
-  public setDate = async (photo: string, date: string) => {
-    const f = this.files[photo];
-    if (f) {
-      if (f.hasDate) {
-        const oldDate = formatDate(f.date);
-        if (this.dateMap[oldDate]) {
-          const idx = this.dateMap[oldDate].findIndex(p => p.name === photo);
-          if (idx !== -1) {
-            this.dateMap[oldDate].splice(idx, 1);
-          }
-        }
-      }
-      await f.setDate(date);
-      const d = formatDate(f.date);
-      if (!this.dateMap[d]) {
-        this.dateMap[d] = [];
-      }
-      if (f.date < this.firstDate) {
-        this.firstDate = f.date;
-      }
-      if (f.date > this.lastDate) {
-        this.lastDate = f.date;
-      }
-      this.dateMap[d].push(f);
-      this.emit('updatePhoto', f);
-    }
+    return data.deleted;
   };
 
   /**
@@ -463,15 +388,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Sets the sort mode.
-   * @param mode - The sort mode.
-   * @param dir - The sort direction.
-   */
-  public setSortMode(mode: number, dir: number) {
-    this.sort = [mode, dir];
-  }
-
-  /**
    * Encrypts all existing journal entries in the state & database.
    * @param password - The encryption password.
    */
@@ -573,16 +489,6 @@ class FileStore extends EventEmitter<{
   };
 
   /**
-   * Performs a search.
-   * @param query - The query terms.
-   */
-  public search = async (query: string[]) => {
-    this.query = query;
-    await invoke('search_photos', { query });
-    this.emit('search', await invoke('photo_grid', { start: 0 }));
-  };
-
-  /**
    * Creates a new wiki page in the given path.
    * @param path - The path to create the page in.
    */
@@ -641,35 +547,6 @@ class FileStore extends EventEmitter<{
     });
     this.advTags.push(new Tag(id, name, '', [], [], []));
   };
-
-  /**
-   * Sets & sorts the tag list.
-   * @param tags - The unsorted tags.
-   */
-  private sortTags() {
-    const tagGraph = new Graph();
-    for (const tag of this.tags) {
-      if (!tagGraph.get(tag)) {
-        tagGraph.nodes.push(new GraphNode(tag));
-      }
-      const adv = this.advTags.find(t => t.name === tag);
-      if (adv && adv.prereqs.length > 0) {
-        for (const p of adv.prereqs) {
-          if (tagGraph.get(p)) {
-            const gn = tagGraph.get(p) as GraphNode;
-            if (!gn.links.includes(tag)) {
-              tagGraph.get(p)?.links.push(tag);
-            }
-          } else {
-            const gn = new GraphNode(p);
-            gn.links.push(tag);
-            tagGraph.nodes.push(gn);
-          }
-        }
-      }
-    }
-    this.tags = tagGraph.toSorted();
-  }
 
   private normalizeJournalDate = (date: string | Date) =>
     typeof date === 'string' ? formatDate(new Date(date)) : formatDate(date);

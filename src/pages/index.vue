@@ -1,17 +1,18 @@
 <script setup lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { fileStore } from '../stores/fileStore';
 
   const router = useRouter();
-  const { removeDeleted, loadPhotos } = fileStore;
+  const { loadPhotos } = fileStore;
 
   const loading = ref(false);
   const deletedDialog = ref(false);
   const deleted = ref<string[]>([]);
   const initializing = ref(false);
-  const fileCount = ref(0);
   const reading = ref('');
+  const deleting = ref(false);
 
   /**
    * Prompts the user to select the folder to manage.
@@ -25,20 +26,14 @@
     });
     if (selected && typeof selected === 'string') {
       initializing.value = true;
-      await loadPhotos(selected);
+      deleted.value = await loadPhotos(selected);
       console.log('Loaded photos');
-      // const folder = await readDir(selected);
       // setFolderStructure(folder);
-      /*
-      deleted.value = data.deleted;
-      setFiles(files);
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
         await router.push('/tagger');
       }
-      */
-      await router.push('/tagger');
     }
     loading.value = false;
   }
@@ -70,21 +65,20 @@
         <v-card-actions>
           <v-btn
             color="primary"
+            :loading="deleting"
             @click="
               async () => {
-                for (let i = 0; i < deleted.length; i += 1) {
-                  const d = deleted[i];
-                  if (d) {
-                    removeDeleted(d);
-                  }
-                }
+                deleting = true;
+                await invoke('remove_deleted', { deleted });
                 router.push('/tagger');
               }
             "
           >
             Remove Records &amp; Continue
           </v-btn>
-          <v-btn color="primary" @click="router.push('/tagger')">Continue Without Removing</v-btn>
+          <v-btn v-if="!deleting" color="primary" @click="router.push('/tagger')">
+            Continue Without Removing
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -93,10 +87,7 @@
         <v-card-title>Initializing</v-card-title>
         <v-card-text>
           <p v-if="reading.length > 0">Reading {{ reading }}</p>
-          <v-progress-linear
-            color="primary"
-            indeterminate
-          />
+          <v-progress-linear color="primary" indeterminate />
         </v-card-text>
       </v-card>
     </v-dialog>

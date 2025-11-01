@@ -3,18 +3,14 @@
   import moment from 'moment';
   import { computed, onMounted, ref } from 'vue';
   import { useRoute } from 'vue-router';
+  import PhotoGrid from '@/components/PhotoGrid.vue';
   import { fileStore, formatDate } from '../stores/fileStore';
 
   const route = useRoute();
 
-  const {
-    setEntryText,
-    journals,
-    viewMode,
-    setViewMode,
-    search,
-    query,
-  } = fileStore;
+  const { setEntryText, journals, viewMode, setViewMode } = fileStore;
+
+  const grid = ref<InstanceType<typeof PhotoGrid>>();
 
   const selected = ref<Photo[]>([]);
   const photos = ref<Photo[]>([]);
@@ -26,16 +22,22 @@
   const localViewMode = ref(0);
   const spacer = ref(false);
   const prevDate = ref<Date>(new Date());
-  const localQuery = ref<string[]>([]);
+  const searching = ref(false);
 
   // Journal editor
   const mood = ref(2);
   const entryText = ref('');
 
-  function setDate(date: Date) {
+  async function searchGrid(query: string[]) {
+    searching.value = true;
+    await grid.value?.search(query);
+    searching.value = false;
+  }
+
+  async function setDate(date: Date) {
     currentDate.value = date;
     const d = currentDate.value.toISOString();
-    search([`date=${d}`]);
+    await searchGrid([`date=${d}`]);
     if (journals[d]) {
       mood.value = journals[d].mood;
       entryText.value = journals[d].displayText;
@@ -89,27 +91,24 @@
     return structure;
   });
 
-  fileStore.on('search', results => {
-    photos.value = results;
-  });
+  function syncRating() {
+    grid.value?.updateRating();
+  }
 
-  onMounted(() => {
+  onMounted(async () => {
     if (route.query.place) {
-      //search([`at=${route.query.place as string}`]);
+      await searchGrid([`at=${route.query.place as string}`]);
       filterByLocation.value = true;
     } else if (route.query.date) {
-      setDate(moment(route.query.date as string).toDate());
+      await setDate(moment(route.query.date as string).toDate());
       filterByDate.value = true;
     } else if (route.query.person) {
-      //search([`of=${route.query.person as string}`]);
+      await searchGrid([`of=${route.query.person as string}`]);
       filterByPerson.value = true;
     } else if (route.query.photographer) {
-      //search([`by=${route.query.photographer as string}`]);
+      await searchGrid([`by=${route.query.photographer as string}`]);
       filterByPhotographer.value = true;
-    } else {
-      //search(query);
     }
-    localQuery.value = query;
     localViewMode.value = viewMode;
   });
 
@@ -124,7 +123,7 @@
       <v-row>
         <v-col ref="gridCol" cols="6">
           <div class="flex">
-            <search-input />
+            <search-input :loading="searching" @search="async query => searchGrid(query)" />
             <v-btn
               v-if="localViewMode === 0"
               @click="
@@ -144,7 +143,12 @@
               View Grid
             </v-btn>
           </div>
-          <photo-grid v-if="localViewMode === 0" :photos="photos as Photo[]" @select="s => (selected = s)" />
+          <photo-grid
+            v-if="localViewMode === 0"
+            ref="grid"
+            :photos="photos as Photo[]"
+            @select="s => (selected = s)"
+          />
           <div v-if="localViewMode === 1">
             <directory-panels :folder-structure="folderStructure" @select="s => (selected = s)" />
           </div>
@@ -178,11 +182,8 @@
               v-if="selected.length > 0"
               :photos="selected as Photo[]"
               :prev-date="prevDate"
-              @update-date="
-                date => {
-                  prevDate = date;
-                }
-              "
+              @update-date="date => (prevDate = date)"
+              @update-rating="syncRating"
             />
           </div>
         </v-col>

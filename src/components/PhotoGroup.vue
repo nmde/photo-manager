@@ -1,7 +1,5 @@
 <script setup lang="ts">
   import type { Photo } from '../classes/Photo';
-  import { ref, watch } from 'vue';
-  import { fileStore } from '../stores/fileStore';
 
   const props = defineProps<{
     photos: Photo[];
@@ -10,13 +8,19 @@
 
   const emit = defineEmits<{
     (e: 'update-date', date: Date): void;
+    (e: 'update-rating'): void;
   }>();
 
-  const { setDate } = fileStore;
-
   const current = ref(0);
-
   const currentPhoto = computed(() => props.photos[current.value]);
+  const loading = ref(false);
+
+  // "for of" appears to not work inside Vue templates
+  async function setTags(tags: string[]) {
+    for (const photo of props.photos) {
+      await photo.setTags(tags);
+    }
+  }
 
   watch(
     () => props.photos,
@@ -56,6 +60,7 @@
   </div>
   <photo-detail
     v-if="currentPhoto"
+    :loading="loading"
     :photo="currentPhoto"
     :prev-date="prevDate"
     @update:camera="
@@ -66,10 +71,10 @@
       }
     "
     @update:date="
-      date => {
-        props.photos.forEach(photo => {
-          setDate(photo.name, date);
-        });
+      async date => {
+        for (const photo of props.photos) {
+          await photo.setDate(date);
+        }
         emit('update-date', new Date(date));
       }
     "
@@ -128,15 +133,13 @@
       async rating => {
         if (currentPhoto) {
           await currentPhoto.setRating(rating);
+          emit('update-rating');
         }
       }
     "
     @update:tags="
       async tags => {
-        console.log(tags);
-        for (const photo of props.photos) {
-          await photo.setTags(tags);
-        }
+        await setTags(tags);
       }
     "
     @update:title="

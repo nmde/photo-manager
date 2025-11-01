@@ -92,7 +92,7 @@ pub struct Place {
     pub count: i64
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub struct Setting {
     pub id: String,
     pub setting: String,

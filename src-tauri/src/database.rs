@@ -2,6 +2,10 @@ use crate::photos;
 use crate::types;
 use std::collections::HashSet;
 
+pub fn esc(value: &String) -> String {
+    String::from(value).replace("\"", "\"\"").to_string()
+}
+
 #[tauri::command]
 pub async fn create_activity(
     state: tauri::State<'_, photos::PhotoState>,
@@ -14,7 +18,10 @@ pub async fn create_activity(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Activity VALUES ('{id}', '{name}', '{icon}')"
+            "INSERT INTO Activity VALUES ('{0}', '{1}', '{2}')",
+            esc(&id),
+            esc(&name),
+            esc(&icon)
         ))
         .unwrap();
     Ok(())
@@ -30,7 +37,11 @@ pub async fn create_camera(
         .db
         .lock()
         .unwrap()
-        .execute(format!("INSERT INTO Camera VALUES ('{id}', '{name}')"))
+        .execute(format!(
+            "INSERT INTO Camera VALUES ('{0}', '{1}')",
+            esc(&id),
+            esc(&name)
+        ))
         .unwrap();
 
     state
@@ -52,7 +63,11 @@ pub async fn create_group(
         .db
         .lock()
         .unwrap()
-        .execute(format!("INSERT INTO PhotoGroup VALUES ('{id}', '{name}')"))
+        .execute(format!(
+            "INSERT INTO PhotoGroup VALUES ('{0}', '{1}')",
+            esc(&id),
+            esc(&name)
+        ))
         .unwrap();
     Ok(())
 }
@@ -68,11 +83,17 @@ pub async fn create_journal_entry(
     steps: i32,
     iv: String,
 ) -> Result<(), String> {
-    state.db
+    state
+        .db
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO JournalEntry VALUES ('{id}', '{date}', {mood}, '{text}', '{activities}', {steps}, '{iv}')"
+            "INSERT INTO JournalEntry VALUES ('{0}', '{1}', {mood}, '{2}', '{3}', {steps}, '{4}')",
+            esc(&id),
+            esc(&date),
+            esc(&text),
+            esc(&activities),
+            esc(&iv)
         ))
         .unwrap();
     Ok(())
@@ -90,7 +111,9 @@ pub async fn set_journal_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Journal SET {property}='{value}' WHERE Id='{journal}'"
+            "UPDATE Journal SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&journal)
         ))
         .unwrap();
     Ok(())
@@ -107,7 +130,8 @@ pub async fn set_journal_mood(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Journal SET mood='{mood}' WHERE Id='{journal}'"
+            "UPDATE Journal SET mood={mood} WHERE Id='{0}'",
+            esc(&journal)
         ))
         .unwrap();
     Ok(())
@@ -125,7 +149,10 @@ pub async fn create_layer(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Layer VALUES ('{id}', '{name}', '{color}')"
+            "INSERT INTO Layer VALUES ('{0}', '{1}', '{2}')",
+            esc(&id),
+            esc(&name),
+            esc(&color)
         ))
         .unwrap();
     Ok(())
@@ -142,7 +169,9 @@ pub async fn set_layer_color(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Layer SET color='{color}' WHERE Id='{layer}'"
+            "UPDATE Layer SET color='{0}' WHERE Id='{1}'",
+            esc(&color),
+            esc(&layer)
         ))
         .unwrap();
     Ok(())
@@ -162,7 +191,12 @@ pub async fn create_person(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Person VALUES ('{id}', '{name}', '{photo}', '{notes}', '{category}')"
+            "INSERT INTO Person VALUES ('{0}', '{1}', '{2}', '{3}', '{4}')",
+            esc(&id),
+            esc(&name),
+            esc(&photo),
+            esc(&notes),
+            esc(&category)
         ))
         .unwrap();
 
@@ -194,7 +228,9 @@ pub async fn set_person_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Person SET {property}='{value}' WHERE Id='{person}'"
+            "UPDATE Person SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&person)
         ))
         .unwrap();
     Ok(())
@@ -212,7 +248,10 @@ pub async fn create_person_category(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO PersonCategory VALUES ('{id}', '{name}', '{color}')"
+            "INSERT INTO PersonCategory VALUES ('{0}', '{1}', '{2}')",
+            esc(&id),
+            esc(&name),
+            esc(&color)
         ))
         .unwrap();
     Ok(())
@@ -228,11 +267,16 @@ pub async fn create_place(
     layer: String,
     category: String,
 ) -> Result<(), String> {
-    state.db
+    state
+        .db
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Place VALUES ('{id}', '{name}', {lat}, {lng}, '{layer}', '{category}', '', '', '')"
+            "INSERT INTO Place VALUES ('{0}', '{1}', {lat}, {lng}, '{2}', '{3}', '', '', '')",
+            esc(&id),
+            esc(&name),
+            esc(&layer),
+            esc(&category)
         ))
         .unwrap();
 
@@ -269,7 +313,9 @@ pub async fn set_place_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Place SET {property}='{value}' WHERE Id='{place}'"
+            "UPDATE Place SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&place)
         ))
         .unwrap();
     Ok(())
@@ -287,7 +333,8 @@ pub async fn set_place_position(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Place SET (lat, lng)=({lat}, {lng}) WHERE Id='{place}'"
+            "UPDATE Place SET (lat, lng)=({lat}, {lng}) WHERE Id='{0}'",
+            esc(&place)
         ))
         .unwrap();
     Ok(())
@@ -302,7 +349,7 @@ pub async fn delete_place(
         .db
         .lock()
         .unwrap()
-        .execute(format!("DELETE FROM Place WHERE Id='{place}'"))
+        .execute(format!("DELETE FROM Place WHERE Id='{0}'", esc(&place)))
         .unwrap();
     Ok(())
 }
@@ -316,7 +363,10 @@ pub async fn set_setting(
 ) -> Result<(), String> {
     let connection = state.db.lock().unwrap();
     let rows = connection
-        .prepare(format!("SELECT * FROM Setting WHERE setting='{setting}'"))
+        .prepare(format!(
+            "SELECT * FROM Setting WHERE setting='{0}'",
+            esc(&setting)
+        ))
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap());
@@ -324,13 +374,18 @@ pub async fn set_setting(
     if rows.count() == 0 {
         connection
             .execute(format!(
-                "INSERT INTO Setting VALUES ('{id}', '{setting}', '{value}')"
+                "INSERT INTO Setting VALUES ('{0}', '{1}', '{2}')",
+                esc(&id),
+                esc(&setting),
+                esc(&value)
             ))
             .unwrap();
     } else {
         connection
             .execute(format!(
-                "UPDATE Setting SET value='{value}' WHERE setting='{setting}'"
+                "UPDATE Setting SET value='{0}' WHERE setting='{1}'",
+                esc(&value),
+                esc(&setting)
             ))
             .unwrap();
     }
@@ -352,7 +407,12 @@ pub async fn create_shape(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Shape VALUES ('{id}', '{shape_type}', '{points}', '{layer}', '{name}')"
+            "INSERT INTO Shape VALUES ('{0}', '{1}', '{2}', '{3}', '{4}')",
+            esc(&id),
+            esc(&shape_type),
+            esc(&points),
+            esc(&layer),
+            esc(&name)
         ))
         .unwrap();
     Ok(())
@@ -370,7 +430,9 @@ pub async fn set_shape_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Shape SET {property}='{value}' WHERE Id='{shape}'"
+            "UPDATE Shape SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&shape)
         ))
         .unwrap();
     Ok(())
@@ -385,7 +447,7 @@ pub async fn delete_shape(
         .db
         .lock()
         .unwrap()
-        .execute(format!("DELETE FROM Shape WHERE Id='{shape}'"))
+        .execute(format!("DELETE FROM Shape WHERE Id='{0}'", esc(&shape)))
         .unwrap();
     Ok(())
 }
@@ -401,7 +463,9 @@ pub async fn create_tag(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO Tag VALUES ('{id}', '{name}', '', '', '', '')"
+            "INSERT INTO Tag VALUES ('{0}', '{1}', '', '', '', '')",
+            esc(&id),
+            esc(&name)
         ))
         .unwrap();
 
@@ -414,7 +478,7 @@ pub async fn create_tag(
             prereqs: Vec::<String>::new(),
             coreqs: Vec::<String>::new(),
             incompatible: Vec::<String>::new(),
-            count: 0
+            count: 0,
         },
     );
 
@@ -433,7 +497,9 @@ pub async fn set_tag_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Tag SET {property}='{value}' WHERE Id='{tag}'"
+            "UPDATE Tag SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&tag)
         ))
         .unwrap();
     Ok(())
@@ -452,7 +518,11 @@ pub async fn create_wiki_page(
         .lock()
         .unwrap()
         .execute(format!(
-            "INSERT INTO WikiPage VALUES ('{id}', '{name}', '{content}', '{iv}')"
+            "INSERT INTO WikiPage VALUES ('{0}', '{1}', '{2}', '{3}')",
+            esc(&id),
+            esc(&name),
+            esc(&content),
+            esc(&iv)
         ))
         .unwrap();
     Ok(())
@@ -470,7 +540,9 @@ pub async fn set_wiki_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE WikiPage SET {property}='{value}' WHERE Id='{page}'"
+            "UPDATE WikiPage SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&page)
         ))
         .unwrap();
     Ok(())
@@ -488,7 +560,9 @@ pub async fn set_photo_str(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Photo SET {property}='{value}' WHERE Id='{photo}'"
+            "UPDATE Photo SET {property}='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&photo)
         ))
         .unwrap();
     Ok(())
@@ -524,7 +598,7 @@ pub async fn set_photographer(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -534,25 +608,29 @@ pub async fn set_photographer(
 
     connection
         .execute(format!(
-            "UPDATE Photo SET Photographer='{value}' WHERE Id='{photo}'"
+            "UPDATE Photo SET Photographer='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = &existing.photo_group;
+        let group = esc(&existing.photo_group);
         let in_group = connection
             .prepare(format!(
-                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{0}'",
+                esc(&photo)
             ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
         for photo in in_group {
             update_photographer_count(&state, &photo.photographer, &value);
-            let id = photo.id;
+            let id = esc(&photo.id);
             connection
                 .execute(format!(
-                    "UPDATE Photo SET Photographer='{value}' WHERE Id='{id}'"
+                    "UPDATE Photo SET Photographer='{0}' WHERE Id='{id}'",
+                    esc(&value)
                 ))
                 .unwrap();
         }
@@ -590,7 +668,7 @@ pub async fn set_photo_people(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -598,25 +676,27 @@ pub async fn set_photo_people(
 
     update_people_counts(&state, &existing.people, &value);
 
-    let joined_people = &value.join(",");
+    let joined_people = esc(&value.join(","));
     connection
         .execute(format!(
-            "UPDATE Photo SET People='{joined_people}' WHERE Id='{photo}'"
+            "UPDATE Photo SET People='{joined_people}' WHERE Id='{0}'",
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = &existing.photo_group;
+        let group = esc(&existing.photo_group);
         let in_group = connection
             .prepare(format!(
-                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{0}'",
+                esc(&photo)
             ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
         for photo in in_group {
             update_people_counts(&state, &photo.people, &value);
-            let id = photo.id;
+            let id = esc(&photo.id);
             connection
                 .execute(format!(
                     "UPDATE Photo SET People='{joined_people}' WHERE Id='{id}'"
@@ -652,7 +732,7 @@ pub async fn set_photo_camera(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -662,24 +742,30 @@ pub async fn set_photo_camera(
 
     connection
         .execute(format!(
-            "UPDATE Photo SET Camera='{value}' WHERE Id='{photo}'"
+            "UPDATE Photo SET Camera='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = &existing.photo_group;
+        let group = esc(&existing.photo_group);
         let in_group = connection
             .prepare(format!(
-                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{0}'",
+                esc(&photo)
             ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
         for photo in in_group {
             update_camera_count(&state, &photo.camera, &value);
-            let id = photo.id;
+            let id = esc(&photo.id);
             connection
-                .execute(format!("UPDATE Photo SET Camera='{value}' WHERE Id='{id}'"))
+                .execute(format!(
+                    "UPDATE Photo SET Camera='{0}' WHERE Id='{id}'",
+                    esc(&value)
+                ))
                 .unwrap();
         }
     }
@@ -711,7 +797,7 @@ pub async fn set_photo_location(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -721,25 +807,29 @@ pub async fn set_photo_location(
 
     connection
         .execute(format!(
-            "UPDATE Photo SET Location='{value}' WHERE Id='{photo}'"
+            "UPDATE Photo SET Location='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = &existing.photo_group;
+        let group = esc(&existing.photo_group);
         let in_group = connection
             .prepare(format!(
-                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{0}'",
+                esc(&photo)
             ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
         for photo in in_group {
             update_location_count(&state, &photo.location, &value);
-            let id = photo.id;
+            let id = esc(&photo.id);
             connection
                 .execute(format!(
-                    "UPDATE Photo SET Location='{value}' WHERE Id='{id}'"
+                    "UPDATE Photo SET Location='{0}' WHERE Id='{id}'",
+                    esc(&value),
                 ))
                 .unwrap();
         }
@@ -778,38 +868,48 @@ pub async fn set_photo_tags(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
-    let mut existing = results.last().unwrap();
+    let existing = results.last().unwrap();
 
     photos::create_new_tags(&state, &value);
     update_tag_counts(&state, &existing.tags, &value);
 
     let validation = photos::validate_tags(&state.tags.lock().unwrap(), &value);
-    existing.valid_tags = validation.is_valid;
-    existing.validation_msg = validation.message;
 
-    let tags_str = value.join(",");
+    let mut state_photos = state.photos.lock().unwrap();
+    match state_photos.binary_search_by_key(&photo, |p| p.name.clone()) {
+        Ok(pos) => {
+            state_photos[pos].tags = value.clone();
+            state_photos[pos].valid_tags = validation.is_valid;
+            state_photos[pos].validation_msg = validation.message;
+        }
+        Err(_pos) => {}
+    }
+
+    let tags_str = esc(&value.join(","));
     connection
         .execute(format!(
-            "UPDATE Photo SET Tags='{tags_str}' WHERE Id='{photo}'"
+            "UPDATE Photo SET Tags='{tags_str}' WHERE Id='{0}'",
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = existing.photo_group.clone();
+        let group = esc(&existing.photo_group);
         let in_group = connection
             .prepare(format!(
-                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "SELECT * FROM Photo WHERE PhotoGroup='{group}' AND Id!='{0}'",
+                esc(&photo)
             ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
         for photo in in_group {
             update_tag_counts(&state, &photo.tags, &value);
-            let id = photo.id;
+            let id = esc(&photo.id);
             connection
                 .execute(format!(
                     "UPDATE Photo SET Tags='{tags_str}' WHERE Id='{id}'"
@@ -830,7 +930,7 @@ pub async fn set_photo_date(
     let connection = state.db.lock().unwrap();
 
     let results = connection
-        .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+        .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
         .unwrap()
         .into_iter()
         .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -838,15 +938,19 @@ pub async fn set_photo_date(
 
     connection
         .execute(format!(
-            "UPDATE Photo SET Date='{value}' WHERE Id='{photo}'"
+            "UPDATE Photo SET Date='{0}' WHERE Id='{1}'",
+            esc(&value),
+            esc(&photo)
         ))
         .unwrap();
 
     if existing.photo_group.len() > 0 {
-        let group = &existing.photo_group;
+        let group = esc(&existing.photo_group);
         connection
             .execute(format!(
-                "UPDATE Photo SET Date='{value}' WHERE PhotoGroup='{group}' AND Id!='{photo}'"
+                "UPDATE Photo SET Date='{0}' WHERE PhotoGroup='{group}' AND Id!='{1}'",
+                esc(&value),
+                esc(&photo)
             ))
             .unwrap();
     }
@@ -864,18 +968,24 @@ pub async fn set_photo_group(
 
     if value.len() == 0 {
         connection
-            .execute("UPDATE Photo SET PhotoGroup='' WHERE Id='{photo}'")
+            .execute(format!(
+                "UPDATE Photo SET PhotoGroup='' WHERE Id='{0}'",
+                esc(&photo)
+            ))
             .unwrap();
     } else {
         let results = connection
-            .prepare(format!("SELECT * FROM Photo WHERE Id='{photo}'"))
+            .prepare(format!("SELECT * FROM Photo WHERE Id='{0}'", esc(&photo)))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
-        let mut existing = results.last().unwrap();
+        let existing = results.last().unwrap();
 
         let in_group = connection
-            .prepare(format!("SELECT * FROM Photo WHERE PhotoGroup='{value}'"))
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE PhotoGroup='{0}'",
+                esc(&value)
+            ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()));
@@ -924,15 +1034,36 @@ pub async fn set_photo_group(
         update_camera_count(&state, &existing.camera, &collected_camera);
 
         let validation = photos::validate_tags(&state.tags.lock().unwrap(), &group_tags);
-        existing.valid_tags = validation.is_valid;
-        existing.validation_msg = validation.message;
+        let mut state_photos = state.photos.lock().unwrap();
+        // TODO - this needs to update all the other properties for every photo in the group too
+        match state_photos.binary_search_by_key(&photo, |p| p.name.clone()) {
+            Ok(pos) => {
+                state_photos[pos].valid_tags = validation.is_valid;
+                state_photos[pos].validation_msg = validation.message;
+            }
+            Err(_pos) => {}
+        }
 
-        let group_tags_str = group_tags.join(",");
-        let group_people_str = group_people.join(",");
-        connection.execute(format!("UPDATE Photo SET Group='{value}', Tags='{group_tags_str}', People='{group_people_str}', Location='{collected_location}', Photographer='{collected_photographer}', Camera='{collected_camera}', Date='{collected_date}' WHERE Id='{photo}'")).unwrap();
+        let group_tags_str = esc(&group_tags.join(","));
+        let group_people_str = esc(&group_people.join(","));
+        collected_location = esc(&collected_location);
+        collected_photographer = esc(&collected_photographer);
+        collected_camera = esc(&collected_camera);
+        collected_date = esc(&collected_date);
+        connection.execute(
+            format!(
+                "UPDATE Photo SET Group='{0}', Tags='{group_tags_str}', People='{group_people_str}', Location='{collected_location}', Photographer='{collected_photographer}', Camera='{collected_camera}', Date='{collected_date}' WHERE Id='{1}'",
+                esc(&value),
+                esc(&photo)
+            )
+        ).unwrap();
 
         for photo in connection
-            .prepare(format!("SELECT * FROM Photo WHERE PhotoGroup='{value}' AND Id!='{photo}'"))
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE PhotoGroup='{0}' AND Id!='{1}'",
+                esc(&value),
+                esc(&photo)
+            ))
             .unwrap()
             .into_iter()
             .map(|row| photos::row_to_photo(&state, row.unwrap()))
@@ -943,7 +1074,7 @@ pub async fn set_photo_group(
             update_photographer_count(&state, &photo.photographer, &collected_photographer);
             update_camera_count(&state, &photo.camera, &collected_camera);
 
-            let id = photo.id.clone();
+            let id = esc(&photo.id);
             connection.execute(format!("UPDATE Photo SET Tags='{group_tags_str}', People='{group_people_str}', Location='{collected_location}', Photographer='{collected_photographer}', Camera='{collected_camera}', Date='{collected_date}' WHERE Id='{id}'")).unwrap();
         }
     }
@@ -955,16 +1086,27 @@ pub async fn set_photo_group(
 pub async fn set_photo_rating(
     state: tauri::State<'_, photos::PhotoState>,
     photo: String,
-    rating: i32,
+    rating: i64,
 ) -> Result<(), String> {
     state
         .db
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Photo SET rating={rating} WHERE Id='{photo}'"
+            "UPDATE Photo SET rating={rating} WHERE Id='{0}'",
+            esc(&photo)
         ))
         .unwrap();
+
+    // TODO - make sure the state is updated for every db function
+    let mut state_photos = state.photos.lock().unwrap();
+    match state_photos.binary_search_by_key(&photo, |p| p.id.clone()) {
+        Ok(pos) => {
+            state_photos[pos].rating = rating;
+        }
+        Err(_pos) => {}
+    }
+
     Ok(())
 }
 
@@ -980,7 +1122,8 @@ pub async fn set_photo_bool(
         .lock()
         .unwrap()
         .execute(format!(
-            "UPDATE Photo SET {property}={value} WHERE Id='{photo}'"
+            "UPDATE Photo SET {property}={value} WHERE Id='{0}'",
+            esc(&photo)
         ))
         .unwrap();
     Ok(())

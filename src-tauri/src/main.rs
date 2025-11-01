@@ -49,6 +49,7 @@ fn main() {
             photos::search_photos,
             photos::photo_grid,
             photos::get_tags,
+            photos::remove_deleted
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

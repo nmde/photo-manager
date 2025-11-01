@@ -9,7 +9,7 @@
   import TagInput from './TagInput.vue';
   import 'video.js/dist/video-js.css';
 
-  const { groupNames, addGroup, places, layers, people, cameras } = fileStore;
+  const { groupNames, addGroup, places, people, cameras } = fileStore;
 
   const emit = defineEmits<{
     (
@@ -31,6 +31,7 @@
   const props = defineProps<{
     photo: Photo;
     prevDate: Date;
+    loading?: boolean;
   }>();
 
   const photoPath = computed(() =>
@@ -106,6 +107,7 @@
     advanced
     filtered
     :label="`Photo Tags (${photoTags.length})`"
+    :loading="loading"
     :target="photo.name"
     :validate="photo.name"
     :value="photoTags"
@@ -115,7 +117,7 @@
       }
     "
     @update="
-      tags => {
+      () => {
         emit('update:tags', photoTags);
       }
     "
@@ -157,7 +159,12 @@
     :value="photoPeople"
     @update="people => emit('update:people', people)"
   />
-  <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)" />
+  <div class="input-group">
+    <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)" />
+    <v-btn icon @click="emit('update:rating', 0)">
+      <v-icon>mdi-close</v-icon>
+    </v-btn>
+  </div>
   <people-input
     label="Taken by"
     sort="photographer"
@@ -215,33 +222,8 @@
   >
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
-  <v-btn
-    @click="
-      async () => {
-        emit('update:location', '');
-      }
-    "
-  >
-    Remove Location
-  </v-btn>
-  <v-btn
-    @click="
-      async () => {
-        emit('update:date', '');
-      }
-    "
-  >
-    Remove Date
-  </v-btn>
-  <v-btn
-    @click="
-      async () => {
-        emit('update:rating', 0);
-      }
-    "
-  >
-    Remove Rating
-  </v-btn>
+  <v-btn @click="emit('update:location', '')"> Remove Location </v-btn>
+  <v-btn @click="emit('update:date', '')"> Remove Date </v-btn>
   <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
   <v-checkbox
     v-model="hideThumbnail"
@@ -295,7 +277,7 @@
         <v-avatar size="48">
           <v-img :src="photoPath" />
         </v-avatar>
-        <br>
+        <br />
         <people-input
           label="Set as profile photo for"
           sort="count"
@@ -323,3 +305,10 @@
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+  .input-group {
+    display: flex;
+    margin-bottom: 8px;
+  }
+</style>

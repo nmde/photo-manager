@@ -1,3 +1,4 @@
+use crate::database;
 use crate::types;
 use regex::Regex;
 use sqlite::Connection;
@@ -10,6 +11,8 @@ use tauri::Manager;
 use unique_id::string::StringGenerator;
 use unique_id::Generator;
 use walkdir::WalkDir;
+
+const PHOTO_MANAGER_VERSION: i64 = 1;
 
 pub struct PhotoState {
     pub db: Mutex<Connection>,
@@ -163,7 +166,7 @@ pub fn row_to_photo(state: &tauri::State<'_, PhotoState>, row: Row) -> types::Ph
 #[derive(serde::Serialize)]
 pub struct OpenFolderResponse {
     deleted: Vec<String>,
-    tags: Vec<types::Tag>,
+    tags: HashMap<String, types::Tag>,
     person_categories: Vec<types::PersonCategory>,
     groups: Vec<types::Group>,
     layers: Vec<types::Layer>,
@@ -214,8 +217,6 @@ pub async fn open_folder<R: tauri::Runtime>(
 
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
     let mut existing = HashMap::<String, types::Photo>::new();
-    // The names of photos in the database, which will be used to detect deleted photos
-    let mut unmatched = Vec::<String>::new();
 
     for row in conn
         .prepare("SELECT * FROM Photo")
@@ -223,7 +224,6 @@ pub async fn open_folder<R: tauri::Runtime>(
         .into_iter()
         .map(|row| row_to_photo(&state, row.unwrap()))
     {
-        unmatched.push(row.name.clone());
         existing.insert(row.name.clone(), row);
     }
 
@@ -359,10 +359,6 @@ pub async fn open_folder<R: tauri::Runtime>(
         if file.metadata().unwrap().is_file() {
             let filename = file.path().display();
             if existing.contains_key(&filename.to_string()) {
-                let idx = unmatched.binary_search(&filename.to_string());
-                if idx.is_ok() {
-                    unmatched.remove(idx.unwrap());
-                }
                 let existing_photo = existing.get(&filename.to_string()).unwrap();
                 for person in &existing_photo.people {
                     people.get_mut(person).unwrap().photo_count += 1;
@@ -383,11 +379,10 @@ pub async fn open_folder<R: tauri::Runtime>(
                     if tags.contains_key(tag) {
                         tags.get_mut(tag).unwrap().count += 1;
                     } else {
-                        let id = id_generator.next_id();
                         tags.insert(
-                            id.clone(),
+                            tag.to_string(),
                             types::Tag {
-                                id,
+                                id: id_generator.next_id(),
                                 name: tag.to_string(),
                                 color: String::new(),
                                 prereqs: Vec::<String>::new(),
@@ -398,7 +393,11 @@ pub async fn open_folder<R: tauri::Runtime>(
                         );
                     }
                 }
-                photos.push(existing_photo.clone());
+                match photos.binary_search_by_key(&existing_photo.name, |p| p.name.clone()) {
+                    Ok(_pos) => {}
+                    Err(pos) => photos.insert(pos, existing_photo.clone()),
+                }
+                existing.remove(&filename.to_string());
             } else {
                 let tmp = &filename.to_string();
                 let thumbnail_path = format!("{thumbnail_dir}/{tmp}.jpg");
@@ -455,8 +454,21 @@ pub async fn open_folder<R: tauri::Runtime>(
                     valid_tags: true,
                     validation_msg: String::new(),
                 };
-                conn.execute(format!("INSERT INTO Photo VALUES ('{0}', '{1}', '{2}', '{3}', '', '', 0, 0, '', '', {4}, '', '', {5}, '', 0, '', '')", photo.id, photo.name, photo.path, photo.title, photo.video, photo.raw)).unwrap();
-                photos.push(photo);
+                conn.execute(
+                    format!(
+                        "INSERT INTO Photo VALUES ('{0}', '{1}', '{2}', '{3}', '', '', 0, 0, '', '', {4}, '', '', {5}, '', 0, '', '')",
+                        database::esc(&photo.id),
+                        database::esc(&photo.name),
+                        database::esc(&photo.path),
+                        database::esc(&photo.title),
+                        photo.video,
+                        photo.raw
+                    )
+                ).unwrap();
+                match photos.binary_search_by_key(&photo.name, |p| p.name.clone()) {
+                    Ok(_pos) => {}
+                    Err(pos) => photos.insert(pos, photo),
+                }
             }
         }
     }
@@ -523,6 +535,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         });
     }
 
+    let mut project_version = 0;
     let mut settings = Vec::<types::Setting>::new();
     for row in conn
         .prepare("SELECT * FROM Setting")
@@ -530,11 +543,19 @@ pub async fn open_folder<R: tauri::Runtime>(
         .into_iter()
         .map(|row| row.unwrap())
     {
-        settings.push(types::Setting {
+        let setting = types::Setting {
             id: row.read::<&str, _>("Id").to_string(),
             setting: row.read::<&str, _>("setting").to_string(),
             value: row.read::<i64, _>("value"),
-        });
+        };
+        settings.push(setting.clone());
+        if setting.setting == "version" {
+            project_version = setting.value;
+        }
+    }
+
+    if project_version < PHOTO_MANAGER_VERSION {
+        println!("Database needs upgrade!");
     }
 
     let mut journals = Vec::<types::Journal>::new();
@@ -572,9 +593,10 @@ pub async fn open_folder<R: tauri::Runtime>(
 
     *state.db.lock().unwrap() = conn;
 
+    let existing_keys = existing.keys().cloned().map(String::from).collect();
     Ok(OpenFolderResponse {
-        deleted: Vec::<String>::new(),
-        tags: tags.values().cloned().collect(),
+        deleted: existing_keys,
+        tags,
         person_categories: categories,
         groups,
         layers,
@@ -594,6 +616,7 @@ pub async fn open_folder<R: tauri::Runtime>(
 pub async fn search_photos(
     state: tauri::State<'_, PhotoState>,
     query: Vec<String>,
+    sort: String,
 ) -> Result<(), String> {
     let mut unmet_terms = Vec::<String>::new();
 
@@ -607,7 +630,7 @@ pub async fn search_photos(
         }
         let tmp_term = chars.as_str().to_string();
         if tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
-            let location = tmp_term.get(4..).unwrap();
+            let location = database::esc(&tmp_term.get(4..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND location!='{location}'"));
             } else {
@@ -628,14 +651,14 @@ pub async fn search_photos(
                 }
             }
         } else if tmp_term.get(0..5).unwrap().to_uppercase() == "ONLY:" {
-            let person = tmp_term.get(6..).unwrap();
+            let person = database::esc(&tmp_term.get(6..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND people!='{person}'"));
             } else {
                 statement.push_str(&format!(" AND people='{person}'"));
             }
         } else if tmp_term.get(0..3).unwrap().to_uppercase() == "BY:" {
-            let person = tmp_term.get(4..).unwrap();
+            let person = database::esc(&tmp_term.get(4..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND photographer!='{person}'"));
             } else {
@@ -667,6 +690,13 @@ pub async fn search_photos(
                     statement.push_str(" AND length(location)>0");
                 }
             }
+        } else if tmp_term.get(0..5).unwrap().to_uppercase() == "NAME:" {
+            let name = database::esc(&tmp_term.get(5..).unwrap().to_string());
+            if negated {
+                statement.push_str(&format!(" AND Name NOT LIKE '%{name}%'"));
+            } else {
+                statement.push_str(&format!(" AND Name LIKE '%{name}%'"));
+            }
         } else {
             unmet_terms.push(term);
         }
@@ -682,9 +712,16 @@ pub async fn search_photos(
         .into_iter()
         .map(|row| row_to_photo(&state, row.unwrap()));
 
+    // I *want* to use SQL ORDER BY to sort the results, but it seems the results lose their order somewhere in the above statement
+
     // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
+    let mut first = true;
     if unmet_terms.len() > 0 {
         for photo in photos {
+            if first {
+                println!("First row: {}", photo.name);
+                first = false;
+            }
             for term in &unmet_terms {
                 let mut chars = term.chars();
                 let negated = term.get(0..1).unwrap() == "-";
@@ -697,7 +734,17 @@ pub async fn search_photos(
                         .people
                         .contains(&tmp_term.get(4..).unwrap().to_string());
                     if (negated && !in_photo) || (!negated && in_photo) {
-                        results.push(photo.clone());
+                        if sort == "name" || sort == "name_desc" {
+                            match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
+                        } else if sort == "rating" || sort == "rating_desc" {
+                            match results.binary_search_by_key(&photo.rating, |p| p.rating) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
+                        }
                     }
                 } else if tmp_term.get(0..5).unwrap().to_uppercase() == "DATE:" {
                     // TODO
@@ -705,15 +752,36 @@ pub async fn search_photos(
                     // Treat all remaining terms as tags
                     let in_tags = photo.tags.contains(&tmp_term);
                     if (negated && !in_tags) || (!negated && in_tags) {
-                        results.push(photo.clone());
+                        if sort == "name" || sort == "name_desc" {
+                            match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
+                        } else if sort == "rating" || sort == "rating_desc" {
+                            match results.binary_search_by_key(&photo.rating, |p| p.rating) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
+                        }
                     }
                 }
             }
         }
     } else {
-        results = photos.collect();
+        results = photos.collect::<Vec::<types::Photo>>();
+        if sort == "name" || sort == "name_desc" {
+            results.sort_by_key(|p| p.name.clone());
+        } else if sort == "rating" || sort == "rating_desc" {
+            results.sort_by_key(|p| p.rating);
+        }
     }
+
+    if sort == "name_desc" || sort == "rating_desc" {
+        results.reverse();
+    }
+
     println!("Returning {} photos", results.len());
+    println!("First result: {}", results.first().unwrap().name);
 
     let mut state_photos = state.photos.lock().unwrap();
 
@@ -738,7 +806,7 @@ pub async fn photo_grid(
     let index = start as usize;
     let count_u = count as usize;
 
-    // TODO: Group raws
+    // TODO: Group raws & groups
     /*
     for (const raw of raws) {
       const baseName = raw.name.replace('.ORF', '').replace('.NRW', '');
@@ -753,14 +821,50 @@ pub async fn photo_grid(
         base.hidden = true;
       }
     } */
-
+    let mut slice_end = index + count_u;
+    if slice_end > state_photos.len() {
+        println!(
+            "Warning: attempting to search for more photos than exist: {0}",
+            slice_end
+        );
+        slice_end = state_photos.len() - 1;
+    }
     Ok(PhotoGridResponse {
-        photos: state_photos.to_vec()[index..index + count_u].to_vec(),
+        photos: state_photos[index..slice_end].to_vec(),
         total: state_photos.len(),
     })
 }
 
 #[tauri::command]
-pub async fn get_tags(state: tauri::State<'_, PhotoState>) -> Result<Vec<types::Tag>, String> {
-    Ok(state.tags.lock().unwrap().values().cloned().collect())
+pub async fn get_tags(
+    state: tauri::State<'_, PhotoState>,
+) -> Result<HashMap<String, types::Tag>, String> {
+    Ok(state.tags.lock().unwrap().clone())
+}
+
+// TODO: Removing deleted causes the subsequent photo_grid request to fail
+#[tauri::command]
+pub async fn remove_deleted(
+    state: tauri::State<'_, PhotoState>,
+    deleted: Vec<String>,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+    let mut state_photos = state.photos.lock().unwrap();
+
+    for name in deleted {
+        connection
+            .execute(format!(
+                "DELETE FROM Photo WHERE Name='{0}'",
+                database::esc(&name)
+            ))
+            .unwrap();
+        match state_photos.binary_search_by_key(&name, |p| p.name.clone()) {
+            Ok(pos) => {
+                state_photos.remove(pos);
+            }
+            Err(_pos) => {}
+        }
+    }
+
+    Ok(())
 }

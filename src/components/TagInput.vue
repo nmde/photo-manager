@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { computed, ref, watch } from 'vue';
+  import { Graph } from '@/classes/Graph';
   import { Tag, type TagData } from '@/classes/Tag';
   import { fileStore } from '../stores/fileStore';
 
@@ -14,6 +15,7 @@
     validate?: string;
     advanced?: boolean;
     target?: string;
+    loading?: boolean;
   }>();
 
   const emit = defineEmits<{
@@ -29,36 +31,41 @@
   const targetPhoto = computed(() => (props.target ? getFile(props.target) : undefined));
 
   async function initialize() {
-    selected.value = props.value.map(t => tags.value.find(tag => tag.name === t));
-    const allTags = Tag.createTags(await invoke<TagData[]>('get_tags'));
-    if (!props.filtered) {
-      tags.value = allTags;
-    }
-    const filtered: Tag[] = [];
-    for (const tag of allTags) {
-      if (props.value.includes(tag.name)) {
-        // Always show tags that are already enabled regardless of prereqs
-        filtered.push(tag);
-        continue;
-      }
-      const a = advTags.find(t => t.name === tag.name);
-      if (a) {
-        if (a.prereqs.length > 0) {
-          let anyPrereqMet = false;
-          for (const p of a.prereqs) {
-            anyPrereqMet = anyPrereqMet || props.value.includes(p);
-          }
-          if (anyPrereqMet) {
-            filtered.push(tag);
+    selected.value = props.value
+      .map(t => tags.value.find(tag => tag.name === t))
+      .filter(t => t !== undefined);
+    const allTags = Tag.createTags(
+      Object.values(await invoke<Record<string, TagData>>('get_tags')),
+    );
+    if (props.filtered) {
+      const tagGraph = new Graph<Tag>();
+      for (const tag of allTags) {
+        if (props.value.includes(tag.name)) {
+          // Always show tags that are already enabled regardless of prereqs
+          tagGraph.add(tag.name, tag);
+          continue;
+        }
+        const a = advTags.find(t => t.name === tag.name);
+        if (a) {
+          if (a.prereqs.length > 0) {
+            let anyPrereqMet = false;
+            for (const p of a.prereqs) {
+              anyPrereqMet = anyPrereqMet || props.value.includes(p);
+            }
+            if (anyPrereqMet) {
+              tagGraph.add(tag.name, tag);
+            }
+          } else {
+            tagGraph.add(tag.name, tag);
           }
         } else {
-          filtered.push(tag);
+          tagGraph.add(tag.name, tag);
         }
-      } else {
-        filtered.push(tag);
       }
+      tags.value = tagGraph.toSorted().map(node => node.data);
+    } else {
+      tags.value = allTags;
     }
-    tags.value = filtered;
   }
 
   watch(() => props.value, initialize);
@@ -80,18 +87,25 @@
     item-value="name"
     :items="tags"
     :label="props.label"
+    :loading="loading"
     :multiple="props.single ? false : true"
     @update:focused="
       () => {
         if (hasChanged) {
-          emit('update', selected.map(t => t.name));
+          emit(
+            'update',
+            selected.map(t => t.name),
+          );
         }
       }
     "
     @update:model-value="
       () => {
         hasChanged = true;
-        emit('change', selected.map(t => t.name));
+        emit(
+          'change',
+          selected.map(t => t.name),
+        );
       }
     "
   >
