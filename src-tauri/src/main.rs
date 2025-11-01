@@ -4,6 +4,7 @@
 mod database;
 mod photos;
 mod types;
+mod tags;
 
 fn main() {
     tauri::Builder::default()
@@ -31,25 +32,25 @@ fn main() {
             database::create_shape,
             database::set_shape_str,
             database::delete_shape,
-            database::create_tag,
-            database::set_tag_str,
             database::create_wiki_page,
             database::set_wiki_str,
-            database::set_photo_str,
-            database::set_photographer,
-            database::set_photo_people,
-            database::set_photo_camera,
-            database::set_photo_location,
-            database::set_photo_tags,
-            database::set_photo_date,
-            database::set_photo_group,
-            database::set_photo_rating,
-            database::set_photo_bool,
             photos::open_folder,
             photos::search_photos,
             photos::photo_grid,
-            photos::get_tags,
-            photos::remove_deleted
+            photos::remove_deleted,
+            photos::set_photo_str,
+            photos::set_photographer,
+            photos::set_photo_people,
+            photos::set_photo_camera,
+            photos::set_photo_location,
+            photos::set_photo_tags,
+            photos::set_photo_date,
+            photos::set_photo_group,
+            photos::set_photo_rating,
+            photos::set_photo_bool,
+            tags::set_tag_color,
+            tags::set_tag_prereqs,
+            tags::get_tags,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

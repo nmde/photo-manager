@@ -108,17 +108,6 @@ pub struct Shape {
     pub name: String,
 }
 
-#[derive(serde::Serialize, Clone)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
-    pub color: String,
-    pub prereqs: Vec::<String>,
-    pub coreqs: Vec::<String>,
-    pub incompatible: Vec::<String>,
-    pub count: i64
-}
-
 #[derive(serde::Serialize)]
 pub struct WikiPage {
     pub id: String,

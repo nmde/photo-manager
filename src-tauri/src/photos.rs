@@ -1,12 +1,15 @@
 use crate::database;
+use crate::tags;
 use crate::types;
 use regex::Regex;
 use sqlite::Connection;
 use sqlite::Row;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::process::Command;
 use std::sync::Mutex;
+use tauri::Emitter;
 use tauri::Manager;
 use unique_id::string::StringGenerator;
 use unique_id::Generator;
@@ -21,7 +24,7 @@ pub struct PhotoState {
     pub cameras: Mutex<HashMap<String, types::Camera>>,
     pub places: Mutex<HashMap<String, types::Place>>,
     pub newest_place: Mutex<String>,
-    pub tags: Mutex<HashMap<String, types::Tag>>,
+    pub tags: Mutex<HashMap<String, tags::Tag>>,
 }
 
 impl Default for PhotoState {
@@ -33,93 +36,7 @@ impl Default for PhotoState {
             cameras: Mutex::new(HashMap::<String, types::Camera>::new()),
             places: Mutex::new(HashMap::<String, types::Place>::new()),
             newest_place: Mutex::new(String::new()),
-            tags: Mutex::new(HashMap::<String, types::Tag>::new()),
-        }
-    }
-}
-
-pub struct ValidationResult {
-    pub is_valid: bool,
-    pub message: String,
-}
-
-pub fn validate_tags(
-    state_tags: &HashMap<String, types::Tag>,
-    tags: &Vec<String>,
-) -> ValidationResult {
-    if tags.len() == 0 {
-        ValidationResult {
-            is_valid: true,
-            message: String::new(),
-        }
-    } else {
-        let mut valid = true;
-        let mut message = String::new();
-
-        for tag in tags {
-            if state_tags.contains_key(tag) {
-                let tag_data = state_tags.get(tag).unwrap();
-                let mut prereqs_met = true;
-                for prereq in &tag_data.prereqs {
-                    if !tags.contains(prereq) {
-                        valid = false;
-                        if prereqs_met {
-                            message.push_str("Missing prerequisite tag(s): ");
-                            prereqs_met = false;
-                        }
-                        message.push_str(prereq);
-                    }
-                }
-                let mut coreqs_met = true;
-                for coreq in &tag_data.coreqs {
-                    if !tags.contains(coreq) {
-                        valid = false;
-                        if coreqs_met {
-                            message.push_str("Missing corequisite tag(s): ");
-                            coreqs_met = false;
-                        }
-                        message.push_str(coreq);
-                    }
-                }
-                let mut inc_met = true;
-                for incompatible in &tag_data.incompatible {
-                    if tags.contains(incompatible) {
-                        valid = false;
-                        if inc_met {
-                            message.push_str("Incompatible tag(s) present: ");
-                            inc_met = false;
-                        }
-                        message.push_str(incompatible);
-                    }
-                }
-            }
-        }
-
-        ValidationResult {
-            is_valid: valid,
-            message,
-        }
-    }
-}
-
-pub fn create_new_tags(state: &tauri::State<'_, PhotoState>, tags: &Vec<String>) {
-    let mut state_tags = state.tags.lock().unwrap();
-    let id_generator = StringGenerator::default();
-
-    for tag in tags {
-        if !state_tags.contains_key(tag) {
-            state_tags.insert(
-                tag.to_string(),
-                types::Tag {
-                    id: id_generator.next_id(),
-                    name: tag.to_string(),
-                    color: String::new(),
-                    prereqs: Vec::<String>::new(),
-                    coreqs: Vec::<String>::new(),
-                    incompatible: Vec::<String>::new(),
-                    count: 0,
-                },
-            );
+            tags: Mutex::new(HashMap::<String, tags::Tag>::new()),
         }
     }
 }
@@ -129,7 +46,6 @@ pub fn row_to_photo(state: &tauri::State<'_, PhotoState>, row: Row) -> types::Ph
     let tags_row = row.read::<&str, _>("tags").to_string();
     if tags_row.len() > 0 {
         tags = tags_row.split(",").map(str::to_string).collect();
-        create_new_tags(&state, &tags);
     }
     let mut people = Vec::<String>::new();
     let people_row = row.read::<&str, _>("people").to_string();
@@ -137,7 +53,7 @@ pub fn row_to_photo(state: &tauri::State<'_, PhotoState>, row: Row) -> types::Ph
         people = people_row.split(",").map(str::to_string).collect();
     }
 
-    let validation = validate_tags(&state.tags.lock().unwrap(), &tags);
+    let validation = tags::validate_tags(&state.tags.lock().unwrap(), &tags);
     types::Photo {
         id: row.read::<&str, _>("Id").to_string(),
         name: row.read::<&str, _>("name").to_string(),
@@ -166,7 +82,7 @@ pub fn row_to_photo(state: &tauri::State<'_, PhotoState>, row: Row) -> types::Ph
 #[derive(serde::Serialize)]
 pub struct OpenFolderResponse {
     deleted: Vec<String>,
-    tags: HashMap<String, types::Tag>,
+    tags: HashMap<String, tags::Tag>,
     person_categories: Vec<types::PersonCategory>,
     groups: Vec<types::Group>,
     layers: Vec<types::Layer>,
@@ -185,11 +101,14 @@ pub struct OpenFolderResponse {
 #[tauri::command]
 pub async fn open_folder<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
     state: tauri::State<'_, PhotoState>,
     path: String,
 ) -> Result<OpenFolderResponse, String> {
     // Prepare the database
     let conn = sqlite::open(format!("{path}/photos.db")).ok().unwrap();
+    // This additional connection is created here for the create_new_tags function
+    *state.db.lock().unwrap() = sqlite::open(format!("{path}/photos.db")).ok().unwrap();
 
     conn.execute("CREATE TABLE IF NOT EXISTS Activity (Id TEXT PRIMARY KEY, name TEXT, icon TEXT)")
         .unwrap();
@@ -218,21 +137,12 @@ pub async fn open_folder<R: tauri::Runtime>(
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
     let mut existing = HashMap::<String, types::Photo>::new();
 
-    for row in conn
-        .prepare("SELECT * FROM Photo")
-        .unwrap()
-        .into_iter()
-        .map(|row| row_to_photo(&state, row.unwrap()))
-    {
-        existing.insert(row.name.clone(), row);
-    }
-
     let id_generator = StringGenerator::default();
     let data_dir = app.path().app_data_dir().unwrap().display().to_string();
     let thumbnail_dir = format!("{data_dir}/thumbnails/");
     fs::create_dir_all(&thumbnail_dir).unwrap();
 
-    let mut tags = HashMap::<String, types::Tag>::new();
+    let mut tags = HashMap::<String, tags::Tag>::new();
     for row in conn
         .prepare("SELECT * FROM Tag")
         .unwrap()
@@ -257,7 +167,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         }
         tags.insert(
             name.clone(),
-            types::Tag {
+            tags::Tag {
                 id: row.read::<&str, _>("Id").to_string(),
                 name,
                 color: row.read::<&str, _>("color").to_string(),
@@ -265,6 +175,75 @@ pub async fn open_folder<R: tauri::Runtime>(
                 coreqs,
                 incompatible,
                 count: 0,
+            },
+        );
+    }
+
+    for row in conn
+        .prepare("SELECT * FROM Photo")
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap())
+    {
+        let mut photo_tags = Vec::<String>::new();
+        let tags_row = row.read::<&str, _>("tags").to_string();
+        if tags_row.len() > 0 {
+            photo_tags = tags_row.split(",").map(str::to_string).collect();
+            for tag in &photo_tags {
+                if !tags.contains_key(tag) {
+                    let id = id_generator.next_id();
+                    conn.execute(format!(
+                        "INSERT INTO Tag VALUES ('{0}', '{1}', '', '', '', '')",
+                        database::esc(&id),
+                        database::esc(&tag)
+                    ))
+                    .unwrap();
+                    tags.insert(
+                        tag.to_string(),
+                        tags::Tag {
+                            id,
+                            name: tag.to_string(),
+                            color: String::new(),
+                            prereqs: Vec::<String>::new(),
+                            coreqs: Vec::<String>::new(),
+                            incompatible: Vec::<String>::new(),
+                            count: 0,
+                        },
+                    );
+                }
+            }
+        }
+        let mut people = Vec::<String>::new();
+        let people_row = row.read::<&str, _>("people").to_string();
+        if people_row.len() > 0 {
+            people = people_row.split(",").map(str::to_string).collect();
+        }
+
+        let validation = tags::validate_tags(&state.tags.lock().unwrap(), &photo_tags);
+        let name = row.read::<&str, _>("name").to_string();
+        existing.insert(
+            name.clone(),
+            types::Photo {
+                id: row.read::<&str, _>("Id").to_string(),
+                name,
+                path: row.read::<&str, _>("path").to_string(),
+                title: row.read::<&str, _>("title").to_string(),
+                description: row.read::<&str, _>("description").to_string(),
+                tags: photo_tags,
+                is_duplicate: row.read::<i64, _>("isDuplicate"),
+                rating: row.read::<i64, _>("rating"),
+                location: row.read::<&str, _>("location").to_string(),
+                thumbnail: row.read::<&str, _>("thumbnail").to_string(),
+                video: row.read::<i64, _>("video"),
+                photo_group: row.read::<&str, _>("photoGroup").to_string(),
+                date: row.read::<&str, _>("date").to_string(),
+                raw: row.read::<i64, _>("raw"),
+                people,
+                hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
+                photographer: row.read::<&str, _>("photographer").to_string(),
+                camera: row.read::<&str, _>("camera").to_string(),
+                valid_tags: validation.is_valid,
+                validation_msg: validation.message,
             },
         );
     }
@@ -355,6 +334,8 @@ pub async fn open_folder<R: tauri::Runtime>(
     let re_vid = Regex::new(r"^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$").unwrap();
 
     // Read the files in the selected folder
+    let total_files = fs::read_dir("./").unwrap().count();
+    let mut count = 0;
     for file in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
         if file.metadata().unwrap().is_file() {
             let filename = file.path().display();
@@ -381,7 +362,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                     } else {
                         tags.insert(
                             tag.to_string(),
-                            types::Tag {
+                            tags::Tag {
                                 id: id_generator.next_id(),
                                 name: tag.to_string(),
                                 color: String::new(),
@@ -470,6 +451,8 @@ pub async fn open_folder<R: tauri::Runtime>(
                     Err(pos) => photos.insert(pos, photo),
                 }
             }
+            count += 1;
+            window.emit("load_progress", count / total_files).unwrap();
         }
     }
     *state.photos.lock().unwrap() = photos.clone();
@@ -590,8 +573,6 @@ pub async fn open_folder<R: tauri::Runtime>(
             iv: row.read::<&str, _>("iv").to_string(),
         });
     }
-
-    *state.db.lock().unwrap() = conn;
 
     let existing_keys = existing.keys().cloned().map(String::from).collect();
     Ok(OpenFolderResponse {
@@ -768,7 +749,7 @@ pub async fn search_photos(
             }
         }
     } else {
-        results = photos.collect::<Vec::<types::Photo>>();
+        results = photos.collect::<Vec<types::Photo>>();
         if sort == "name" || sort == "name_desc" {
             results.sort_by_key(|p| p.name.clone());
         } else if sort == "rating" || sort == "rating_desc" {
@@ -803,7 +784,7 @@ pub async fn photo_grid(
     count: i64,
 ) -> Result<PhotoGridResponse, String> {
     let state_photos = state.photos.lock().unwrap();
-    let index = start as usize;
+    let mut index = start as usize;
     let count_u = count as usize;
 
     // TODO: Group raws & groups
@@ -821,6 +802,13 @@ pub async fn photo_grid(
         base.hidden = true;
       }
     } */
+    if index > state_photos.len() {
+        index = 0;
+        println!(
+            "Warning: Photo grid start index is greater than the number of photos; {0}",
+            start
+        );
+    }
     let mut slice_end = index + count_u;
     if slice_end > state_photos.len() {
         println!(
@@ -833,13 +821,6 @@ pub async fn photo_grid(
         photos: state_photos[index..slice_end].to_vec(),
         total: state_photos.len(),
     })
-}
-
-#[tauri::command]
-pub async fn get_tags(
-    state: tauri::State<'_, PhotoState>,
-) -> Result<HashMap<String, types::Tag>, String> {
-    Ok(state.tags.lock().unwrap().clone())
 }
 
 // TODO: Removing deleted causes the subsequent photo_grid request to fail
@@ -866,5 +847,607 @@ pub async fn remove_deleted(
         }
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_photo_str(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    property: String,
+    value: String,
+) -> Result<(), String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .execute(format!(
+            "UPDATE Photo SET {property}='{0}' WHERE Id='{1}'",
+            database::esc(&value),
+            database::esc(&photo)
+        ))
+        .unwrap();
+    Ok(())
+}
+
+fn update_photographer_count(
+    state: &tauri::State<'_, PhotoState>,
+    old_photographer: &String,
+    new_photographer: &String,
+) {
+    let mut state_people = state.people.lock().unwrap();
+
+    if old_photographer != new_photographer {
+        if old_photographer.len() > 0 {
+            state_people
+                .get_mut(old_photographer)
+                .unwrap()
+                .photographer_count -= 1;
+        }
+        state_people
+            .get_mut(new_photographer)
+            .unwrap()
+            .photographer_count += 1;
+    }
+}
+
+#[tauri::command]
+pub async fn set_photographer(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    update_photographer_count(&state, &existing.photographer, &value);
+
+    connection
+        .execute(format!(
+            "UPDATE Photo SET photographer='{0}' WHERE Id='{1}'",
+            database::esc(&value),
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{group}' AND Id!='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        for photo in in_group {
+            update_photographer_count(&state, &photo.photographer, &value);
+            let id = database::esc(&photo.id);
+            connection
+                .execute(format!(
+                    "UPDATE Photo SET photographer='{0}' WHERE Id='{id}'",
+                    database::esc(&value)
+                ))
+                .unwrap();
+        }
+    }
+    Ok(())
+}
+
+fn update_people_counts(
+    state: &tauri::State<'_, PhotoState>,
+    old_people: &Vec<String>,
+    new_people: &Vec<String>,
+) {
+    let mut state_people = state.people.lock().unwrap();
+
+    if old_people.len() > 0 {
+        for person in old_people.iter().filter(|p| !new_people.contains(p)) {
+            state_people.get_mut(person).unwrap().photo_count -= 1;
+        }
+        for person in new_people.iter().filter(|p| !old_people.contains(p)) {
+            state_people.get_mut(person).unwrap().photo_count += 1;
+        }
+    } else {
+        for person in new_people {
+            state_people.get_mut(person).unwrap().photo_count += 1;
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn set_photo_people(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: Vec<String>,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    update_people_counts(&state, &existing.people, &value);
+
+    let joined_people = database::esc(&value.join(","));
+    connection
+        .execute(format!(
+            "UPDATE Photo SET people='{joined_people}' WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{group}' AND Id!='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        for photo in in_group {
+            update_people_counts(&state, &photo.people, &value);
+            let id = database::esc(&photo.id);
+            connection
+                .execute(format!(
+                    "UPDATE Photo SET people='{joined_people}' WHERE Id='{id}'"
+                ))
+                .unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+fn update_camera_count(
+    state: &tauri::State<'_, PhotoState>,
+    old_camera: &String,
+    new_camera: &String,
+) {
+    let mut state_cameras = state.cameras.lock().unwrap();
+
+    if old_camera != new_camera {
+        if old_camera.len() > 0 {
+            state_cameras.get_mut(old_camera).unwrap().count -= 1;
+        }
+        state_cameras.get_mut(new_camera).unwrap().count += 1;
+    }
+}
+
+#[tauri::command]
+pub async fn set_photo_camera(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    update_camera_count(&state, &existing.camera, &value);
+
+    connection
+        .execute(format!(
+            "UPDATE Photo SET camera='{0}' WHERE Id='{1}'",
+            database::esc(&value),
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{group}' AND Id!='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        for photo in in_group {
+            update_camera_count(&state, &photo.camera, &value);
+            let id = database::esc(&photo.id);
+            connection
+                .execute(format!(
+                    "UPDATE Photo SET camera='{0}' WHERE Id='{id}'",
+                    database::esc(&value)
+                ))
+                .unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+fn update_location_count(
+    state: &tauri::State<'_, PhotoState>,
+    old_location: &String,
+    new_location: &String,
+) {
+    let mut state_places = state.places.lock().unwrap();
+
+    if old_location != new_location {
+        if old_location.len() > 0 {
+            state_places.get_mut(old_location).unwrap().count -= 1;
+        }
+        state_places.get_mut(new_location).unwrap().count += 1;
+    }
+}
+
+#[tauri::command]
+pub async fn set_photo_location(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    update_location_count(&state, &existing.location, &value);
+
+    connection
+        .execute(format!(
+            "UPDATE Photo SET location='{0}' WHERE Id='{1}'",
+            database::esc(&value),
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{group}' AND Id!='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        for photo in in_group {
+            update_location_count(&state, &photo.location, &value);
+            let id = database::esc(&photo.id);
+            connection
+                .execute(format!(
+                    "UPDATE Photo SET location='{0}' WHERE Id='{id}'",
+                    database::esc(&value),
+                ))
+                .unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+fn update_tag_counts(
+    state: &tauri::State<'_, PhotoState>,
+    old_tags: &Vec<String>,
+    new_tags: &Vec<String>,
+) {
+    let mut state_tags = state.tags.lock().unwrap();
+
+    if old_tags.len() > 0 {
+        for tag in old_tags.iter().filter(|t| !new_tags.contains(t)) {
+            state_tags.get_mut(tag).unwrap().count -= 1;
+        }
+        for tag in new_tags.iter().filter(|t| !old_tags.contains(t)) {
+            state_tags.get_mut(tag).unwrap().count += 1;
+        }
+    } else {
+        for tag in new_tags {
+            state_tags.get_mut(tag).unwrap().count += 1;
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn set_photo_tags(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: Vec<String>,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    tags::create_new_tags(&state, &value);
+    update_tag_counts(&state, &existing.tags, &value);
+
+    let validation = tags::validate_tags(&state.tags.lock().unwrap(), &value);
+
+    let mut state_photos = state.photos.lock().unwrap();
+    match state_photos.binary_search_by_key(&photo, |p| p.name.clone()) {
+        Ok(pos) => {
+            state_photos[pos].tags = value.clone();
+            state_photos[pos].valid_tags = validation.is_valid;
+            state_photos[pos].validation_msg = validation.message;
+        }
+        Err(_pos) => {}
+    }
+
+    let tags_str = database::esc(&value.join(","));
+    connection
+        .execute(format!(
+            "UPDATE Photo SET tags='{tags_str}' WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{group}' AND Id!='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        for photo in in_group {
+            update_tag_counts(&state, &photo.tags, &value);
+            let id = database::esc(&photo.id);
+            connection
+                .execute(format!(
+                    "UPDATE Photo SET tags='{tags_str}' WHERE Id='{id}'"
+                ))
+                .unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_photo_date(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    let results = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row_to_photo(&state, row.unwrap()));
+    let existing = results.last().unwrap();
+
+    connection
+        .execute(format!(
+            "UPDATE Photo SET date='{0}' WHERE Id='{1}'",
+            database::esc(&value),
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    if existing.photo_group.len() > 0 {
+        let group = database::esc(&existing.photo_group);
+        connection
+            .execute(format!(
+                "UPDATE Photo SET date='{0}' WHERE photoGroup='{group}' AND Id!='{1}'",
+                database::esc(&value),
+                database::esc(&photo)
+            ))
+            .unwrap();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_photo_group(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    value: String,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+
+    if value.len() == 0 {
+        connection
+            .execute(format!(
+                "UPDATE Photo SET photoGroup='' WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap();
+    } else {
+        let results = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+        let existing = results.last().unwrap();
+
+        let in_group = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{0}'",
+                database::esc(&value)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()));
+
+        let mut collected_tags = HashSet::new();
+        let mut collected_people = HashSet::new();
+        let mut collected_location = existing.location.clone();
+        let mut collected_photographer = existing.photographer.clone();
+        let mut collected_camera = existing.camera.clone();
+        let mut collected_date = existing.date;
+        for photo in in_group {
+            for tag in &photo.tags {
+                collected_tags.insert(tag.to_string());
+            }
+            for person in &photo.people {
+                collected_people.insert(person.to_string());
+            }
+            if collected_location.len() == 0 && photo.location.len() > 0 {
+                collected_location = photo.location;
+            }
+            if collected_photographer.len() == 0 && photo.photographer.len() > 0 {
+                collected_photographer = photo.photographer;
+            }
+            if collected_camera.len() == 0 && photo.camera.len() > 0 {
+                collected_camera = photo.camera;
+            }
+            if collected_date.len() == 0 && photo.date.len() > 0 {
+                collected_date = photo.date;
+            }
+        }
+        for tag in &existing.tags {
+            collected_tags.insert(tag.to_string());
+        }
+        for person in &existing.people {
+            collected_people.insert(person.to_string());
+        }
+
+        let group_tags = collected_tags.into_iter().collect::<Vec<String>>();
+        let group_people = collected_people.into_iter().collect::<Vec<String>>();
+
+        tags::create_new_tags(&state, &group_tags);
+        update_tag_counts(&state, &existing.tags, &group_tags);
+        update_people_counts(&state, &existing.people, &group_people);
+        update_location_count(&state, &existing.location, &collected_location);
+        update_photographer_count(&state, &existing.photographer, &collected_photographer);
+        update_camera_count(&state, &existing.camera, &collected_camera);
+
+        let validation = tags::validate_tags(&state.tags.lock().unwrap(), &group_tags);
+        let mut state_photos = state.photos.lock().unwrap();
+        // TODO - this needs to update all the other properties for every photo in the group too
+        match state_photos.binary_search_by_key(&photo, |p| p.name.clone()) {
+            Ok(pos) => {
+                state_photos[pos].valid_tags = validation.is_valid;
+                state_photos[pos].validation_msg = validation.message;
+            }
+            Err(_pos) => {}
+        }
+
+        let group_tags_str = database::esc(&group_tags.join(","));
+        let group_people_str = database::esc(&group_people.join(","));
+        collected_location = database::esc(&collected_location);
+        collected_photographer = database::esc(&collected_photographer);
+        collected_camera = database::esc(&collected_camera);
+        collected_date = database::esc(&collected_date);
+        connection.execute(
+            format!(
+                "UPDATE Photo SET photoGroup='{0}', tags='{group_tags_str}', people='{group_people_str}', location='{collected_location}', photographer='{collected_photographer}', camera='{collected_camera}', date='{collected_date}' WHERE Id='{1}'",
+                database::esc(&value),
+                database::esc(&photo)
+            )
+        ).unwrap();
+
+        for photo in connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE photoGroup='{0}' AND Id!='{1}'",
+                database::esc(&value),
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row_to_photo(&state, row.unwrap()))
+        {
+            update_tag_counts(&state, &photo.tags, &group_tags);
+            update_people_counts(&state, &photo.people, &group_people);
+            update_location_count(&state, &photo.location, &collected_location);
+            update_photographer_count(&state, &photo.photographer, &collected_photographer);
+            update_camera_count(&state, &photo.camera, &collected_camera);
+
+            let id = database::esc(&photo.id);
+            connection.execute(format!("UPDATE Photo SET tags='{group_tags_str}', people='{group_people_str}', location='{collected_location}', photographer='{collected_photographer}', camera='{collected_camera}', date='{collected_date}' WHERE Id='{id}'")).unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_photo_rating(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    rating: i64,
+) -> Result<(), String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .execute(format!(
+            "UPDATE Photo SET rating={rating} WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap();
+
+    // TODO - make sure the state is updated for every db function
+    let mut state_photos = state.photos.lock().unwrap();
+    match state_photos.binary_search_by_key(&photo, |p| p.id.clone()) {
+        Ok(pos) => {
+            state_photos[pos].rating = rating;
+        }
+        Err(_pos) => {}
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_photo_bool(
+    state: tauri::State<'_, PhotoState>,
+    photo: String,
+    property: String,
+    value: bool,
+) -> Result<(), String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .execute(format!(
+            "UPDATE Photo SET {property}={value} WHERE Id='{0}'",
+            database::esc(&photo)
+        ))
+        .unwrap();
     Ok(())
 }
