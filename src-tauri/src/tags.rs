@@ -1,8 +1,6 @@
 use crate::database;
 use crate::photos;
 use std::collections::HashMap;
-use unique_id::string::StringGenerator;
-use unique_id::Generator;
 
 #[derive(serde::Serialize, Clone)]
 pub struct Tag {
@@ -76,37 +74,6 @@ pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> V
     }
 }
 
-pub fn create_new_tags(state: &tauri::State<'_, photos::PhotoState>, tags: &Vec<String>) {
-    let connection = state.db.lock().unwrap();
-    let mut state_tags = state.tags.lock().unwrap();
-    let id_generator = StringGenerator::default();
-
-    for tag in tags {
-        if !state_tags.contains_key(tag) {
-            let id = id_generator.next_id();
-            connection
-                .execute(format!(
-                    "INSERT INTO Tag VALUES ('{0}', '{1}', '', '', '', '')",
-                    database::esc(&id),
-                    database::esc(&tag)
-                ))
-                .unwrap();
-            state_tags.insert(
-                tag.to_string(),
-                Tag {
-                    id,
-                    name: tag.to_string(),
-                    color: String::new(),
-                    prereqs: Vec::<String>::new(),
-                    coreqs: Vec::<String>::new(),
-                    incompatible: Vec::<String>::new(),
-                    count: 0,
-                },
-            );
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn set_tag_color(
     state: tauri::State<'_, photos::PhotoState>,
@@ -155,14 +122,125 @@ pub async fn set_tag_prereqs(
         ))
         .unwrap()
         .into_iter()
-        .map(|row| photos::row_to_photo(&state, row.unwrap()));
+        .map(|row| row.unwrap());
 
     let mut state_photos = state.photos.lock().unwrap();
-    for photo in maybe_has_tag {
-        if photo.tags.contains(&tag) {
-            match state_photos.binary_search_by_key(&photo.id, |p| p.id.clone()) {
+    for row in maybe_has_tag {
+        let mut tags = Vec::<String>::new();
+        let tags_row = row.read::<&str, _>("tags").to_string();
+        if tags_row.len() > 0 {
+            tags = tags_row.split(",").map(str::to_string).collect();
+        }
+        if tags.contains(&tag) {
+            match state_photos
+                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
+            {
                 Ok(pos) => {
-                    let validation = validate_tags(&state_tags, &photo.tags);
+                    let validation = validate_tags(&state_tags, &tags);
+                    state_photos[pos].valid_tags = validation.is_valid;
+                    state_photos[pos].validation_msg = validation.message;
+                }
+                Err(_pos) => {}
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_tag_coreqs(
+    state: tauri::State<'_, photos::PhotoState>,
+    tag: String,
+    value: Vec<String>,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+    let mut state_tags = state.tags.lock().unwrap();
+    connection
+        .execute(format!(
+            "UPDATE Tag SET coreqs='{0}' WHERE name='{1}'",
+            database::esc(&value.join(",")),
+            database::esc(&tag)
+        ))
+        .unwrap();
+
+    state_tags.get_mut(&tag).unwrap().coreqs = value;
+
+    // Gets photos from the database with the tag as a substring in their tags field
+    let maybe_has_tag = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE tags LIKE '%{0}%'",
+            database::esc(&tag)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap());
+
+    let mut state_photos = state.photos.lock().unwrap();
+    for row in maybe_has_tag {
+        let mut tags = Vec::<String>::new();
+        let tags_row = row.read::<&str, _>("tags").to_string();
+        if tags_row.len() > 0 {
+            tags = tags_row.split(",").map(str::to_string).collect();
+        }
+        if tags.contains(&tag) {
+            match state_photos
+                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
+            {
+                Ok(pos) => {
+                    let validation = validate_tags(&state_tags, &tags);
+                    state_photos[pos].valid_tags = validation.is_valid;
+                    state_photos[pos].validation_msg = validation.message;
+                }
+                Err(_pos) => {}
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_tag_incompatible(
+    state: tauri::State<'_, photos::PhotoState>,
+    tag: String,
+    value: Vec<String>,
+) -> Result<(), String> {
+    let connection = state.db.lock().unwrap();
+    let mut state_tags = state.tags.lock().unwrap();
+    connection
+        .execute(format!(
+            "UPDATE Tag SET incompatible='{0}' WHERE name='{1}'",
+            database::esc(&value.join(",")),
+            database::esc(&tag)
+        ))
+        .unwrap();
+
+    state_tags.get_mut(&tag).unwrap().incompatible = value;
+
+    // Gets photos from the database with the tag as a substring in their tags field
+    let maybe_has_tag = connection
+        .prepare(format!(
+            "SELECT * FROM Photo WHERE tags LIKE '%{0}%'",
+            database::esc(&tag)
+        ))
+        .unwrap()
+        .into_iter()
+        .map(|row| row.unwrap());
+
+    let mut state_photos = state.photos.lock().unwrap();
+    for row in maybe_has_tag {
+        let mut tags = Vec::<String>::new();
+        let tags_row = row.read::<&str, _>("tags").to_string();
+        if tags_row.len() > 0 {
+            tags = tags_row.split(",").map(str::to_string).collect();
+        }
+        if tags.contains(&tag) {
+            match state_photos
+                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
+            {
+                Ok(pos) => {
+                    let validation = validate_tags(&state_tags, &tags);
                     state_photos[pos].valid_tags = validation.is_valid;
                     state_photos[pos].validation_msg = validation.message;
                 }
@@ -179,4 +257,29 @@ pub async fn get_tags(
     state: tauri::State<'_, photos::PhotoState>,
 ) -> Result<HashMap<String, Tag>, String> {
     Ok(state.tags.lock().unwrap().clone())
+}
+
+#[derive(serde::Serialize)]
+pub struct TagStats {
+    pub avg_count: i64,
+    pub avg_rating: i64,
+}
+
+#[tauri::command]
+pub async fn get_tag_stats(
+    state: tauri::State<'_, photos::PhotoState>,
+) -> Result<TagStats, String> {
+    let mut photo_count = 0i64;
+    let mut total_count = 0i64;
+    let mut total_rating = 0;
+    for photo in state.photos.lock().unwrap().iter() {
+        photo_count += 1;
+        total_count += photo.tags.len() as i64;
+        total_rating += photo.rating;
+    }
+
+    Ok(TagStats {
+        avg_count: total_count / photo_count,
+        avg_rating: total_rating / photo_count,
+    })
 }

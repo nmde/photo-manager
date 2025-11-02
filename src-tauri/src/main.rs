@@ -50,7 +50,10 @@ fn main() {
             photos::set_photo_bool,
             tags::set_tag_color,
             tags::set_tag_prereqs,
+            tags::set_tag_coreqs,
+            tags::set_tag_incompatible,
             tags::get_tags,
+            tags::get_tag_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -54,30 +54,6 @@ pub struct PersonCategory {
     pub color: String,
 }
 
-#[derive(serde::Serialize, Clone)]
-pub struct Photo {
-    pub id: String,
-    pub name: String,
-    pub path: String,
-    pub title: String,
-    pub description: String,
-    pub tags: Vec<String>,
-    pub is_duplicate: i64,
-    pub rating: i64,
-    pub location: String,
-    pub thumbnail: String,
-    pub video: i64,
-    pub photo_group: String,
-    pub date: String,
-    pub raw: i64,
-    pub people: Vec<String>,
-    pub hide_thumbnail: i64,
-    pub photographer: String,
-    pub camera: String,
-    pub valid_tags: bool,
-    pub validation_msg: String
-}
-
 #[derive(serde::Serialize)]
 pub struct Place {
     pub id: String,
