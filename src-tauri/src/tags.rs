@@ -13,6 +13,7 @@ pub struct Tag {
     pub count: i64,
 }
 
+#[derive(serde::Serialize)]
 pub struct ValidationResult {
     pub is_valid: bool,
     pub message: String,
@@ -27,44 +28,47 @@ pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> V
     } else {
         let mut valid = true;
         let mut message = String::new();
-
+        let mut missing_prereqs = String::new();
+        let mut missing_coreqs = String::new();
+        let mut incompatibles = String::new();
         for tag in tags {
             if state_tags.contains_key(tag) {
                 let tag_data = state_tags.get(tag).unwrap();
-                let mut prereqs_met = true;
                 for prereq in &tag_data.prereqs {
                     if !tags.contains(prereq) {
                         valid = false;
-                        if prereqs_met {
-                            message.push_str("Missing prerequisite tag(s): ");
-                            prereqs_met = false;
-                        }
-                        message.push_str(prereq);
+                        missing_prereqs.push_str(&prereq);
+                        missing_prereqs.push_str(", ");
                     }
                 }
-                let mut coreqs_met = true;
                 for coreq in &tag_data.coreqs {
                     if !tags.contains(coreq) {
                         valid = false;
-                        if coreqs_met {
-                            message.push_str("Missing corequisite tag(s): ");
-                            coreqs_met = false;
-                        }
-                        message.push_str(coreq);
+                        missing_coreqs.push_str(&coreq);
+                        missing_coreqs.push_str(", ");
                     }
                 }
-                let mut inc_met = true;
                 for incompatible in &tag_data.incompatible {
                     if tags.contains(incompatible) {
                         valid = false;
-                        if inc_met {
-                            message.push_str("Incompatible tag(s) present: ");
-                            inc_met = false;
-                        }
-                        message.push_str(incompatible);
+                        incompatibles.push_str(&incompatible);
+                        incompatibles.push_str(", ");
                     }
                 }
             }
+        }
+
+        if missing_prereqs.len() > 0 {
+            message.push_str("Missing prerequisite tag(s): ");
+            message.push_str(&missing_prereqs);
+        }
+        if missing_coreqs.len() > 0 {
+            message.push_str("Missing corequisite tag(s): ");
+            message.push_str(&missing_coreqs);
+        }
+        if incompatibles.len() > 0 {
+            message.push_str("Incompatible tag(s) present: ");
+            message.push_str(&incompatibles);
         }
 
         ValidationResult {
@@ -132,16 +136,12 @@ pub async fn set_tag_prereqs(
             tags = tags_row.split(",").map(str::to_string).collect();
         }
         if tags.contains(&tag) {
-            match state_photos
-                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
-            {
-                Ok(pos) => {
-                    let validation = validate_tags(&state_tags, &tags);
-                    state_photos[pos].valid_tags = validation.is_valid;
-                    state_photos[pos].validation_msg = validation.message;
-                }
-                Err(_pos) => {}
-            }
+            let target = state_photos
+                .get_mut(&row.read::<&str, _>("Id").to_string())
+                .unwrap();
+            let validation = validate_tags(&state_tags, &tags);
+            target.valid_tags = validation.is_valid;
+            target.validation_msg = validation.message;
         }
     }
 
@@ -184,16 +184,12 @@ pub async fn set_tag_coreqs(
             tags = tags_row.split(",").map(str::to_string).collect();
         }
         if tags.contains(&tag) {
-            match state_photos
-                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
-            {
-                Ok(pos) => {
-                    let validation = validate_tags(&state_tags, &tags);
-                    state_photos[pos].valid_tags = validation.is_valid;
-                    state_photos[pos].validation_msg = validation.message;
-                }
-                Err(_pos) => {}
-            }
+            let target = state_photos
+                .get_mut(&row.read::<&str, _>("Id").to_string())
+                .unwrap();
+            let validation = validate_tags(&state_tags, &tags);
+            target.valid_tags = validation.is_valid;
+            target.validation_msg = validation.message;
         }
     }
 
@@ -236,16 +232,12 @@ pub async fn set_tag_incompatible(
             tags = tags_row.split(",").map(str::to_string).collect();
         }
         if tags.contains(&tag) {
-            match state_photos
-                .binary_search_by_key(&row.read::<&str, _>("Id").to_string(), |p| p.id.clone())
-            {
-                Ok(pos) => {
-                    let validation = validate_tags(&state_tags, &tags);
-                    state_photos[pos].valid_tags = validation.is_valid;
-                    state_photos[pos].validation_msg = validation.message;
-                }
-                Err(_pos) => {}
-            }
+            let target = state_photos
+                .get_mut(&row.read::<&str, _>("Id").to_string())
+                .unwrap();
+            let validation = validate_tags(&state_tags, &tags);
+            target.valid_tags = validation.is_valid;
+            target.validation_msg = validation.message;
         }
     }
 
@@ -272,7 +264,7 @@ pub async fn get_tag_stats(
     let mut photo_count = 0i64;
     let mut total_count = 0i64;
     let mut total_rating = 0;
-    for photo in state.photos.lock().unwrap().iter() {
+    for (_id, photo) in state.photos.lock().unwrap().iter() {
         photo_count += 1;
         total_count += photo.tags.len() as i64;
         total_rating += photo.rating;

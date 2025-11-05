@@ -223,7 +223,7 @@ export class Photo {
 
   public async setTags(value: string[]) {
     this._tags = value;
-    await invoke('set_photo_tags', {
+    return await invoke<{ is_valid: boolean; message: string }>('set_photo_tags', {
       photo: this._id,
       value,
     });

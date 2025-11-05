@@ -21,5 +21,13 @@ export default defineConfig(await vuetify(), {
     ],
     '@stylistic/space-before-function-paren': ['warn', { anonymous: 'always', named: 'never' }],
     'unicorn/prefer-event-target': 'off',
+    'vue/html-self-closing': [
+      'warn',
+      {
+        html: {
+          void: 'always',
+        },
+      },
+    ],
   },
 });

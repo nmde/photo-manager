@@ -409,7 +409,7 @@
                       <tag-input
                         label="Tags"
                         :value="place.tags"
-                        @update="
+                        @change="
                           async tags => {
                             await places[place.id]?.setTags(tags);
                             updateTags(tags);

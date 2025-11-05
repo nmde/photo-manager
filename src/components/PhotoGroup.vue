@@ -18,8 +18,17 @@
   // "for of" appears to not work inside Vue templates
   async function setTags(tags: string[]) {
     for (const photo of props.photos) {
-      await photo.setTags(tags);
+      const validation = await photo.setTags(tags);
+      photo.valid = validation.is_valid;
+      photo.validationMessage = validation.message;
     }
+  }
+
+  async function setDates(date: string) {
+    for (const photo of props.photos) {
+      await photo.setDate(date);
+    }
+    emit('update-date', new Date(date));
   }
 
   watch(
@@ -70,14 +79,7 @@
         }
       }
     "
-    @update:date="
-      async date => {
-        for (const photo of props.photos) {
-          await photo.setDate(date);
-        }
-        emit('update-date', new Date(date));
-      }
-    "
+    @update:date="async date => await setDates(date)"
     @update:description="
       async description => {
         if (currentPhoto) {

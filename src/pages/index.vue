@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { fileStore } from '../stores/fileStore';
@@ -11,8 +12,8 @@
   const deletedDialog = ref(false);
   const deleted = ref<string[]>([]);
   const initializing = ref(false);
-  const reading = ref('');
   const deleting = ref(false);
+  const progress = ref(0);
 
   /**
    * Prompts the user to select the folder to manage.
@@ -26,6 +27,9 @@
     });
     if (selected && typeof selected === 'string') {
       initializing.value = true;
+      getCurrentWindow().listen('load_progress', ({ payload }: { payload: number }) => {
+        progress.value = payload / 100;
+      });
       deleted.value = await loadPhotos(selected);
       console.log('Loaded photos');
       // setFolderStructure(folder);
@@ -76,7 +80,7 @@
           >
             Remove Records &amp; Continue
           </v-btn>
-          <v-btn v-if="!deleting" color="primary" @click="router.push('/tagger')">
+          <v-btn color="primary" :disabled="!deleting" @click="router.push('/tagger')">
             Continue Without Removing
           </v-btn>
         </v-card-actions>
@@ -86,8 +90,7 @@
       <v-card>
         <v-card-title>Initializing</v-card-title>
         <v-card-text>
-          <p v-if="reading.length > 0">Reading {{ reading }}</p>
-          <v-progress-linear color="primary" indeterminate />
+          <v-progress-linear v-model="progress" color="primary" />
         </v-card-text>
       </v-card>
     </v-dialog>

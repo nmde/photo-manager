@@ -1,79 +1,40 @@
 <script setup lang="ts">
+  import type { Photo } from '@/classes/Photo';
   import { invoke } from '@tauri-apps/api/core';
-  import { computed, ref, watch } from 'vue';
-  import { Graph } from '@/classes/Graph';
   import { Tag, type TagData } from '@/classes/Tag';
-  import { fileStore } from '../stores/fileStore';
-
-  const { getFile, advTags } = fileStore;
 
   const props = defineProps<{
     label: string;
     value: string[];
     single?: boolean;
     filtered?: boolean;
-    validate?: string;
+    validate?: boolean;
     advanced?: boolean;
-    target?: string;
+    target?: Photo;
     loading?: boolean;
   }>();
 
   const emit = defineEmits<{
-    (e: 'change' | 'update', tags: string[]): void;
+    (e: 'change', tags: string[]): void;
   }>();
 
-  const selected = ref<Tag[]>([]);
-  const valid = ref<boolean | undefined>(true);
-  const validationMsg = ref<string | undefined>(undefined);
+  const selected = ref<string[]>([]);
   const hasChanged = ref(false);
   const tags = ref<Tag[]>([]);
 
-  const targetPhoto = computed(() => (props.target ? getFile(props.target) : undefined));
-
   async function initialize() {
-    selected.value = props.value
-      .map(t => tags.value.find(tag => tag.name === t))
-      .filter(t => t !== undefined);
-    const allTags = Tag.createTags(
+    selected.value = props.value;
+    tags.value = Tag.createTags(
       Object.values(await invoke<Record<string, TagData>>('get_tags')),
-    );
-    if (props.filtered) {
-      const tagGraph = new Graph<Tag>();
-      for (const tag of allTags) {
-        if (props.value.includes(tag.name)) {
-          // Always show tags that are already enabled regardless of prereqs
-          tagGraph.add(tag.name, tag);
-          continue;
-        }
-        const a = advTags.find(t => t.name === tag.name);
-        if (a) {
-          if (a.prereqs.length > 0) {
-            let anyPrereqMet = false;
-            for (const p of a.prereqs) {
-              anyPrereqMet = anyPrereqMet || props.value.includes(p);
-            }
-            if (anyPrereqMet) {
-              tagGraph.add(tag.name, tag);
-            }
-          } else {
-            tagGraph.add(tag.name, tag);
-          }
-        } else {
-          tagGraph.add(tag.name, tag);
-        }
-      }
-      tags.value = tagGraph.toSorted().map(node => node.data);
-    } else {
-      tags.value = allTags;
-    }
+    ).toSorted((a, b) => b.count - a.count);
   }
 
-  watch(() => props.value, initialize);
+  watch(
+    () => props.value,
+    () => initialize(),
+  );
 
-  fileStore.on('validationUpdate', () => {
-    valid.value = targetPhoto.value?.valid;
-    validationMsg.value = targetPhoto.value?.validationMsg;
-  });
+  onMounted(() => initialize());
 </script>
 
 <template>
@@ -81,36 +42,36 @@
     v-model="selected"
     chips
     clearable
-    :error="!valid"
-    :error-messages="validationMsg"
+    color="primary"
+    :error="validate && target ? !target.valid : undefined"
+    :error-messages="validate && target ? target.validationMessage : undefined"
     item-title="name"
     item-value="name"
     :items="tags"
     :label="props.label"
     :loading="loading"
-    :multiple="props.single ? false : true"
-    @update:focused="
-      () => {
-        if (hasChanged) {
-          emit(
-            'update',
-            selected.map(t => t.name),
-          );
-        }
-      }
-    "
+    multiple
     @update:model-value="
-      () => {
+      (values: any[]) => {
         hasChanged = true;
-        emit(
-          'change',
-          selected.map(t => t.name),
-        );
+        // If the user types a tag, the value is a string. If the user CLICK a tag, it's a Tag.
+        // I think this is an issue with Vuetify
+        let fixed: string[] = values.map(val => typeof val === 'string' ? val : (val as Tag).name);
+        const last = fixed[fixed.length - 1];
+        if (single && last) {
+          fixed = [last];
+        }
+        selected = fixed;
+        emit('change', selected);
       }
     "
   >
     <template #item="{ item, props: lprops }">
-      <v-list-item v-bind="lprops" :style="{ color: item.raw.color }" :title="item.title" />
+      <v-list-item
+        v-bind="lprops"
+        :style="{ color: item.raw.color }"
+        :title="`${item.title} (${item.raw.count})`"
+      />
     </template>
     <template #chip="{ item, props: cprops }">
       <v-chip v-bind="cprops" :color="tags.find(t => t.name === item.value)?.color" />

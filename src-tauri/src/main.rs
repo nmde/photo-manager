@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod database;
+mod people;
 mod photos;
 mod types;
 mod tags;
@@ -21,9 +22,6 @@ fn main() {
             database::set_journal_mood,
             database::create_layer,
             database::set_layer_color,
-            database::create_person,
-            database::set_person_str,
-            database::create_person_category,
             database::create_place,
             database::set_place_str,
             database::set_place_position,
@@ -34,8 +32,12 @@ fn main() {
             database::delete_shape,
             database::create_wiki_page,
             database::set_wiki_str,
+            people::create_person,
+            people::set_person_str,
+            people::create_person_category,
+            people::get_people,
+            people::get_people_categories,
             photos::open_folder,
-            photos::search_photos,
             photos::photo_grid,
             photos::remove_deleted,
             photos::set_photo_str,

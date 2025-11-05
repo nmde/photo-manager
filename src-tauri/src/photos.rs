@@ -1,10 +1,11 @@
 use crate::database;
+use crate::people;
 use crate::tags;
 use crate::types;
 use regex::Regex;
 use sqlite::Connection;
-use sqlite::Row;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::process::Command;
 use std::sync::Mutex;
@@ -42,8 +43,9 @@ pub struct Photo {
 
 pub struct PhotoState {
     pub db: Mutex<Connection>,
-    pub photos: Mutex<Vec<Photo>>,
-    pub people: Mutex<HashMap<String, types::Person>>,
+    pub photos: Mutex<HashMap<String, Photo>>,
+    pub people: Mutex<HashMap<String, people::Person>>,
+    pub people_categories: Mutex<Vec<people::PersonCategory>>,
     pub cameras: Mutex<HashMap<String, types::Camera>>,
     pub places: Mutex<HashMap<String, types::Place>>,
     pub newest_place: Mutex<String>,
@@ -54,8 +56,9 @@ impl Default for PhotoState {
     fn default() -> Self {
         Self {
             db: Mutex::new(sqlite::open(":memory:").ok().unwrap()),
-            photos: Mutex::new(Vec::<Photo>::new()),
-            people: Mutex::new(HashMap::<String, types::Person>::new()),
+            photos: Mutex::new(HashMap::<String, Photo>::new()),
+            people: Mutex::new(HashMap::<String, people::Person>::new()),
+            people_categories: Mutex::new(Vec::<people::PersonCategory>::new()),
             cameras: Mutex::new(HashMap::<String, types::Camera>::new()),
             places: Mutex::new(HashMap::<String, types::Place>::new()),
             newest_place: Mutex::new(String::new()),
@@ -82,41 +85,10 @@ fn read_people(row: &sqlite::Row) -> Vec<String> {
     people
 }
 
-fn row_to_photo(state: &tauri::State<'_, PhotoState>, row: Row) -> Photo {
-    let tags = read_tags(&row);
-    let people = read_people(&row);
-
-    let validation = tags::validate_tags(&state.tags.lock().unwrap(), &tags);
-    Photo {
-        id: row.read::<&str, _>("Id").to_string(),
-        name: row.read::<&str, _>("name").to_string(),
-        path: row.read::<&str, _>("path").to_string(),
-        title: row.read::<&str, _>("title").to_string(),
-        description: row.read::<&str, _>("description").to_string(),
-        tags,
-        is_duplicate: row.read::<i64, _>("isDuplicate"),
-        rating: row.read::<i64, _>("rating"),
-        location: row.read::<&str, _>("location").to_string(),
-        thumbnail: row.read::<&str, _>("thumbnail").to_string(),
-        video: row.read::<i64, _>("video"),
-        photo_group: row.read::<&str, _>("photoGroup").to_string(),
-        date: row.read::<&str, _>("date").to_string(),
-        raw: row.read::<i64, _>("raw"),
-        people,
-        hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
-        photographer: row.read::<&str, _>("photographer").to_string(),
-        camera: row.read::<&str, _>("camera").to_string(),
-        valid_tags: validation.is_valid,
-        validation_msg: validation.message,
-    }
-}
-
 // Data required for the initial application initialization after the user opens a folder
 #[derive(serde::Serialize)]
 pub struct OpenFolderResponse {
     deleted: Vec<String>,
-    tags: HashMap<String, tags::Tag>,
-    person_categories: Vec<types::PersonCategory>,
     groups: Vec<types::Group>,
     layers: Vec<types::Layer>,
     shapes: Vec<types::Shape>,
@@ -304,21 +276,22 @@ pub async fn open_folder<R: tauri::Runtime>(
         );
     }
 
-    let mut categories = Vec::<types::PersonCategory>::new();
+    let mut categories = Vec::<people::PersonCategory>::new();
     for row in conn
         .prepare("SELECT * FROM PersonCategory")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        categories.push(types::PersonCategory {
+        categories.push(people::PersonCategory {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             color: row.read::<&str, _>("color").to_string(),
         });
     }
+    *state.people_categories.lock().unwrap() = categories;
 
-    let mut people = HashMap::<String, types::Person>::new();
+    let mut people = HashMap::<String, people::Person>::new();
     for row in conn
         .prepare("SELECT * FROM Person")
         .unwrap()
@@ -328,7 +301,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         let id = row.read::<&str, _>("Id").to_string();
         people.insert(
             id.clone(),
-            types::Person {
+            people::Person {
                 id,
                 name: row.read::<&str, _>("name").to_string(),
                 photo: row.read::<&str, _>("photo").to_string(),
@@ -359,7 +332,7 @@ pub async fn open_folder<R: tauri::Runtime>(
     }
 
     // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
-    let mut photos = Vec::<Photo>::new();
+    let mut photos = HashMap::<String, Photo>::new();
 
     let re_raw = Regex::new(r"^.*\.(ORF|NRW|HEIC|TIFF|TIF)$").unwrap();
     let re_vid = Regex::new(r"^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$").unwrap();
@@ -405,10 +378,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                         );
                     }
                 }
-                match photos.binary_search_by_key(&existing_photo.name, |p| p.name.clone()) {
-                    Ok(_pos) => {}
-                    Err(pos) => photos.insert(pos, existing_photo.clone()),
-                }
+                photos.insert(existing_photo.id.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
                 let tmp = &filename.to_string();
@@ -477,10 +447,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                         photo.raw
                     )
                 ).unwrap();
-                match photos.binary_search_by_key(&photo.name, |p| p.name.clone()) {
-                    Ok(_pos) => {}
-                    Err(pos) => photos.insert(pos, photo),
-                }
+                photos.insert(photo.id.clone(), photo);
             }
             count += 1;
             window.emit("load_progress", count / total_files).unwrap();
@@ -610,8 +577,6 @@ pub async fn open_folder<R: tauri::Runtime>(
     let existing_keys = existing.keys().cloned().map(String::from).collect();
     Ok(OpenFolderResponse {
         deleted: existing_keys,
-        tags,
-        person_categories: categories,
         groups,
         layers,
         shapes,
@@ -626,12 +591,12 @@ pub async fn open_folder<R: tauri::Runtime>(
 /**
  * Performs a search of the photos using the given query.
  */
-#[tauri::command]
-pub async fn search_photos(
-    state: tauri::State<'_, PhotoState>,
+pub fn search_photos(
+    connection: &sqlite::Connection,
+    state_tags: &HashMap<String, tags::Tag>,
     query: Vec<String>,
     sort: String,
-) -> Result<(), String> {
+) -> Result<Vec<Photo>, String> {
     let mut unmet_terms = Vec::<String>::new();
 
     // Construct a SQL statement using terms that require no additional processing (is:..., at:..., only:..., by:..., has:...)
@@ -719,23 +684,46 @@ pub async fn search_photos(
     let mut results = Vec::<Photo>::new();
 
     println!("Executing {}", statement);
-    let connection = state.db.lock().unwrap();
     let photos = connection
         .prepare(statement)
         .unwrap()
         .into_iter()
-        .map(|row| row_to_photo(&state, row.unwrap()));
+        .map(|r| -> Photo {
+            let row = r.unwrap();
+            let tags = read_tags(&row);
+            let people = read_people(&row);
+
+            let validation = tags::validate_tags(state_tags, &tags);
+            Photo {
+                id: row.read::<&str, _>("Id").to_string(),
+                name: row.read::<&str, _>("name").to_string(),
+                path: row.read::<&str, _>("path").to_string(),
+                title: row.read::<&str, _>("title").to_string(),
+                description: row.read::<&str, _>("description").to_string(),
+                tags,
+                is_duplicate: row.read::<i64, _>("isDuplicate"),
+                rating: row.read::<i64, _>("rating"),
+                location: row.read::<&str, _>("location").to_string(),
+                thumbnail: row.read::<&str, _>("thumbnail").to_string(),
+                video: row.read::<i64, _>("video"),
+                photo_group: row.read::<&str, _>("photoGroup").to_string(),
+                date: row.read::<&str, _>("date").to_string(),
+                raw: row.read::<i64, _>("raw"),
+                people,
+                hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
+                photographer: row.read::<&str, _>("photographer").to_string(),
+                camera: row.read::<&str, _>("camera").to_string(),
+                valid_tags: validation.is_valid,
+                validation_msg: validation.message,
+            }
+        });
 
     // I *want* to use SQL ORDER BY to sort the results, but it seems the results lose their order somewhere in the above statement
+    // TODO test again with sql ordering
 
     // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
-    let mut first = true;
     if unmet_terms.len() > 0 {
         for photo in photos {
-            if first {
-                println!("First row: {}", photo.name);
-                first = false;
-            }
             for term in &unmet_terms {
                 let mut chars = term.chars();
                 let negated = term.get(0..1).unwrap() == "-";
@@ -795,13 +783,7 @@ pub async fn search_photos(
     }
 
     println!("Returning {} photos", results.len());
-    println!("First result: {}", results.first().unwrap().name);
-
-    let mut state_photos = state.photos.lock().unwrap();
-
-    *state_photos = results;
-
-    Ok(())
+    Ok(results)
 }
 
 #[derive(serde::Serialize)]
@@ -815,8 +797,11 @@ pub async fn photo_grid(
     state: tauri::State<'_, PhotoState>,
     start: i64,
     count: i64,
+    query: Vec<String>,
+    sort: String,
 ) -> Result<PhotoGridResponse, String> {
-    let state_photos = state.photos.lock().unwrap();
+    let connection = state.db.lock().unwrap();
+    let photos = search_photos(&connection, &state.tags.lock().unwrap(), query, sort).unwrap();
     let mut index = start as usize;
     let count_u = count as usize;
 
@@ -835,7 +820,7 @@ pub async fn photo_grid(
         base.hidden = true;
       }
     } */
-    if index > state_photos.len() {
+    if index > photos.len() {
         index = 0;
         println!(
             "Warning: Photo grid start index is greater than the number of photos; {0}",
@@ -843,16 +828,17 @@ pub async fn photo_grid(
         );
     }
     let mut slice_end = index + count_u;
-    if slice_end > state_photos.len() {
+    if slice_end > photos.len() {
         println!(
             "Warning: attempting to search for more photos than exist: {0}",
             slice_end
         );
-        slice_end = state_photos.len();
+        slice_end = photos.len();
     }
+
     Ok(PhotoGridResponse {
-        photos: state_photos[index..slice_end].to_vec(),
-        total: state_photos.len(),
+        photos: photos[index..slice_end].to_vec(),
+        total: photos.len(),
     })
 }
 
@@ -872,12 +858,13 @@ pub async fn remove_deleted(
                 database::esc(&name)
             ))
             .unwrap();
-        match state_photos.binary_search_by_key(&name, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos.remove(pos);
-            }
-            Err(_pos) => {}
-        }
+
+        let tmp_photos = state.photos.lock().unwrap();
+        let test = tmp_photos
+            .iter()
+            .find_map(|(key, value)| if name == value.name { Some(key) } else { None })
+            .unwrap();
+        state_photos.remove(test);
     }
 
     Ok(())
@@ -956,12 +943,7 @@ pub async fn set_photographer(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].photographer = value.clone();
-            }
-            Err(_pos) => {}
-        }
+        state_photos.get_mut(&id).unwrap().photographer = value.clone();
     }
 
     let count = targets.len() as i64;
@@ -994,18 +976,24 @@ pub async fn set_photo_people(
     let mut state_people = state.people.lock().unwrap();
 
     let mut targets = Vec::<sqlite::Row>::new();
-    targets.push(connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE Id='{0}'",
-            database::esc(&photo)
-        ))
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-        .last()
-        .unwrap());
+    targets.push(
+        connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap())
+            .last()
+            .unwrap(),
+    );
 
-    let existing_group = targets.first().unwrap().read::<&str, _>("photoGroup").to_string();
+    let existing_group = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("photoGroup")
+        .to_string();
     if existing_group.len() > 0 {
         for row in connection
             .prepare(format!(
@@ -1030,12 +1018,7 @@ pub async fn set_photo_people(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].people = value.clone();
-            }
-            Err(_pos) => {}
-        }
+        state_photos.get_mut(&id).unwrap().people = value.clone();
     }
 
     let count = targets.len() as i64;
@@ -1065,18 +1048,24 @@ pub async fn set_photo_camera(
     let mut state_cameras = state.cameras.lock().unwrap();
 
     let mut targets = Vec::<sqlite::Row>::new();
-    targets.push(connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE Id='{0}'",
-            database::esc(&photo)
-        ))
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-        .last()
-        .unwrap());
+    targets.push(
+        connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap())
+            .last()
+            .unwrap(),
+    );
 
-    let existing_group = targets.first().unwrap().read::<&str, _>("photoGroup").to_string();
+    let existing_group = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("photoGroup")
+        .to_string();
     if existing_group.len() > 0 {
         for row in connection
             .prepare(format!(
@@ -1101,16 +1090,15 @@ pub async fn set_photo_camera(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].camera = value.clone();
-            }
-            Err(_pos) => {}
-        }
+        state_photos.get_mut(&id).unwrap().camera = value.clone();
     }
 
     let count = targets.len() as i64;
-    let existing_camera = targets.first().unwrap().read::<&str, _>("camera").to_string();
+    let existing_camera = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("camera")
+        .to_string();
     if existing_camera.len() > 0 {
         state_cameras.get_mut(&existing_camera).unwrap().count -= count;
     }
@@ -1130,18 +1118,24 @@ pub async fn set_photo_location(
     let mut state_places = state.places.lock().unwrap();
 
     let mut targets = Vec::<sqlite::Row>::new();
-    targets.push(connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE Id='{0}'",
-            database::esc(&photo)
-        ))
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-        .last()
-        .unwrap());
+    targets.push(
+        connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap())
+            .last()
+            .unwrap(),
+    );
 
-    let existing_group = targets.first().unwrap().read::<&str, _>("photoGroup").to_string();
+    let existing_group = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("photoGroup")
+        .to_string();
     if existing_group.len() > 0 {
         for row in connection
             .prepare(format!(
@@ -1166,16 +1160,15 @@ pub async fn set_photo_location(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].location = value.clone();
-            }
-            Err(_pos) => {}
-        }
+        state_photos.get_mut(&id).unwrap().location = value.clone();
     }
 
     let count = targets.len() as i64;
-    let existing_location = targets.first().unwrap().read::<&str, _>("location").to_string();
+    let existing_location = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("location")
+        .to_string();
     if existing_location.len() > 0 {
         state_places.get_mut(&existing_location).unwrap().count -= count;
     }
@@ -1189,24 +1182,30 @@ pub async fn set_photo_tags(
     state: tauri::State<'_, PhotoState>,
     photo: String,
     value: Vec<String>,
-) -> Result<(), String> {
+) -> Result<tags::ValidationResult, String> {
     let connection = state.db.lock().unwrap();
     let mut state_photos = state.photos.lock().unwrap();
     let mut state_tags = state.tags.lock().unwrap();
 
     let mut targets = Vec::<sqlite::Row>::new();
-    targets.push(connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE Id='{0}'",
-            database::esc(&photo)
-        ))
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-        .last()
-        .unwrap());
+    targets.push(
+        connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap())
+            .last()
+            .unwrap(),
+    );
 
-    let existing_group = targets.first().unwrap().read::<&str, _>("photoGroup").to_string();
+    let existing_group = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("photoGroup")
+        .to_string();
     if existing_group.len() > 0 {
         for row in connection
             .prepare(format!(
@@ -1233,13 +1232,35 @@ pub async fn set_photo_tags(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].tags = value.clone();
-                state_photos[pos].valid_tags = validation.is_valid;
-                state_photos[pos].validation_msg = validation.message.clone();
-            }
-            Err(_pos) => {}
+        let target = state_photos.get_mut(&id).unwrap();
+        target.tags = value.clone();
+        target.valid_tags = validation.is_valid;
+        target.validation_msg = validation.message.clone();
+    }
+
+    let id_generator = StringGenerator::default();
+    for tag in &value {
+        if !state_tags.contains_key(tag) {
+            let id = id_generator.next_id();
+            connection
+                .execute(format!(
+                    "INSERT INTO Tag VALUES ('{0}', '{1}', '', '', '', '')",
+                    database::esc(&id),
+                    database::esc(tag)
+                ))
+                .unwrap();
+            state_tags.insert(
+                tag.clone(),
+                tags::Tag {
+                    id,
+                    name: tag.clone(),
+                    color: String::new(),
+                    prereqs: Vec::<String>::new(),
+                    coreqs: Vec::<String>::new(),
+                    incompatible: Vec::<String>::new(),
+                    count: 0,
+                },
+            );
         }
     }
 
@@ -1256,7 +1277,7 @@ pub async fn set_photo_tags(
         }
     }
 
-    Ok(())
+    Ok(validation)
 }
 
 #[tauri::command]
@@ -1269,18 +1290,24 @@ pub async fn set_photo_date(
     let mut state_photos = state.photos.lock().unwrap();
 
     let mut targets = Vec::<sqlite::Row>::new();
-    targets.push(connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE Id='{0}'",
-            database::esc(&photo)
-        ))
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-        .last()
-        .unwrap());
+    targets.push(
+        connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}'",
+                database::esc(&photo)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap())
+            .last()
+            .unwrap(),
+    );
 
-    let existing_group = targets.first().unwrap().read::<&str, _>("photoGroup").to_string();
+    let existing_group = targets
+        .first()
+        .unwrap()
+        .read::<&str, _>("photoGroup")
+        .to_string();
     if existing_group.len() > 0 {
         for row in connection
             .prepare(format!(
@@ -1305,12 +1332,7 @@ pub async fn set_photo_date(
             ))
             .unwrap();
 
-        match state_photos.binary_search_by_key(&id, |p| p.name.clone()) {
-            Ok(pos) => {
-                state_photos[pos].date = value.clone();
-            }
-            Err(_pos) => {}
-        }
+        state_photos.get_mut(&id).unwrap().date = value.clone();
     }
 
     Ok(())
@@ -1323,6 +1345,7 @@ pub async fn set_photo_group(
     value: String,
 ) -> Result<(), String> {
     let connection = state.db.lock().unwrap();
+    let mut state_photos = state.photos.lock().unwrap();
 
     if value.len() == 0 {
         connection
@@ -1331,8 +1354,74 @@ pub async fn set_photo_group(
                 database::esc(&photo)
             ))
             .unwrap();
+    } else {
+        let query = connection
+            .prepare(format!(
+                "SELECT * FROM Photo WHERE Id='{0}' OR photoGroup='{1}'",
+                database::esc(&photo),
+                database::esc(&value)
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|row| row.unwrap());
+        let targets = query.collect::<Vec::<sqlite::Row>>();
+
+        let mut collected_tags = HashSet::<String>::new();
+        let mut collected_location = String::new();
+        let mut collected_people = HashSet::<String>::new();
+        let mut collected_photographer = String::new();
+        let mut collected_camera = String::new();
+        let mut collected_date = String::new();
+        for row in &targets {
+            for tag in read_tags(&row) {
+                collected_tags.insert(tag);
+            }
+            if collected_location.len() == 0 {
+                collected_location = row.read::<&str, _>("location").to_string();
+            }
+            for person in read_people(&row) {
+                collected_people.insert(person);
+            }
+            if collected_photographer.len() == 0 {
+                collected_photographer = row.read::<&str, _>("photographer").to_string();
+            }
+            if collected_camera.len() == 0 {
+                collected_camera = row.read::<&str, _>("camera").to_string();
+            }
+            if collected_date.len() == 0 {
+                collected_date = row.read::<&str, _>("date").to_string();
+            }
+        }
+
+        let tags_vec = collected_tags.into_iter().collect();
+        let people_vec: Vec<String> = collected_people.into_iter().collect();
+        let validation = tags::validate_tags(&state.tags.lock().unwrap(), &tags_vec);
+        let joined_tags = database::esc(&tags_vec.join(","));
+        let joined_people = database::esc(&people_vec.join(","));
+
+        for row in &targets {
+            let id: String = row.read::<&str, _>("Id").to_string();
+            let target_photo = state_photos.get_mut(&id).unwrap();
+            connection.execute(format!(
+                "UPDATE Photo SET photoGroup='{0}', tags='{joined_tags}', location='{1}', people='{joined_people}', photographer='{2}', camera='{3}', date='{4}' WHERE Id='{5}'",
+                database::esc(&value),
+                database::esc(&collected_location),
+                database::esc(&collected_photographer),
+                database::esc(&collected_camera),
+                database::esc(&collected_date),
+                database::esc(&id)
+            )).unwrap();
+            target_photo.photo_group = value.clone();
+            target_photo.tags = tags_vec.clone();
+            target_photo.valid_tags = validation.is_valid;
+            target_photo.validation_msg = validation.message.clone();
+            target_photo.location = collected_location.clone();
+            target_photo.people = people_vec.clone();
+            target_photo.photographer = collected_photographer.clone();
+            target_photo.camera = collected_camera.clone();
+            target_photo.date = collected_date.clone();
+        }
     }
-    // TODO
 
     Ok(())
 }
@@ -1353,13 +1442,7 @@ pub async fn set_photo_rating(
         ))
         .unwrap();
 
-    let mut state_photos = state.photos.lock().unwrap();
-    match state_photos.binary_search_by_key(&photo, |p| p.id.clone()) {
-        Ok(pos) => {
-            state_photos[pos].rating = rating;
-        }
-        Err(_pos) => {}
-    }
+    state.photos.lock().unwrap().get_mut(&photo).unwrap().rating = rating;
 
     Ok(())
 }

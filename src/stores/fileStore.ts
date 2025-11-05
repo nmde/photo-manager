@@ -11,7 +11,6 @@ import { Layer } from '../classes/Layer';
 import { PersonCategory } from '../classes/PersonCategory';
 import { Setting, type SettingKey } from '../classes/Setting';
 import { Shape, type ShapeType } from '../classes/Shape';
-import { Tag, type TagData } from '../classes/Tag';
 import { WikiPage } from '../classes/WikiPage';
 
 export type FolderStructure = {
@@ -64,9 +63,11 @@ class FileStore extends EventEmitter<{
   toggleTheme: () => void;
   updateWiki: () => void;
 }> {
-  public activities: Record<string, Activity> = {};
+  public query: string[] = [];
 
-  public advTags: Tag[] = [];
+  public sort: string = 'name';
+
+  public activities: Record<string, Activity> = {};
 
   public generatingThumbnails = false;
 
@@ -89,8 +90,6 @@ class FileStore extends EventEmitter<{
   public shapes: Record<string, Shape> = {};
 
   public calendarViewDate = new Date();
-
-  public peopleCategories: Record<string, PersonCategory> = {};
 
   public folder: FolderStructure = {
     dirs: [],
@@ -141,12 +140,6 @@ class FileStore extends EventEmitter<{
   public loadPhotos = async (path: string) => {
     const data = await invoke<{
       deleted: string[];
-      tags: Record<string, TagData>;
-      person_categories: {
-        id: string;
-        name: string;
-        color: string;
-      }[];
       groups: { id: string; name: string }[];
       layers: { id: string; name: string; color: string }[];
       shapes: { id: string; shape_type: ShapeType; points: string; layer: string; name: string }[];
@@ -165,12 +158,6 @@ class FileStore extends EventEmitter<{
       photo_count: number;
     }>('open_folder', { path });
     this.photoCount = data.photo_count;
-    this.advTags = Tag.createTags(Object.values(data.tags));
-    for (const pcat of data.person_categories.map(
-      ({ id, name, color }) => new PersonCategory(id, name, color),
-    )) {
-      this.peopleCategories[pcat.id] = pcat;
-    }
     /*
       if (photo.hasDate) {
         const date = formatDate(photo.date);
@@ -535,17 +522,9 @@ class FileStore extends EventEmitter<{
     await this.wikiPages[page]?.setName(newTitle, this.settings.encrypt === 1, this.key);
   };
 
-  /**
-   * Creates a new advTag entry.
-   * @param name - The name of the tag.
-   */
-  public createTag = async (name: string) => {
-    const id = uuid();
-    await invoke('create_tag', {
-      id,
-      name,
-    });
-    this.advTags.push(new Tag(id, name, '', [], [], []));
+  public setSearch = (query: string[], sort: string) => {
+    this.query = query;
+    this.sort = sort;
   };
 
   private normalizeJournalDate = (date: string | Date) =>

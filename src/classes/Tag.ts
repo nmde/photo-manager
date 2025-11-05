@@ -7,6 +7,7 @@ export type TagData = {
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
+  count: number;
 };
 
 /**
@@ -20,6 +21,7 @@ export class Tag {
     private _prereqs: string[],
     private _coreqs: string[],
     private _incompatible: string[],
+    public count: number,
   ) {}
 
   public get id() {
@@ -48,43 +50,39 @@ export class Tag {
 
   public static createTags(data: TagData[]) {
     return data.map(
-      ({ id, name, color, prereqs, coreqs, incompatible }) =>
-        new Tag(id, name, color, prereqs, coreqs, incompatible),
+      ({ id, name, color, prereqs, coreqs, incompatible, count }) =>
+        new Tag(id, name, color, prereqs, coreqs, incompatible, count),
     );
   }
 
   public async setColor(color: string) {
     this._color = color;
-    await invoke('set_tag_str', {
-      tag: this.id,
-      property: 'color',
+    await invoke('set_tag_color', {
+      tag: this.name,
       value: color,
     });
   }
 
   public async setPrereqs(tags: string[]) {
     this._prereqs = tags;
-    await invoke('set_tag_str', {
-      tag: this.id,
-      property: 'prereqs',
+    await invoke('set_tag_prereqs', {
+      tag: this.name,
       value: this._prereqs,
     });
   }
 
   public async setCoreqs(tags: string[]) {
     this._coreqs = tags;
-    await invoke('set_tag_str', {
-      tag: this.id,
-      property: 'coreqs',
+    await invoke('set_tag_coreqs', {
+      tag: this.name,
       value: this._coreqs,
     });
   }
 
   public async setIncompatible(tags: string[]) {
     this._incompatible = tags;
-    await invoke('set_tag_str', {
-      tag: this.id,
-      property: 'incompatible',
+    await invoke('set_tag_incompatible', {
+      tag: this.name,
       value: this._incompatible,
     });
   }

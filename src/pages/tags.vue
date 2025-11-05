@@ -1,9 +1,9 @@
 <script setup lang="ts">
-  import type { Tag } from '../classes/Tag';
+  import { invoke } from '@tauri-apps/api/core';
   import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
   import { computed, ref } from 'vue';
   import { Bar } from 'vue-chartjs';
-  import { fileStore } from '../stores/fileStore';
+  import { Tag } from '../classes/Tag';
 
   /**
    * TODO:
@@ -14,40 +14,13 @@
 
   ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-  const { getTagColor, handleTagChange, tagCounts, advTags, files, createTag } = fileStore;
-
   const cutoff = ref(30);
-  const selected = ref('');
-  const selectedColor = ref('black');
-  const prereqTags = ref<string[]>([]);
-  const coreqTags = ref<string[]>([]);
-  const incompatibleTags = ref<string[]>([]);
+  const selected = ref<Tag | undefined>();
   const filterColor = ref('');
   const relative = ref(false);
   const showGraphs = ref(false);
-  const isNewTag = ref(false);
-
-  const avgRating = computed(() => {
-    let sum = 0;
-    let count = 0;
-    for (const photo of Object.values(files)) {
-      if (photo.rating) {
-        sum += photo.rating;
-        count += 1;
-      }
-    }
-    return sum / count;
-  });
-
-  const avgTags = computed(() => {
-    let sum = 0;
-    let count = 0;
-    for (const photo of Object.values(files)) {
-      sum += photo.tags.length;
-      count += 1;
-    }
-    return sum / count;
-  });
+  const avgTags = ref(0);
+  const avgRating = ref(0);
 
   const tagChartData = computed(() => {
     const sorted: string[] = [];
@@ -149,15 +122,21 @@
     };
   });
 
-  /**
-   * Ensures the tag exists in the database before operations to set individual values
-   */
-  async function ensureTag() {
-    if (isNewTag.value) {
-      await createTag(selected.value);
-      isNewTag.value = false;
-    }
+  async function selectTag(tag: string) {
+    selected.value
+      = Tag.createTags(Object.values(await invoke<Record<string, Tag>>('get_tags'))).find(
+        t => t.name === tag,
+      ) ?? undefined;
   }
+
+  onMounted(async () => {
+    const { avg_count, avg_rating } = await invoke<{
+      avg_count: number;
+      avg_rating: number;
+    }>('get_tag_stats');
+    avgRating.value = avg_rating;
+    avgTags.value = avg_count;
+  });
 </script>
 
 <template>
@@ -165,77 +144,40 @@
     <v-container fluid>
       <v-row>
         <v-col cols="6">
-          {{ isNewTag }}
           <tag-input
             label="Select a tag"
             single
             :value="selected"
-            @update="
-              (tags) => {
-                selected = tags as unknown as string;
-                const adv = (advTags as Tag[]).find((t) => t.name === selected);
-                selectedColor = getTagColor(selected);
-                console.log(adv);
-                if (adv) {
-                  prereqTags = adv.prereqs;
-                  coreqTags = adv.coreqs;
-                  incompatibleTags = adv.incompatible;
-                  isNewTag = false;
-                } else {
-                  prereqTags = [];
-                  coreqTags = [];
-                  incompatibleTags = [];
-                  isNewTag = true;
+            @change="
+              tags => {
+                if (tags[0]) {
+                  selectTag(tags[0]);
                 }
               }
             "
           />
           <div v-if="selected">
-            Editing properties of <span :style="{ color: selectedColor }">{{ selected }}</span>
-            <br>
+            <br />
             Set color:
-            <color-options
-              @select="
-                async color => {
-                  selectedColor = color;
-                  await ensureTag();
-                  await advTags.find(t => t.name === selected)?.setColor(color);
-                }
-              "
-            />
-            <br>
+            <color-options @select="async color => await selected?.setColor(color)" />
+            <br />
             <tag-input
               label="Prerequisite Tags"
-              :value="prereqTags"
-              @update="
-                async tags => {
-                  await ensureTag();
-                  await advTags.find(t => t.name === selected)?.setPrereqs(tags);
-                  handleTagChange(selected);
-                }
-              "
+              :value="selected.prereqs"
+              @change="async tags => {
+                console.log(tags);
+                await selected?.setPrereqs(tags);
+              }"
             />
             <tag-input
               label="Corequisite Tags"
-              :value="coreqTags"
-              @update="
-                async tags => {
-                  await ensureTag();
-                  await advTags.find(t => t.name === selected)?.setCoreqs(tags);
-                  handleTagChange(selected);
-                }
-              "
+              :value="selected.coreqs"
+              @change="async tags => await selected?.setCoreqs(tags)"
             />
             <tag-input
               label="Incompatible Tags"
-              :value="incompatibleTags"
-              @update="
-                async tags => {
-                  await ensureTag();
-                  await advTags.find(t => t.name === selected)?.setIncompatible(tags);
-                  handleTagChange(selected);
-                }
-              "
+              :value="selected.incompatible"
+              @change="async tags => await selected?.setIncompatible(tags)"
             />
           </div>
         </v-col>
@@ -260,7 +202,9 @@
             <color-options @select="color => (filterColor = color)" />
           </div>
           <v-btn v-if="!showGraphs" @click="showGraphs = true">Show Graphs</v-btn>
-          Average tags per photo: {{ avgTags.toPrecision(3) }}<br />
+          <br />
+          Average tags per photo: {{ avgTags.toPrecision(3) }}
+          <br />
           Overall average rating: {{ avgRating.toPrecision(3) }}
         </v-col>
       </v-row>

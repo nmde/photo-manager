@@ -2,14 +2,13 @@
   import type { Photo } from '../classes/Photo';
   import { invoke } from '@tauri-apps/api/core';
   import { VideoPlayer } from '@videojs-player/vue';
-  import { computed, onMounted, ref, watch } from 'vue';
   import { fileStore } from '../stores/fileStore';
   import AutosaveText from './AutosaveText.vue';
   import PeopleInput from './PeopleInput.vue';
   import TagInput from './TagInput.vue';
   import 'video.js/dist/video-js.css';
 
-  const { groupNames, addGroup, places, people, cameras } = fileStore;
+  const { groupNames, addGroup } = fileStore;
 
   const emit = defineEmits<{
     (
@@ -106,19 +105,14 @@
   <tag-input
     advanced
     filtered
-    :label="`Photo Tags (${photoTags.length})`"
+    :label="`Photo Tags (${photo.tags.length})`"
     :loading="loading"
-    :target="photo.name"
-    :validate="photo.name"
-    :value="photoTags"
+    :target="photo"
+    validate
+    :value="photo.tags"
     @change="
       tags => {
-        photoTags = tags;
-      }
-    "
-    @update="
-      () => {
-        emit('update:tags', photoTags);
+        emit('update:tags', tags);
       }
     "
   />
@@ -146,7 +140,7 @@
     v-model="location"
     :items="placeList"
     label="Location"
-    @update:model-value="emit('update:location', location)"
+    @update:model-value="location => emit('update:location', location)"
   >
     <template #item="{ props: lprops, item }">
       <v-list-item v-bind="lprops" :base-color="item.raw.color" />
@@ -160,7 +154,10 @@
     @update="people => emit('update:people', people)"
   />
   <div class="input-group">
-    <v-rating v-model="rating" @update:model-value="emit('update:rating', rating)" />
+    <v-rating
+      v-model="rating"
+      @update:model-value="rating => emit('update:rating', Number(rating))"
+    />
     <v-btn icon @click="emit('update:rating', 0)">
       <v-icon>mdi-close</v-icon>
     </v-btn>
@@ -168,7 +165,7 @@
   <people-input
     label="Taken by"
     sort="photographer"
-    :value="photographer"
+    :value="[photographer]"
     @update="
       value => {
         if (value[0] === undefined) {
@@ -183,9 +180,13 @@
     v-model="camera"
     :items="cameraList"
     label="Camera"
-    @update:model-value="emit('update:camera', camera)"
+    @update:model-value="camera => emit('update:camera', camera)"
   />
-  <v-text-field v-model="title" label="Title" @update:model-value="emit('update:title', title)" />
+  <v-text-field
+    v-model="title"
+    label="Title"
+    @update:model-value="title => emit('update:title', title)"
+  />
   <autosave-text
     label="Description"
     :value="description"
@@ -194,18 +195,18 @@
   <v-date-input
     v-model="date"
     label="Date"
-    @update:model-value="emit('update:date', date.toISOString())"
+    @update:model-value="date => emit('update:date', date.toISOString())"
   />
   <v-select
     v-model="group"
     :items="groupNames"
     label="Group"
-    @update:model-value="emit('update:group', group)"
+    @update:model-value="group => emit('update:group', group)"
   />
   <v-checkbox
     v-model="isDuplicate"
     label="Mark as duplicate"
-    @update:model-value="emit('update:isDuplicate', isDuplicate)"
+    @update:model-value="isDuplicate => emit('update:isDuplicate', isDuplicate ?? false)"
   />
   <v-btn icon @click="showAddGroup = !showAddGroup">
     <v-icon>mdi-plus</v-icon>
@@ -228,7 +229,7 @@
   <v-checkbox
     v-model="hideThumbnail"
     label="Hide Thumbnail"
-    @update:model-value="emit('update:hideThumbnail', hideThumbnail)"
+    @update:model-value="hideThumbnail => emit('update:hideThumbnail', hideThumbnail ?? false)"
   />
   <div v-if="showAddGroup">
     <v-text-field v-model="newGroupName" label="New Group Name" />

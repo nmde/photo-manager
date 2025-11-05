@@ -1,16 +1,24 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export type PersonData = {
+  id: string;
+  name: string;
+  photo: string;
+  notes: string;
+  category: string;
+  photographer_count: number;
+  photo_count: number;
+};
+
 export class Person {
-  public count = 0;
-
-  public photographerCount = 0;
-
   public constructor(
     private _id: string,
     private _name: string,
     private _photo: string,
     private _notes: string,
     private _category: string,
+    public photographerCount: number,
+    public count: number,
   ) {}
 
   public get id() {
@@ -31,6 +39,17 @@ export class Person {
 
   public get category() {
     return this._category;
+  }
+
+  public static createPeople(people: PersonData[]) {
+    const mapped: Record<string, Person> = {};
+    for (const person of people.map(
+      ({ id, name, photo, notes, category, photographer_count, photo_count }) =>
+        new Person(id, name, photo, notes, category, photographer_count, photo_count),
+    )) {
+      mapped[person.id] = person;
+    }
+    return mapped;
   }
 
   public async setName(name: string) {

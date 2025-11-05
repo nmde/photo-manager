@@ -37,24 +37,6 @@ pub struct Layer {
 }
 
 #[derive(serde::Serialize)]
-pub struct Person {
-    pub id: String,
-    pub name: String,
-    pub photo: String,
-    pub notes: String,
-    pub category: String,
-    pub photographer_count: i64,
-    pub photo_count: i64
-}
-
-#[derive(serde::Serialize)]
-pub struct PersonCategory {
-    pub id: String,
-    pub name: String,
-    pub color: String,
-}
-
-#[derive(serde::Serialize)]
 pub struct Place {
     pub id: String,
     pub name: String,
