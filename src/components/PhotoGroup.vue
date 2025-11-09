@@ -31,6 +31,18 @@
     emit('update-date', new Date(date));
   }
 
+  async function setLocations(location: string) {
+    for (const photo of props.photos) {
+      await photo.setLocation(location);
+    }
+  }
+
+  async function setPeople(people: string[]) {
+    for (const photo of props.photos) {
+      await photo.setPeople(people);
+    }
+  }
+
   watch(
     () => props.photos,
     () => (current.value = 0),
@@ -110,20 +122,8 @@
         }
       }
     "
-    @update:location="
-      async location => {
-        for (const photo of props.photos) {
-          await photo.setLocation(location);
-        }
-      }
-    "
-    @update:people="
-      async people => {
-        for (const photo of props.photos) {
-          await photo.setPeople(people);
-        }
-      }
-    "
+    @update:location="async location => await setLocations(location)"
+    @update:people="async people => await setPeople(people)"
     @update:photographer="
       async value => {
         for (const photo of props.photos) {

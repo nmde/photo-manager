@@ -1,4 +1,3 @@
-import type { Position } from '../classes/Map';
 import type { Photo } from '../classes/Photo';
 import { invoke } from '@tauri-apps/api/core';
 import { EventEmitter } from 'ee-ts';
@@ -7,10 +6,8 @@ import { decrypt } from '@/util/encrypt';
 import { Activity } from '../classes/Activity';
 import { Group } from '../classes/Group';
 import { JournalEntry } from '../classes/JournalEntry';
-import { Layer } from '../classes/Layer';
 import { PersonCategory } from '../classes/PersonCategory';
 import { Setting, type SettingKey } from '../classes/Setting';
-import { Shape, type ShapeType } from '../classes/Shape';
 import { WikiPage } from '../classes/WikiPage';
 
 export type FolderStructure = {
@@ -54,9 +51,6 @@ export function formatDate(date: Date) {
 class FileStore extends EventEmitter<{
   updatePhoto: (photo?: Photo) => void;
   updateLocations: () => void;
-  saving: (value: boolean) => void;
-  saveError: () => void;
-  thumbnailProgress: (progress: number) => void;
   validationUpdate: (photo: string) => void;
   encryptionProgress: (progress: number) => void;
   decrypted: () => void;
@@ -84,10 +78,6 @@ class FileStore extends EventEmitter<{
   public saveError = false;
 
   public thumbnailProgress = 0;
-
-  public layers: Record<string, Layer> = {};
-
-  public shapes: Record<string, Shape> = {};
 
   public calendarViewDate = new Date();
 
@@ -141,8 +131,6 @@ class FileStore extends EventEmitter<{
     const data = await invoke<{
       deleted: string[];
       groups: { id: string; name: string }[];
-      layers: { id: string; name: string; color: string }[];
-      shapes: { id: string; shape_type: ShapeType; points: string; layer: string; name: string }[];
       activities: { id: string; name: string; icon: string }[];
       settings: { id: string; setting: SettingKey; value: number }[];
       journals: {
@@ -176,14 +164,6 @@ class FileStore extends EventEmitter<{
 
     this.groups = data.groups.map(({ id, name }) => new Group(id, name));
     this.groupNames = this.groups.map(g => g.name);
-    for (const layer of data.layers.map(({ id, name, color }) => new Layer(id, name, color))) {
-      this.layers[layer.id] = layer;
-    }
-    for (const shape of data.shapes.map(
-      ({ id, shape_type, points, layer, name }) => new Shape(id, shape_type, points, layer, name),
-    )) {
-      this.shapes[shape.id] = shape;
-    }
     for (const activity of data.activities.map(
       ({ id, name, icon }) => new Activity(id, icon, name),
     )) {
@@ -224,50 +204,6 @@ class FileStore extends EventEmitter<{
     // this.sortTags();
     this.initialized = true;
     return data.deleted;
-  };
-
-  /**
-   * Creates a Layer entry.
-   * @param name - The name of the layer.
-   */
-  public createLayer = async (name: string) => {
-    const id = uuid();
-    const l = new Layer(id, name, '#ff0000');
-    this.layers[id] = l;
-    await invoke('create_layer', {
-      id,
-      name,
-      color: '#ff0000',
-    });
-    return l;
-  };
-
-  /**
-   * Gets a list of places in the given layer.
-   * @param layer - The target layer.
-   */
-  public getPlacesByLayer = (layer: string) =>
-    Object.values(this.places).filter(p => p.layer === layer);
-
-  /**
-   * Creates a shape.
-   * @param type - The shape type.
-   * @param points - The shape path.
-   * @param layer - The layer the shape belongs to.
-   * @param name - The name of the shape.
-   */
-  public createShape = async (type: ShapeType, points: Position[], layer: string, name: string) => {
-    const id = uuid();
-    const s = new Shape(id, type, JSON.stringify(points), layer, name);
-    this.shapes[id] = s;
-    await invoke('create_shape', {
-      id,
-      shapeType: type,
-      points: JSON.stringify(points),
-      layer,
-      name,
-    });
-    return s;
   };
 
   /**

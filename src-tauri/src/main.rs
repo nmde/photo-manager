@@ -4,6 +4,7 @@
 mod database;
 mod people;
 mod photos;
+mod places;
 mod types;
 mod tags;
 
@@ -20,16 +21,7 @@ fn main() {
             database::create_journal_entry,
             database::set_journal_str,
             database::set_journal_mood,
-            database::create_layer,
-            database::set_layer_color,
-            database::create_place,
-            database::set_place_str,
-            database::set_place_position,
-            database::delete_place,
             database::set_setting,
-            database::create_shape,
-            database::set_shape_str,
-            database::delete_shape,
             database::create_wiki_page,
             database::set_wiki_str,
             people::create_person,
@@ -50,6 +42,18 @@ fn main() {
             photos::set_photo_group,
             photos::set_photo_rating,
             photos::set_photo_bool,
+            places::get_layers,
+            places::get_shapes,
+            places::get_places,
+            places::create_layer,
+            places::set_layer_color,
+            places::create_place,
+            places::set_place_str,
+            places::set_place_position,
+            places::delete_place,
+            places::create_shape,
+            places::set_shape_str,
+            places::delete_shape,
             tags::set_tag_color,
             tags::set_tag_prereqs,
             tags::set_tag_coreqs,

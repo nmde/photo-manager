@@ -1,6 +1,5 @@
 <script setup lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { onMounted, onUnmounted, ref } from 'vue';
   import { Photo, type PhotoData } from '../classes/Photo';
   import { fileStore } from '../stores/fileStore';
 
@@ -20,29 +19,33 @@
   const store = fileStore;
 
   const photoScroller = ref<HTMLDivElement | undefined>();
-  const fakeScroller = ref<HTMLDivElement | undefined>();
-  const spacer = ref(0);
   const displayPhotos = ref<Photo[]>([]);
   const selectMultiple = ref(false);
   const selected = ref<Photo[]>([]);
   const itemsPerRow = ref(4);
   const size = ref(0);
   const localQuery = ref<string[]>([]);
-  const sortBy = ref('name'); // This variable will be used when searching is fixed
-  const currentRow = ref(0);
+  const sortBy = ref('name');
   const sorting = ref(false);
-  const currentScroll = ref(0);
+
+  const photoRows = computed(() => {
+    let rows: Photo[][] = [];
+    for (let i = 0; i < displayPhotos.value.length; i += 1) {
+      if (i % itemsPerRow.value === 0) {
+        rows.push([]);
+      }
+      rows[rows.length - 1]?.push(displayPhotos.value[i] as Photo);
+    }
+    return rows;
+  });
 
   async function search() {
     const { photos, total } = await invoke<PhotoGridResponse>('photo_grid', {
-      start: 0,
-      count: itemsPerRow.value * rows,
       query: localQuery.value,
       sort: sortBy.value,
     });
     store.setSearch(localQuery.value, sortBy.value);
     displayPhotos.value = Photo.createPhotos(photos);
-    spacer.value = ((total - itemsPerRow.value * rows) / itemsPerRow.value) * size.value;
   }
 
   defineExpose({
@@ -151,42 +154,11 @@
     window.addEventListener('resize', resizeGrid);
     localQuery.value = store.query;
     sortBy.value = store.sort;
-    if (fakeScroller.value !== undefined) {
-      const { photos, total } = await invoke<PhotoGridResponse>('photo_grid', {
-        start: 0,
-        count: itemsPerRow.value * rows,
-        query: localQuery.value,
-        sort: sortBy.value,
-      });
-      spacer.value = ((total - itemsPerRow.value * rows) / itemsPerRow.value) * size.value;
-      displayPhotos.value = Photo.createPhotos(photos);
-      fakeScroller.value.addEventListener('scroll', async ev => {
-        const scroll = (ev.target as HTMLDivElement).scrollTop;
-        const scrolledToRow = Math.floor(scroll / size.value);
-        if (scrolledToRow < currentRow.value) {
-          currentRow.value = scrolledToRow;
-          const { photos } = await invoke<PhotoGridResponse>('photo_grid', {
-            start: scrolledToRow * itemsPerRow.value,
-            count: itemsPerRow.value,
-            query: localQuery.value,
-            sort: sortBy.value,
-          });
-          displayPhotos.value.unshift(...Photo.createPhotos(photos));
-          displayPhotos.value.splice(displayPhotos.value.length - itemsPerRow.value);
-        } else if (scrolledToRow > currentRow.value) {
-          currentRow.value = scrolledToRow;
-          const { photos } = await invoke<PhotoGridResponse>('photo_grid', {
-            start: (scrolledToRow + rows) * itemsPerRow.value,
-            count: itemsPerRow.value,
-            query: localQuery.value,
-            sort: sortBy.value,
-          });
-          displayPhotos.value.splice(0, itemsPerRow.value);
-          displayPhotos.value.push(...Photo.createPhotos(photos));
-        }
-        currentScroll.value = scroll;
-      });
-    }
+    const { photos, total } = await invoke<PhotoGridResponse>('photo_grid', {
+      query: localQuery.value,
+      sort: sortBy.value,
+    });
+    displayPhotos.value = Photo.createPhotos(photos);
   });
 
   onUnmounted(() => {
@@ -197,8 +169,8 @@
 <template>
   <div class="controls">
     <v-menu>
-      <template v-slot:activator="{ props }">
-        <v-btn v-bind="props" icon flat :loading="sorting">
+      <template #activator="{ props: bprops }">
+        <v-btn v-bind="bprops" flat icon :loading="sorting">
           <v-icon>mdi-sort</v-icon>
         </v-btn>
       </template>
@@ -212,10 +184,10 @@
       </v-list>
     </v-menu>
     <v-checkbox
-      color="primary"
-      class="collection-control"
-      density="compact"
       v-model="selectMultiple"
+      class="collection-control"
+      color="primary"
+      density="compact"
       label="Select Multiple"
       @update:model-value="
         () => {
@@ -228,8 +200,8 @@
     />
     <v-btn @click="selected = [...props.photos]">Select All</v-btn>
     <v-btn
-      icon
       flat
+      icon
       @click="
         () => {
           itemsPerRow += 1;
@@ -240,8 +212,8 @@
       <v-icon>mdi-minus</v-icon>
     </v-btn>
     <v-btn
-      icon
       flat
+      icon
       @click="
         () => {
           if (itemsPerRow > 1) {
@@ -254,8 +226,8 @@
       <v-icon>mdi-plus</v-icon>
     </v-btn>
     <v-menu v-if="selected.length > 1">
-      <template v-slot:activator="{ props }">
-        <v-btn v-bind="props" icon>
+      <template #activator="{ props: bprops }">
+        <v-btn v-bind="bprops" icon>
           <v-icon>mdi-dots-vertical</v-icon>
         </v-btn>
       </template>
@@ -289,43 +261,33 @@
       </v-list>
     </v-menu>
   </div>
-  <div class="scroller-container">
-    <div class="photo-scroller" ref="photoScroller" :style="{ height: `${rows * size}px` }">
-      <photo-icon
-        v-for="(photo, i) in displayPhotos"
-        :key="i"
-        :photo="photo as Photo"
-        :size="size"
-        :selected="selected.findIndex(p => p.name === photo.name) >= 0"
-        :invalid="!photo.valid"
-        @select="selectPhoto(photo as Photo)"
-      />
-    </div>
-    <div
-      class="fake-scroll"
-      :style="{
-        height: `${rows * size}px`,
-        top: `-${rows * size}px`,
-        width: `${16 + itemsPerRow * size}px`,
-      }"
-      ref="fakeScroller"
+  <div ref="photoScroller">
+    <v-virtual-scroll
+      :height="rows * size + 8"
+      :item-height="size"
+      :items="photoRows"
+      ref="gridCol"
     >
-      <div class="fake-photos" :style="{ marginTop: `${currentScroll}px` }">
-        <div
-          class="fake-photo"
-          v-for="(_photo, i) in displayPhotos"
-          :style="{ height: `${size}px`, width: `${size}px` }"
-          @click="selectPhoto(displayPhotos[i] as Photo)"
-        />
-      </div>
-      <div class="spacer" :style="{ height: `${spacer}px` }" />
-    </div>
+      <template v-slot:default="{ item }">
+        <div class="photo-row">
+          <photo-icon
+            v-for="(photo, i) in item"
+            :key="i"
+            :photo="photo"
+            :size="size"
+            :selected="selected.findIndex(p => p.name === photo.name) >= 0"
+            :invalid="!photo.valid"
+            @select="selectPhoto(photo as Photo)"
+          />
+        </div>
+      </template>
+    </v-virtual-scroll>
   </div>
   <v-checkbox
-    color="primary"
-    class="collection-control"
-    density="compact"
     v-model="selectMultiple"
+    class="collection-control"
+    color="primary"
+    density="compact"
     label="Select Multiple"
     @update:model-value="
       () => {
@@ -343,7 +305,7 @@
         Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
         <tag-input label="Tag to add" :value="targetTags" @change="tags => (targetTags = tags)" />
         <v-card-actions>
-          <v-btn color="primary" @click="addTags()" :loading="loading"> Apply Changes </v-btn>
+          <v-btn color="primary" :loading="loading" @click="addTags()"> Apply Changes </v-btn>
           <v-btn @click="tagAddDialog = false">Cancel</v-btn>
         </v-card-actions>
       </v-card-text>
@@ -370,7 +332,7 @@
         </div>
       </v-card-text>
       <v-card-actions>
-        <v-btn color="primary" @click="replaceTags()" :loading="loading"> Apply Changes </v-btn>
+        <v-btn color="primary" :loading="loading" @click="replaceTags()"> Apply Changes </v-btn>
         <v-btn @click="tagReplaceDialog = false">Cancel</v-btn>
       </v-card-actions>
     </v-card>
@@ -386,15 +348,7 @@
     margin-top: 4px;
   }
 
-  .fake-scroll {
-    overflow-y: scroll;
-    position: relative;
-  }
-
-  .photo-scroller,
-  .fake-photos {
+  .photo-row {
     display: flex;
-    flex-wrap: wrap;
-    overflow: hidden;
   }
 </style>

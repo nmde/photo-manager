@@ -1,9 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import { locToString, type PlaceType, type Position } from './Map';
 
-export class Place {
-  public count = 0;
+export type PlaceData = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  layer: string;
+  category: PlaceType;
+  shape: string;
+  tags: string;
+  notes: string;
+  count: number;
+};
 
+export class Place {
   public isNewestPlace = false;
 
   public constructor(
@@ -16,6 +27,7 @@ export class Place {
     private _shape: string,
     private _tags: string,
     private _notes: string,
+    public count: number,
   ) {}
 
   public get id() {
@@ -52,6 +64,17 @@ export class Place {
 
   public get notes() {
     return this._notes;
+  }
+
+  public static createPlaces(data: Record<string, PlaceData>) {
+    const places: Record<string, Place> = {};
+    for (const place of Object.values(data).map(
+      ({ id, name, lat, lng, layer, category, shape, tags, notes, count }) =>
+        new Place(id, name, lat, lng, layer, category, shape, tags, notes, count),
+    )) {
+      places[place.id] = place;
+    }
+    return places;
   }
 
   public async setName(name: string) {

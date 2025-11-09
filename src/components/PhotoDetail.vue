@@ -2,6 +2,8 @@
   import type { Photo } from '../classes/Photo';
   import { invoke } from '@tauri-apps/api/core';
   import { VideoPlayer } from '@videojs-player/vue';
+  import { Layer, type LayerData } from '@/classes/Layer';
+  import { Place, type PlaceData } from '@/classes/Place';
   import { fileStore } from '../stores/fileStore';
   import AutosaveText from './AutosaveText.vue';
   import PeopleInput from './PeopleInput.vue';
@@ -55,16 +57,15 @@
   const hideThumbnail = ref(false);
   const focusDate = ref<Date>(new Date());
   const camera = ref<string>('');
-
   const setPhotoDialog = ref(false);
   const setPhotoTarget = ref<string[]>([]);
   const viewConfirmation = ref(false);
-
-  const placeList = computed(() => []);
+  const placeList = ref<Place[]>([]);
+  const layers = ref<Record<string, Layer>>({});
 
   const cameraList = computed(() => []);
 
-  function initialize() {
+  async function initialize() {
     rating.value = props.photo.rating ?? 0;
     isDuplicate.value = props.photo.isDuplicate;
     group.value = props.photo.group;
@@ -78,6 +79,10 @@
     camera.value = props.photo.camera;
     focusDate.value = props.photo.hasDate ? props.photo.date : props.prevDate;
     photographer.value = props.photo.photographer ? [props.photo.photographer] : [];
+    placeList.value = Object.values(
+      Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places')),
+    ).toSorted((a, b) => b.count - a.count);
+    layers.value = Layer.createLayers(await invoke<LayerData[]>('get_layers'));
   }
 
   watch(() => props.photo, initialize);
@@ -138,12 +143,26 @@
   -->
   <v-select
     v-model="location"
+    clearable
+    item-title="name"
+    item-value="id"
     :items="placeList"
     label="Location"
-    @update:model-value="location => emit('update:location', location)"
+    @update:model-value="
+      async (location: string | null) => {
+        emit('update:location', location ?? '');
+        placeList = Object.values(
+          Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places')),
+        ).toSorted((a, b) => b.count - a.count);
+      }
+    "
   >
     <template #item="{ props: lprops, item }">
-      <v-list-item v-bind="lprops" :base-color="item.raw.color" />
+      <v-list-item
+        v-bind="lprops"
+        :base-color="layers[item.raw.layer]?.color"
+        :title="`${item.title} (${item.raw.count})`"
+      />
     </template>
   </v-select>
   <people-input
@@ -223,7 +242,6 @@
   >
     <v-icon>mdi-trash-can</v-icon>
   </v-btn>
-  <v-btn @click="emit('update:location', '')"> Remove Location </v-btn>
   <v-btn @click="emit('update:date', '')"> Remove Date </v-btn>
   <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
   <v-checkbox

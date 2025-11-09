@@ -174,7 +174,7 @@
           </div>
         </v-col>
         <v-col cols="6">
-          <div class="details" :class="{ spacer: spacer }">
+          <div class="details">
             <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []">
               Clear Selection ({{ selected.length }})
             </v-btn>
@@ -196,12 +196,9 @@
   .details {
     position: fixed;
     height: 100%;
+    margin-top: 8px;
     overflow: scroll;
     top: 6px;
     width: -webkit-fill-available;
-  }
-
-  .details.spacer {
-    top: 80px;
   }
 </style>

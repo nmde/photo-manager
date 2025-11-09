@@ -24,16 +24,6 @@ export type PhotoData = {
 };
 
 export class Photo {
-  public awaitingThumbnail = true;
-
-  public firstInGroup = false;
-
-  public hidden = false;
-
-  public rawFile = '';
-
-  public validationMsg = '';
-
   public constructor(
     private _id: string,
     private _name: string,

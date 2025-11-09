@@ -1,18 +1,14 @@
 <script setup lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { v4 as uuid } from 'uuid';
-  import type { Layer } from '../classes/Layer';
-  import type { Place } from '../classes/Place';
-  import type { Shape, ShapeType } from '../classes/Shape';
   import { computed, onMounted, ref } from 'vue';
   import { useRouter } from 'vue-router';
-  import { icons, locToString, Map, type Position } from '../classes/Map';
-  import { fileStore } from '../stores/fileStore';
+  import { Layer, type LayerData } from '../classes/Layer';
+  import { icons, locToString, Map, type PlaceType, type Position } from '../classes/Map';
+  import { Place, type PlaceData } from '../classes/Place';
+  import { Shape, type ShapeData, type ShapeType } from '../classes/Shape';
 
   const router = useRouter();
-
-  const { layers, shapes, createLayer, createShape, deletePlace, deleteShape, updateTags } =
-    fileStore;
 
   const layerDialog = ref(false);
   const layerName = ref('');
@@ -23,7 +19,7 @@
   const placeName = ref('');
   const placeCategory = ref<keyof typeof icons>('hospital');
   const mapInitialized = ref(false);
-  const layerList = ref<Layer[]>([]);
+  const layers = ref<Record<string, Layer>>({});
   const layerEntryList = ref<
     {
       title: string;
@@ -47,6 +43,8 @@
   const layerChangeTarget = ref('');
   const changeShapeLayerDialog = ref(false);
   const totalArea = ref(0);
+  const places = ref<Record<string, Place>>({});
+  const shapes = ref<Record<string, Shape>>({});
 
   const categories = computed(() => Object.keys(icons));
 
@@ -68,7 +66,7 @@
             locToString(pos),
             '0',
             placeCategory.value,
-            layers[targetLayer.value]?.color,
+            layers.value[targetLayer.value]?.color,
             placeName.value,
           );
         });
@@ -85,7 +83,7 @@
     map.removeMarker(place.id);
     map.createMarker(place.pos, place.id, place.category, color, place.name, place.count);
     // update color of linked polygons
-    const s = shapes[place.shape];
+    const s = shapes.value[place.shape];
     if (place.shape.length > 0 && s) {
       setShapeColor(s, color);
     }
@@ -100,24 +98,67 @@
     );
   }
 
+  async function createLayer(name: string) {
+    const id = uuid();
+    await invoke('create_layer', {
+      id,
+      name,
+      color: '#ff0000',
+    });
+    const layer = new Layer(id, name, '#ff0000');
+    layers.value[id] = layer;
+    return layer;
+  }
+
+  async function createShape(type: ShapeType, points: Position[], layer: string, name: string) {
+    const id = uuid();
+    await invoke('create_shape', {
+      id,
+      shapeType: type,
+      points: JSON.stringify(points),
+      layer,
+      name,
+    });
+    const shape = new Shape(id, type, JSON.stringify(points), layer, name);
+    shapes.value[id] = shape;
+    return shape;
+  }
+
+  async function createPlace(name: string, position: Position, layer: string, category: PlaceType) {
+    const id = uuid();
+    await invoke('create_place', {
+      id,
+      name,
+      lat: position.lat,
+      lng: position.lng,
+      layer,
+      category,
+    });
+    const place = new Place(id, name, position.lat, position.lng, layer, category, '', '', '', 0);
+    places.value[id] = place;
+    return place;
+  }
+
   let prevShape = 0;
   onMounted(async () => {
-    layerList.value = Object.values(layers);
+    layers.value = Layer.createLayers(await invoke<LayerData[]>('get_layers'));
+    places.value = Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places'));
+    shapes.value = Shape.createShapes(await invoke<ShapeData[]>('get_shapes'));
     placeMap.value = {};
     shapeMap.value = {};
     totalArea.value = 0;
-    for (const layer of layerList.value) {
-      placeMap.value[layer.id] = [];
-      shapeMap.value[layer.id] = [];
+    for (const id in layers.value) {
+      placeMap.value[id] = [];
+      shapeMap.value[id] = [];
       layerEntryList.value.push({
-        title: layer.name,
-        value: layer.id,
+        title: layers.value[id]?.name ?? '',
+        value: id,
       });
     }
     await map.initialize(mapEl.value as unknown as HTMLElement);
     const linkedShapes: string[] = [];
-    for (const layer of layerList.value) {
-      for (const place of Object.values(places).filter(place => place.layer === layer.id)) {
+    for (const id in layers.value) {
+      for (const place of Object.values(places.value).filter(place => place.layer === id)) {
         if (!placeMap.value[place.layer]) {
           placeMap.value[place.layer] = [];
         }
@@ -129,12 +170,12 @@
           place.pos,
           place.id,
           place.category,
-          layers[place.layer]?.color,
+          layers.value[place.layer]?.color,
           place.name,
           place.count,
         );
       }
-      for (const shape of Object.values(shapes).filter(shape => shape.layer === layer.id)) {
+      for (const shape of Object.values(shapes.value).filter(shape => shape.layer === id)) {
         if (!linkedShapes.includes(shape.id)) {
           if (!shapeMap.value[shape.layer]) {
             shapeMap.value[shape.layer] = [];
@@ -142,7 +183,7 @@
           shapeMap.value[shape.layer]?.push(shape);
         }
         totalArea.value += shape.area;
-        map.createShape(shape.type, shape.points, layers[shape.layer]?.color ?? '', shape.id);
+        map.createShape(shape.type, shape.points, layers.value[shape.layer]?.color ?? '', shape.id);
       }
     }
     map.on('click', pos => {
@@ -159,7 +200,7 @@
         map.createShape(
           tmpShapeType.value,
           tmpShape.value,
-          layers[targetLayer.value]?.color ?? '',
+          layers.value[targetLayer.value]?.color ?? '',
           nextId,
           true,
         );
@@ -193,7 +234,7 @@
       <v-row>
         <v-col cols="4">
           <v-expansion-panels>
-            <v-expansion-panel v-for="layer in layerList" :key="layer.id">
+            <v-expansion-panel v-for="layer in layers" :key="layer.id">
               <v-expansion-panel-title>
                 {{ layer.name }} ({{ placeMap[layer.id]?.length }})
               </v-expansion-panel-title>
@@ -409,12 +450,7 @@
                       <tag-input
                         label="Tags"
                         :value="place.tags"
-                        @change="
-                          async tags => {
-                            await places[place.id]?.setTags(tags);
-                            updateTags(tags);
-                          }
-                        "
+                        @change="async tags => await places[place.id]?.setTags(tags)"
                       />
                       <autosave-text
                         label="Notes"
@@ -631,7 +667,6 @@
           @click="
             async () => {
               const layer = await createLayer(layerName);
-              layerList.push(layer);
               placeMap[layer.id] = [];
               layerDialog = false;
               layerName = '';
@@ -660,14 +695,7 @@
           color="primary"
           @click="
             async () => {
-              await invoke('create_place', {
-                id: uuid(),
-                name: placeName,
-                lat: position.lat,
-                lng: position.lng,
-                layer: targetLayer,
-                category: placeCategory,
-              });
+              const p = await createPlace(placeName, position, targetLayer, placeCategory);
               placeMap[targetLayer]?.push(p);
               map.createMarker(
                 locToString(position),

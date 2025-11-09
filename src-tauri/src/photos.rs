@@ -1,5 +1,6 @@
 use crate::database;
 use crate::people;
+use crate::places;
 use crate::tags;
 use crate::types;
 use regex::Regex;
@@ -7,6 +8,7 @@ use sqlite::Connection;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::Emitter;
@@ -47,7 +49,7 @@ pub struct PhotoState {
     pub people: Mutex<HashMap<String, people::Person>>,
     pub people_categories: Mutex<Vec<people::PersonCategory>>,
     pub cameras: Mutex<HashMap<String, types::Camera>>,
-    pub places: Mutex<HashMap<String, types::Place>>,
+    pub places: Mutex<HashMap<String, places::Place>>,
     pub newest_place: Mutex<String>,
     pub tags: Mutex<HashMap<String, tags::Tag>>,
 }
@@ -60,7 +62,7 @@ impl Default for PhotoState {
             people: Mutex::new(HashMap::<String, people::Person>::new()),
             people_categories: Mutex::new(Vec::<people::PersonCategory>::new()),
             cameras: Mutex::new(HashMap::<String, types::Camera>::new()),
-            places: Mutex::new(HashMap::<String, types::Place>::new()),
+            places: Mutex::new(HashMap::<String, places::Place>::new()),
             newest_place: Mutex::new(String::new()),
             tags: Mutex::new(HashMap::<String, tags::Tag>::new()),
         }
@@ -90,13 +92,24 @@ fn read_people(row: &sqlite::Row) -> Vec<String> {
 pub struct OpenFolderResponse {
     deleted: Vec<String>,
     groups: Vec<types::Group>,
-    layers: Vec<types::Layer>,
-    shapes: Vec<types::Shape>,
     activities: Vec<types::Activity>,
     settings: Vec<types::Setting>,
     journals: Vec<types::Journal>,
     wiki_pages: Vec<types::WikiPage>,
     photo_count: usize,
+}
+
+fn clean_thumbnail_path(path: &String) -> String {
+    path.chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_string()
+            } else {
+                "_".to_string()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("")
 }
 
 /**
@@ -251,7 +264,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         );
     }
 
-    let mut places = HashMap::<String, types::Place>::new();
+    let mut places = HashMap::<String, places::Place>::new();
     for row in conn
         .prepare("SELECT * FROM Place")
         .unwrap()
@@ -259,9 +272,14 @@ pub async fn open_folder<R: tauri::Runtime>(
         .map(|row| row.unwrap())
     {
         let id = row.read::<&str, _>("Id").to_string();
+        let mut tags = Vec::<String>::new();
+        let tags_row = row.read::<&str, _>("tags").to_string();
+        if tags_row.len() > 0 {
+            tags = tags_row.split(",").map(str::to_string).collect();
+        }
         places.insert(
             id.clone(),
-            types::Place {
+            places::Place {
                 id,
                 name: row.read::<&str, _>("name").to_string(),
                 lat: row.read::<f64, _>("lat"),
@@ -269,7 +287,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                 layer: row.read::<&str, _>("layer").to_string(),
                 category: row.read::<&str, _>("category").to_string(),
                 shape: row.read::<&str, _>("shape").to_string(),
-                tags: row.read::<&str, _>("tags").to_string(),
+                tags,
                 notes: row.read::<&str, _>("notes").to_string(),
                 count: 0,
             },
@@ -358,7 +376,12 @@ pub async fn open_folder<R: tauri::Runtime>(
                     cameras.get_mut(&existing_photo.camera).unwrap().count += 1;
                 }
                 if existing_photo.location.len() > 0 {
-                    places.get_mut(&existing_photo.location).unwrap().count += 1;
+                    let place = places.get_mut(&existing_photo.location);
+                    if place.is_none() {
+                        println!("WARNING: PLACE NOT FOUND: {0}", &existing_photo.location);
+                    } else {
+                        place.unwrap().count += 1;
+                    }
                 }
                 for tag in &existing_photo.tags {
                     if tags.contains_key(tag) {
@@ -381,76 +404,122 @@ pub async fn open_folder<R: tauri::Runtime>(
                 photos.insert(existing_photo.id.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
-                let tmp = &filename.to_string();
-                let thumbnail_path = format!("{thumbnail_dir}/{tmp}.jpg");
+                let formatted_path = format!(
+                    "{thumbnail_dir}/{0}.jpg",
+                    clean_thumbnail_path(&filename.to_string())
+                );
+                let thumbnail_path = Path::new(&formatted_path);
                 let mut raw = 0i64;
                 let mut vid = 0i64;
-                // TODO generate thumbnail here
-                if re_raw.is_match(&filename.to_string()) {
+                let mut cond_thumbnail_path = String::new();
+                let mut thumbnail_failed = false;
+                if re_raw.is_match(&filename.to_string().to_uppercase()) {
                     raw = 1i64;
-                    // Convert to jpg, then shrink the jpg
+                    cond_thumbnail_path = formatted_path.clone();
+                    if !thumbnail_path.exists() {
+                        // Convert to jpg
+                        let mut command = Command::new("magick");
+                        let output = command
+                            .args([&filename.to_string(), thumbnail_path.to_str().unwrap()])
+                            .output();
+
+                        if output.is_err() {
+                            thumbnail_failed = true;
+                            println!(
+                                "ERROR: Could not generate thumbnail for {0}: {1}",
+                                &filename.to_string(),
+                                &output.err().unwrap().to_string()
+                            );
+                        }
+                    }
+                    /* TODO Not sure if I want to do this
                     Command::new("magick")
-                        .args([&filename.to_string(), &thumbnail_path])
-                        .output()
-                        .expect(&format!("Could not generate thumbnail for {tmp}"));
-                    Command::new("magick")
-                        .args([&thumbnail_path, "-resize", "800x800", &thumbnail_path])
-                        .output()
-                        .expect(&format!("Could not resize thumbnail for {tmp}"));
-                }
-                if re_vid.is_match(&filename.to_string()) {
-                    vid = 1i64;
-                    Command::new("ffmpeg")
                         .args([
-                            "-i",
-                            &filename.to_string(),
-                            "-ss",
-                            "00:00:01.00",
-                            "-vframes",
-                            "1",
-                            &thumbnail_path,
+                            &thumbnail_path.to_str().unwrap(),
+                            "-resize",
+                            "800x800",
+                            &thumbnail_path.to_str().unwrap(),
                         ])
                         .output()
-                        .expect(&format!("Could not generate thumbnail for {tmp}"));
+                        .expect(&format!("Could not resize thumbnail for {tmp}"));
+                    */
                 }
-                let asset_path = url_escape::encode_component(tmp);
-                let photo = Photo {
-                    id: id_generator.next_id(),
-                    name: filename.to_string(),
-                    path: format!("https://asset.localhost/{asset_path}"),
-                    title: filename.to_string(),
-                    description: String::new(),
-                    tags: Vec::<String>::new(),
-                    is_duplicate: 0i64,
-                    rating: 0i64,
-                    location: String::new(),
-                    thumbnail: String::new(),
-                    video: vid,
-                    photo_group: String::new(),
-                    date: String::new(),
-                    raw,
-                    people: Vec::<String>::new(),
-                    hide_thumbnail: 0i64,
-                    photographer: String::new(),
-                    camera: String::new(),
-                    valid_tags: true,
-                    validation_msg: String::new(),
-                };
-                conn.execute(
-                    format!(
-                        "INSERT INTO Photo VALUES ('{0}', '{1}', '{2}', '{3}', '', '', 0, 0, '', '', {4}, '', '', {5}, '', 0, '', '')",
-                        database::esc(&photo.id),
-                        database::esc(&photo.name),
-                        database::esc(&photo.path),
-                        database::esc(&photo.title),
-                        photo.video,
-                        photo.raw
-                    )
-                ).unwrap();
-                photos.insert(photo.id.clone(), photo);
+                if re_vid.is_match(&filename.to_string().to_uppercase()) {
+                    cond_thumbnail_path = formatted_path.clone();
+                    vid = 1i64;
+                    if !thumbnail_path.exists() {
+                        let output = Command::new("ffmpeg")
+                            .args([
+                                "-i",
+                                &filename.to_string(),
+                                "-ss",
+                                "00:00:01.00",
+                                "-vframes",
+                                "1",
+                                &thumbnail_path.to_str().unwrap(),
+                            ])
+                            .output();
+                        if output.is_err() {
+                            println!(
+                                "ERROR: Could not generate thumbnail for {0}: {1}",
+                                &filename.to_string(),
+                                &output.err().unwrap().to_string()
+                            );
+                        }
+                    }
+                }
+                if cond_thumbnail_path.len() > 0 {
+                    cond_thumbnail_path = format!(
+                        "https://asset.localhost/{0}",
+                        url_escape::encode_component(&cond_thumbnail_path)
+                    );
+                }
+                if !thumbnail_failed {
+                    let photo = Photo {
+                        id: id_generator.next_id(),
+                        name: filename.to_string(),
+                        path: format!(
+                            "https://asset.localhost/{0}",
+                            url_escape::encode_component(&filename.to_string())
+                        ),
+                        title: filename.to_string(),
+                        description: String::new(),
+                        tags: Vec::<String>::new(),
+                        is_duplicate: 0i64,
+                        rating: 0i64,
+                        location: String::new(),
+                        thumbnail: cond_thumbnail_path.clone(),
+                        video: vid,
+                        photo_group: String::new(),
+                        date: String::new(),
+                        raw,
+                        people: Vec::<String>::new(),
+                        hide_thumbnail: 0i64,
+                        photographer: String::new(),
+                        camera: String::new(),
+                        valid_tags: true,
+                        validation_msg: String::new(),
+                    };
+                    conn.execute(
+                        format!(
+                            "INSERT INTO Photo VALUES ('{0}', '{1}', '{2}', '{3}', '', '', 0, 0, '', '{4}', {5}, '', '', {6}, '', 0, '', '')",
+                            database::esc(&photo.id),
+                            database::esc(&photo.name),
+                            database::esc(&photo.path),
+                            database::esc(&photo.title),
+                            database::esc(&cond_thumbnail_path),
+                            photo.video,
+                            photo.raw
+                        )
+                    ).unwrap();
+                    photos.insert(photo.id.clone(), photo);
+                }
             }
             count += 1;
-            window.emit("load_progress", count / total_files).unwrap();
+            let msg = window.emit("load_progress", count / total_files);
+            if msg.is_err() {
+                println!("Warning: failed to send progress message to window!");
+            }
         }
     }
     *state.photos.lock().unwrap() = photos.clone();
@@ -468,36 +537,6 @@ pub async fn open_folder<R: tauri::Runtime>(
     {
         groups.push(types::Group {
             id: row.read::<&str, _>("Id").to_string(),
-            name: row.read::<&str, _>("name").to_string(),
-        });
-    }
-
-    let mut layers = Vec::<types::Layer>::new();
-    for row in conn
-        .prepare("SELECT * FROM Layer")
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-    {
-        layers.push(types::Layer {
-            id: row.read::<&str, _>("Id").to_string(),
-            name: row.read::<&str, _>("name").to_string(),
-            color: row.read::<&str, _>("color").to_string(),
-        });
-    }
-
-    let mut shapes = Vec::<types::Shape>::new();
-    for row in conn
-        .prepare("SELECT * FROM Shape")
-        .unwrap()
-        .into_iter()
-        .map(|row| row.unwrap())
-    {
-        shapes.push(types::Shape {
-            id: row.read::<&str, _>("Id").to_string(),
-            shape_type: row.read::<&str, _>("type").to_string(),
-            points: row.read::<&str, _>("points").to_string(),
-            layer: row.read::<&str, _>("layer").to_string(),
             name: row.read::<&str, _>("name").to_string(),
         });
     }
@@ -578,8 +617,6 @@ pub async fn open_folder<R: tauri::Runtime>(
     Ok(OpenFolderResponse {
         deleted: existing_keys,
         groups,
-        layers,
-        shapes,
         activities,
         settings,
         journals,
@@ -608,6 +645,7 @@ pub fn search_photos(
             chars.next();
         }
         let tmp_term = chars.as_str().to_string();
+        println!("{}", tmp_term);
         if tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
             let location = database::esc(&tmp_term.get(4..).unwrap().to_string());
             if negated {
@@ -644,25 +682,25 @@ pub fn search_photos(
                 statement.push_str(&format!(" AND photographer='{person}'"));
             }
         } else if tmp_term.get(0..4).unwrap().to_uppercase() == "HAS:" {
-            if tmp_term.get(5..).unwrap().to_uppercase() == "RATING" {
+            if tmp_term.get(4..).unwrap().to_uppercase() == "RATING" {
                 if negated {
                     statement.push_str(" AND rating=0");
                 } else {
                     statement.push_str(" AND rating>0");
                 }
-            } else if tmp_term.get(5..).unwrap().to_uppercase() == "PHOTOGRAPHER" {
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "PHOTOGRAPHER" {
                 if negated {
                     statement.push_str(" AND length(photographer)=0");
                 } else {
                     statement.push_str(" AND length(photographer)>0");
                 }
-            } else if tmp_term.get(5..).unwrap().to_uppercase() == "DATE" {
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "DATE" {
                 if negated {
                     statement.push_str(" AND length(date)=0");
                 } else {
                     statement.push_str(" AND length(date)>0");
                 }
-            } else if tmp_term.get(5..).unwrap().to_uppercase() == "LOCATION" {
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "LOCATION" {
                 if negated {
                     statement.push_str(" AND length(location)=0");
                 } else {
@@ -795,17 +833,13 @@ pub struct PhotoGridResponse {
 #[tauri::command]
 pub async fn photo_grid(
     state: tauri::State<'_, PhotoState>,
-    start: i64,
-    count: i64,
     query: Vec<String>,
     sort: String,
 ) -> Result<PhotoGridResponse, String> {
     let connection = state.db.lock().unwrap();
     let photos = search_photos(&connection, &state.tags.lock().unwrap(), query, sort).unwrap();
-    let mut index = start as usize;
-    let count_u = count as usize;
 
-    // TODO: Group raws & groups
+    // TODO: Group raws
     /*
     for (const raw of raws) {
       const baseName = raw.name.replace('.ORF', '').replace('.NRW', '');
@@ -820,24 +854,20 @@ pub async fn photo_grid(
         base.hidden = true;
       }
     } */
-    if index > photos.len() {
-        index = 0;
-        println!(
-            "Warning: Photo grid start index is greater than the number of photos; {0}",
-            start
-        );
-    }
-    let mut slice_end = index + count_u;
-    if slice_end > photos.len() {
-        println!(
-            "Warning: attempting to search for more photos than exist: {0}",
-            slice_end
-        );
-        slice_end = photos.len();
+
+    let mut grouped = Vec::<Photo>::new();
+    let mut encountered_groups = Vec::<String>::new();
+    for photo in &photos {
+        if photo.photo_group.len() == 0 {
+            grouped.push(photo.clone());
+        } else if !encountered_groups.contains(&photo.photo_group) {
+            grouped.push(photo.clone());
+            encountered_groups.push(photo.photo_group.clone());
+        }
     }
 
     Ok(PhotoGridResponse {
-        photos: photos[index..slice_end].to_vec(),
+        photos: grouped,
         total: photos.len(),
     })
 }
@@ -850,6 +880,7 @@ pub async fn remove_deleted(
 ) -> Result<(), String> {
     let connection = state.db.lock().unwrap();
     let mut state_photos = state.photos.lock().unwrap();
+    let cloned = state_photos.clone();
 
     for name in deleted {
         connection
@@ -859,12 +890,12 @@ pub async fn remove_deleted(
             ))
             .unwrap();
 
-        let tmp_photos = state.photos.lock().unwrap();
-        let test = tmp_photos
+        let test = cloned
             .iter()
-            .find_map(|(key, value)| if name == value.name { Some(key) } else { None })
-            .unwrap();
-        state_photos.remove(test);
+            .find_map(|(key, value)| if name == value.name { Some(key) } else { None });
+        if test.is_some() {
+            state_photos.remove(test.unwrap());
+        }
     }
 
     Ok(())
@@ -1172,7 +1203,9 @@ pub async fn set_photo_location(
     if existing_location.len() > 0 {
         state_places.get_mut(&existing_location).unwrap().count -= count;
     }
-    state_places.get_mut(&existing_location).unwrap().count += count;
+    if value.len() > 0 {
+        state_places.get_mut(&value).unwrap().count += count;
+    }
 
     Ok(())
 }
@@ -1364,7 +1397,7 @@ pub async fn set_photo_group(
             .unwrap()
             .into_iter()
             .map(|row| row.unwrap());
-        let targets = query.collect::<Vec::<sqlite::Row>>();
+        let targets = query.collect::<Vec<sqlite::Row>>();
 
         let mut collected_tags = HashSet::<String>::new();
         let mut collected_location = String::new();

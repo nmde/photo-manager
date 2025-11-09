@@ -3,6 +3,14 @@ import { invoke } from '@tauri-apps/api/core';
 
 export type ShapeType = 'polygon' | 'line';
 
+export type ShapeData = {
+  id: string;
+  shape_type: ShapeType;
+  points: string;
+  layer: string;
+  name: string;
+};
+
 export class Shape {
   public constructor(
     private _id: string,
@@ -34,6 +42,16 @@ export class Shape {
 
   public get area() {
     return 0;
+  }
+
+  public static createShapes(data: ShapeData[]) {
+    const shapes: Record<string, Shape> = {};
+    for (const shape of data.map(
+      ({ id, shape_type, points, layer, name }) => new Shape(id, shape_type, points, layer, name),
+    )) {
+      shapes[shape.id] = shape;
+    }
+    return shapes;
   }
 
   public async setPoints(points: Position[]) {

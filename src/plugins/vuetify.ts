@@ -7,6 +7,7 @@
 // Styles
 import '@mdi/font/css/materialdesignicons.css';
 import 'vuetify/styles';
+import colors from 'vuetify/util/colors';
 
 // Composables
 import { createVuetify } from 'vuetify';
@@ -17,7 +18,15 @@ import { VCalendar } from 'vuetify/labs/VCalendar';
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
   theme: {
-    defaultTheme: 'system',
+    defaultTheme: 'EpicTheme',
+    themes: {
+      EpicTheme: {
+        dark: true,
+        colors: {
+          primary: colors.green.base,
+        }
+      }
+    },
   },
   components: {
     VDateInput,
