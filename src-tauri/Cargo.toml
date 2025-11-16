@@ -22,6 +22,7 @@ walkdir = "2.5.0"
 regex = "1.11.3"
 unique_id = "0.1.7"
 url-escape = "0.1.1"
+time = { version = "0.3.44", features = ["serde"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

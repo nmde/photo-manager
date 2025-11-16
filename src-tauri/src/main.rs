@@ -49,6 +49,7 @@ fn main() {
             places::set_layer_color,
             places::create_place,
             places::set_place_str,
+            places::set_place_layer,
             places::set_place_position,
             places::delete_place,
             places::create_shape,

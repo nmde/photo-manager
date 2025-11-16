@@ -190,6 +190,28 @@ pub async fn set_place_str(
 }
 
 #[tauri::command]
+pub async fn set_place_layer(
+    state: tauri::State<'_, photos::PhotoState>,
+    place: String,
+    layer: String,
+) -> Result<(), String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .execute(format!(
+            "UPDATE Place SET layer='{0}' WHERE Id='{1}'",
+            database::esc(&layer),
+            database::esc(&place)
+        ))
+        .unwrap();
+
+    state.places.lock().unwrap().get_mut(&place).unwrap().layer = layer.clone();
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn set_place_position(
     state: tauri::State<'_, photos::PhotoState>,
     place: String,

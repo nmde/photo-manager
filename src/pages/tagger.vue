@@ -8,7 +8,7 @@
 
   const route = useRoute();
 
-  const { setEntryText, journals, viewMode, setViewMode } = fileStore;
+  const { setEntryText, journals, viewMode, setViewMode, query } = fileStore;
 
   const grid = ref<InstanceType<typeof PhotoGrid>>();
 
@@ -97,16 +97,16 @@
 
   onMounted(async () => {
     if (route.query.place) {
-      await searchGrid([`at=${route.query.place as string}`]);
+      await searchGrid([`at:${route.query.place as string}`]);
       filterByLocation.value = true;
     } else if (route.query.date) {
       await setDate(moment(route.query.date as string).toDate());
       filterByDate.value = true;
     } else if (route.query.person) {
-      await searchGrid([`of=${route.query.person as string}`]);
+      await searchGrid([`of:${route.query.person as string}`]);
       filterByPerson.value = true;
     } else if (route.query.photographer) {
-      await searchGrid([`by=${route.query.photographer as string}`]);
+      await searchGrid([`by:${route.query.photographer as string}`]);
       filterByPhotographer.value = true;
     }
     localViewMode.value = viewMode;
@@ -123,7 +123,11 @@
       <v-row>
         <v-col ref="gridCol" cols="6">
           <div class="flex">
-            <search-input :loading="searching" @search="async query => searchGrid(query)" />
+            <search-input
+              :loading="searching"
+              :value="query"
+              @search="async query => searchGrid(query)"
+            />
             <v-btn
               v-if="localViewMode === 0"
               @click="

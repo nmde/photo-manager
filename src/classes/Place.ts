@@ -121,10 +121,9 @@ export class Place {
 
   public async setLayer(layer: string) {
     this._layer = layer;
-    await invoke('set_place_str', {
+    await invoke('set_place_layer', {
       place: this.id,
-      property: 'layer',
-      value: layer,
+      layer,
     });
   }
 

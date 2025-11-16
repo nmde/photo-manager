@@ -13,7 +13,7 @@ export type PhotoData = {
   thumbnail: string;
   video: number;
   photo_group: string;
-  date: string;
+  date: [number, number];
   raw: number;
   people: string[];
   hide_thumbnail: number;
@@ -24,6 +24,10 @@ export type PhotoData = {
 };
 
 export class Photo {
+  private _date: Date;
+
+  public hasDate = false;
+
   public constructor(
     private _id: string,
     private _name: string,
@@ -37,7 +41,7 @@ export class Photo {
     private _rating: number,
     private _video: boolean,
     private photoGroup: string,
-    private _date: string,
+    date: [number, number],
     private _raw: boolean,
     private _people: string[],
     private _hideThumbnail: boolean,
@@ -45,7 +49,12 @@ export class Photo {
     private _camera: string,
     public valid: boolean,
     public validationMessage: string,
-  ) {}
+  ) {
+    const d = new Date(date[0], 0, 0);
+    d.setDate(d.getDate() + date[1]);
+    this._date = d;
+    this.hasDate = date[0] !== 1969 && date[1] !== 365; // TODO: There's probably a better way to do this
+  }
 
   public get id() {
     return this._id;
@@ -112,12 +121,8 @@ export class Photo {
     return typeof this._rating === 'number' && this._rating > 0;
   }
 
-  public get hasDate() {
-    return this._date.length > 0;
-  }
-
   public get date() {
-    return new Date(this._date);
+    return this._date;
   }
 
   public get raw() {
@@ -254,7 +259,7 @@ export class Photo {
   }
 
   public async setDate(value: string) {
-    this._date = value;
+    this._date = new Date(value);
     await invoke('set_photo_date', {
       photo: this._id,
       value,

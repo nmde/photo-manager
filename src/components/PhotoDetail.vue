@@ -51,7 +51,6 @@
   const date = ref<Date>(new Date());
   const closeUp = ref(false);
   const location = ref('');
-  const showRaw = ref(false);
   const photoPeople = ref<string[]>([]);
   const photographer = ref<string[]>([]);
   const hideThumbnail = ref(false);
@@ -104,8 +103,6 @@
       :width="700"
     />
     <v-img v-if="!photo.video" max-height="600" :src="photoPath" @click="closeUp = true" />
-    <v-img v-if="showRaw" max-height="600" :src="photo.rawFile" />
-    <v-btn v-if="photo.rawFile.length > 0" @click="showRaw = !showRaw">RAW</v-btn>
   </div>
   <tag-input
     advanced

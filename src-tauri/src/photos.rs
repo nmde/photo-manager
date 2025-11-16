@@ -13,6 +13,8 @@ use std::process::Command;
 use std::sync::Mutex;
 use tauri::Emitter;
 use tauri::Manager;
+use time::Date;
+use time::Month;
 use unique_id::string::StringGenerator;
 use unique_id::Generator;
 use walkdir::WalkDir;
@@ -33,7 +35,7 @@ pub struct Photo {
     pub thumbnail: String,
     pub video: i64,
     pub photo_group: String,
-    pub date: String,
+    pub date: Date,
     pub raw: i64,
     pub people: Vec<String>,
     pub hide_thumbnail: i64,
@@ -85,6 +87,24 @@ fn read_people(row: &sqlite::Row) -> Vec<String> {
         people = people_row.split(",").map(str::to_string).collect();
     }
     people
+}
+
+fn parse_date(date: &String) -> Date {
+    if date.len() == 0 {
+        Date::from_calendar_date(1969, Month::December, 31).unwrap()
+    } else {
+        Date::from_calendar_date(
+            date.get(0..4).unwrap().parse::<i32>().unwrap(),
+            date.get(6..7)
+                .unwrap()
+                .parse::<u8>()
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            date.get(9..10).unwrap().parse::<u8>().unwrap(),
+        )
+        .unwrap()
+    }
 }
 
 // Data required for the initial application initialization after the user opens a folder
@@ -252,7 +272,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                 thumbnail: row.read::<&str, _>("thumbnail").to_string(),
                 video: row.read::<i64, _>("video"),
                 photo_group: row.read::<&str, _>("photoGroup").to_string(),
-                date: row.read::<&str, _>("date").to_string(),
+                date: parse_date(&row.read::<&str, _>("date").to_string()),
                 raw: row.read::<i64, _>("raw"),
                 people,
                 hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
@@ -491,7 +511,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                         thumbnail: cond_thumbnail_path.clone(),
                         video: vid,
                         photo_group: String::new(),
-                        date: String::new(),
+                        date: Date::from_calendar_date(1969, Month::December, 31).unwrap(),
                         raw,
                         people: Vec::<String>::new(),
                         hide_thumbnail: 0i64,
@@ -645,9 +665,8 @@ pub fn search_photos(
             chars.next();
         }
         let tmp_term = chars.as_str().to_string();
-        println!("{}", tmp_term);
         if tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
-            let location = database::esc(&tmp_term.get(4..).unwrap().to_string());
+            let location = database::esc(&tmp_term.get(3..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND location!='{location}'"));
             } else {
@@ -745,7 +764,7 @@ pub fn search_photos(
                 thumbnail: row.read::<&str, _>("thumbnail").to_string(),
                 video: row.read::<i64, _>("video"),
                 photo_group: row.read::<&str, _>("photoGroup").to_string(),
-                date: row.read::<&str, _>("date").to_string(),
+                date: parse_date(&row.read::<&str, _>("date").to_string()),
                 raw: row.read::<i64, _>("raw"),
                 people,
                 hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
@@ -784,6 +803,11 @@ pub fn search_photos(
                                 Ok(_pos) => {}
                                 Err(pos) => results.insert(pos, photo.clone()),
                             }
+                        } else if sort == "date" || sort == "date_desc" {
+                            match results.binary_search_by_key(&photo.date, |p| p.date) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
                         }
                     }
                 } else if tmp_term.get(0..5).unwrap().to_uppercase() == "DATE:" {
@@ -802,6 +826,11 @@ pub fn search_photos(
                                 Ok(_pos) => {}
                                 Err(pos) => results.insert(pos, photo.clone()),
                             }
+                        } else if sort == "date" || sort == "date_desc" {
+                            match results.binary_search_by_key(&photo.date, |p| p.date) {
+                                Ok(_pos) => {}
+                                Err(pos) => results.insert(pos, photo.clone()),
+                            }
                         }
                     }
                 }
@@ -813,10 +842,12 @@ pub fn search_photos(
             results.sort_by_key(|p| p.name.clone());
         } else if sort == "rating" || sort == "rating_desc" {
             results.sort_by_key(|p| p.rating);
+        } else if sort == "date" || sort == "date_desc" {
+            results.sort_by_key(|p| p.date);
         }
     }
 
-    if sort == "name_desc" || sort == "rating_desc" {
+    if sort == "name_desc" || sort == "rating_desc" || sort == "date_desc" {
         results.reverse();
     }
 
@@ -1365,7 +1396,7 @@ pub async fn set_photo_date(
             ))
             .unwrap();
 
-        state_photos.get_mut(&id).unwrap().date = value.clone();
+        state_photos.get_mut(&id).unwrap().date = parse_date(&value);
     }
 
     Ok(())
@@ -1452,7 +1483,7 @@ pub async fn set_photo_group(
             target_photo.people = people_vec.clone();
             target_photo.photographer = collected_photographer.clone();
             target_photo.camera = collected_camera.clone();
-            target_photo.date = collected_date.clone();
+            target_photo.date = parse_date(&collected_date);
         }
     }
 

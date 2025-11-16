@@ -6,6 +6,7 @@
   }>();
 
   defineProps<{
+    value: string[];
     loading?: boolean;
   }>();
 
