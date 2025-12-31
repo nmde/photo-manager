@@ -1,5 +1,4 @@
-use crate::database;
-use crate::photos;
+use crate::{database, photos::PhotoState};
 use std::collections::HashMap;
 
 #[derive(serde::Serialize, Clone)]
@@ -22,7 +21,7 @@ pub struct PersonCategory {
 
 #[tauri::command]
 pub async fn create_person(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     photo: String,
@@ -61,7 +60,7 @@ pub async fn create_person(
 
 #[tauri::command]
 pub async fn set_person_str(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     person: String,
     property: String,
     value: String,
@@ -81,7 +80,7 @@ pub async fn set_person_str(
 
 #[tauri::command]
 pub async fn create_person_category(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     color: String,
@@ -102,14 +101,14 @@ pub async fn create_person_category(
 
 #[tauri::command]
 pub async fn get_people(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
 ) -> Result<HashMap<String, Person>, String> {
     Ok(state.people.lock().unwrap().clone())
 }
 
 #[tauri::command]
 pub async fn get_people_categories(
-    state: tauri::State<'_, photos::PhotoState>,
-) -> Result<Vec::<PersonCategory>, String> {
+    state: tauri::State<'_, PhotoState>,
+) -> Result<Vec<PersonCategory>, String> {
     Ok(state.people_categories.lock().unwrap().clone())
 }

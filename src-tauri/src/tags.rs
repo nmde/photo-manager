@@ -1,5 +1,4 @@
-use crate::database;
-use crate::photos;
+use crate::{database, photos::PhotoState};
 use std::collections::HashMap;
 
 #[derive(serde::Serialize, Clone)]
@@ -80,7 +79,7 @@ pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> V
 
 #[tauri::command]
 pub async fn set_tag_color(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     tag: String,
     value: String,
 ) -> Result<(), String> {
@@ -102,7 +101,7 @@ pub async fn set_tag_color(
 
 #[tauri::command]
 pub async fn set_tag_prereqs(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), String> {
@@ -150,7 +149,7 @@ pub async fn set_tag_prereqs(
 
 #[tauri::command]
 pub async fn set_tag_coreqs(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), String> {
@@ -198,7 +197,7 @@ pub async fn set_tag_coreqs(
 
 #[tauri::command]
 pub async fn set_tag_incompatible(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), String> {
@@ -245,9 +244,7 @@ pub async fn set_tag_incompatible(
 }
 
 #[tauri::command]
-pub async fn get_tags(
-    state: tauri::State<'_, photos::PhotoState>,
-) -> Result<HashMap<String, Tag>, String> {
+pub async fn get_tags(state: tauri::State<'_, PhotoState>) -> Result<HashMap<String, Tag>, String> {
     Ok(state.tags.lock().unwrap().clone())
 }
 
@@ -258,9 +255,7 @@ pub struct TagStats {
 }
 
 #[tauri::command]
-pub async fn get_tag_stats(
-    state: tauri::State<'_, photos::PhotoState>,
-) -> Result<TagStats, String> {
+pub async fn get_tag_stats(state: tauri::State<'_, PhotoState>) -> Result<TagStats, String> {
     let mut photo_count = 0i64;
     let mut total_count = 0i64;
     let mut total_rating = 0;

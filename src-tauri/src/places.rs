@@ -1,5 +1,4 @@
-use crate::database;
-use crate::photos;
+use crate::{database, photos::PhotoState};
 use std::collections::HashMap;
 
 #[derive(serde::Serialize)]
@@ -33,7 +32,7 @@ pub struct Shape {
 }
 
 #[tauri::command]
-pub async fn get_layers(state: tauri::State<'_, photos::PhotoState>) -> Result<Vec<Layer>, String> {
+pub async fn get_layers(state: tauri::State<'_, PhotoState>) -> Result<Vec<Layer>, String> {
     let mut layers = Vec::<Layer>::new();
     for row in state
         .db
@@ -55,7 +54,7 @@ pub async fn get_layers(state: tauri::State<'_, photos::PhotoState>) -> Result<V
 }
 
 #[tauri::command]
-pub async fn get_shapes(state: tauri::State<'_, photos::PhotoState>) -> Result<Vec<Shape>, String> {
+pub async fn get_shapes(state: tauri::State<'_, PhotoState>) -> Result<Vec<Shape>, String> {
     let mut shapes = Vec::<Shape>::new();
     for row in state
         .db
@@ -80,14 +79,14 @@ pub async fn get_shapes(state: tauri::State<'_, photos::PhotoState>) -> Result<V
 
 #[tauri::command]
 pub async fn get_places(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
 ) -> Result<HashMap<String, Place>, String> {
     Ok(state.places.lock().unwrap().clone())
 }
 
 #[tauri::command]
 pub async fn create_layer(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     color: String,
@@ -108,7 +107,7 @@ pub async fn create_layer(
 
 #[tauri::command]
 pub async fn set_layer_color(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     layer: String,
     color: String,
 ) -> Result<(), String> {
@@ -127,7 +126,7 @@ pub async fn set_layer_color(
 
 #[tauri::command]
 pub async fn create_place(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     lat: f64,
@@ -171,7 +170,7 @@ pub async fn create_place(
 
 #[tauri::command]
 pub async fn set_place_str(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     place: String,
     property: String,
     value: String,
@@ -191,7 +190,7 @@ pub async fn set_place_str(
 
 #[tauri::command]
 pub async fn set_place_layer(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     place: String,
     layer: String,
 ) -> Result<(), String> {
@@ -213,7 +212,7 @@ pub async fn set_place_layer(
 
 #[tauri::command]
 pub async fn set_place_position(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     place: String,
     lat: f32,
     lng: f32,
@@ -232,7 +231,7 @@ pub async fn set_place_position(
 
 #[tauri::command]
 pub async fn delete_place(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     place: String,
 ) -> Result<(), String> {
     state
@@ -249,7 +248,7 @@ pub async fn delete_place(
 
 #[tauri::command]
 pub async fn create_shape(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     shape_type: String,
     points: String,
@@ -274,7 +273,7 @@ pub async fn create_shape(
 
 #[tauri::command]
 pub async fn set_shape_str(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     shape: String,
     property: String,
     value: String,
@@ -294,7 +293,7 @@ pub async fn set_shape_str(
 
 #[tauri::command]
 pub async fn delete_shape(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     shape: String,
 ) -> Result<(), String> {
     state

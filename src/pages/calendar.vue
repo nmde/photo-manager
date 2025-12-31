@@ -1,8 +1,8 @@
 <script setup lang="ts">
-  import type { Photo } from '../classes/Photo';
   import type { Place } from '../classes/Place';
-  import { computed, onMounted, ref } from 'vue';
+  import { invoke } from '@tauri-apps/api/core';
   import { useRouter } from 'vue-router';
+  import { Photo, type PhotoData } from '../classes/Photo';
   import { fileStore, formatDate, moods } from '../stores/fileStore';
 
   const router = useRouter();
@@ -12,7 +12,16 @@
   const dayDialog = ref(false);
   const dialogDate = ref<Date>(new Date());
 
-  const { files, calendarViewDate, setCalendarViewDate, places, layers, journals } = fileStore;
+  const { calendarViewDate, setCalendarViewDate, journals } = fileStore;
+
+  type Event = {
+    start: Date;
+    end: Date;
+    allDay: boolean;
+    photos: Photo[];
+  };
+
+  const events = ref<Event[]>([]);
 
   let eventMap: Record<
     string,
@@ -21,43 +30,35 @@
       photos: Photo[];
     }
   > = {};
-  function buildEventMap() {
+  async function buildEventMap() {
     eventMap = {};
-    const groups: string[] = [];
-    for (const photo of Object.values(files)) {
-      if (
-        photo.hasDate &&
-        (photo.group === undefined || (photo.group && !groups.includes(photo.group)))
-      ) {
+    if (date.value[0]) {
+      const year = date.value[0].getFullYear();
+      const month = date.value[0].getMonth() + 1;
+      for (const photo of Photo.createPhotos(
+        (
+          await invoke<{ photos: PhotoData[] }>('photo_grid', {
+            query: [
+              'has:date',
+              `date>=${year}-${month.toString().padStart(2, '0')}-01`,
+              `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(
+                year,
+                month,
+                0,
+              ).getDate()}`,
+            ],
+            sort: 'rating_desc',
+          })
+        ).photos,
+      )) {
+        console.log(photo.date);
         const k = photo.date.toISOString();
         if (!eventMap[k]) {
           eventMap[k] = { date: photo.date, photos: [] };
         }
         eventMap[k].photos.push(photo);
-        eventMap[k].photos.sort((a, b) => {
-          if (!b.rating) {
-            return -1;
-          }
-          if (!a.rating) {
-            return 1;
-          }
-          if (a.rating > b.rating) {
-            return -1;
-          }
-          if (a.rating < b.rating) {
-            return 1;
-          }
-          return 0;
-        });
-        if (photo.group !== undefined) {
-          groups.push(photo.group);
-        }
       }
-    }
-    const year = date.value[0]?.getFullYear();
-    const month = date.value[0]?.getMonth();
-    if (year && month) {
-      for (let i = 1; i <= new Date(year, month + 1, 0).getDate(); i += 1) {
+      for (let i = 1; i <= new Date(year, month, 0).getDate(); i += 1) {
         const d = new Date(year, month, i);
         const k = d.toISOString();
         if (!eventMap[k]) {
@@ -68,28 +69,14 @@
         }
       }
     }
+    events.value = Object.values(eventMap).map(ev => ({
+      start: ev.date,
+      end: ev.date,
+      allDay: true,
+      photos: ev.photos,
+    }));
+    console.log(eventMap);
   }
-
-  type Event = {
-    start: Date;
-    end: Date;
-    allDay: boolean;
-    photos: Photo[];
-  };
-
-  const events = computed(() => {
-    const events: Event[] = [];
-    buildEventMap();
-    for (const event of Object.values(eventMap)) {
-      events.push({
-        start: event.date,
-        end: event.date,
-        allDay: true,
-        photos: event.photos,
-      });
-    }
-    return events;
-  });
 
   function getLocationsByDate(date: Date) {
     const locations: Place[] = [];
@@ -122,9 +109,9 @@
     return sum / count;
   }
 
-  onMounted(() => {
-    console.log(calendarViewDate);
+  onMounted(async () => {
     date.value[0] = calendarViewDate;
+    await buildEventMap();
   });
 </script>
 
@@ -137,9 +124,10 @@
             v-model="jumpDate"
             label="Jump to"
             @update:model-value="
-              () => {
+              async () => {
                 date[0] = jumpDate;
                 setCalendarViewDate(date[0]);
+                await buildEventMap();
               }
             "
           />
@@ -149,10 +137,12 @@
             hide-week-number
             type="month"
             @update:model-value="
-              () => {
+              async () => {
                 const d = date[0];
                 if (d) {
                   setCalendarViewDate(d);
+                  await buildEventMap();
+                  console.log(events);
                 }
               }
             "
@@ -214,7 +204,7 @@
         <v-card-text>
           <v-container>
             <v-row>
-              <v-col cols="6">
+              <v-col class="calendar-photos" cols="6">
                 <photo-icon
                   v-for="photo in eventMap[dialogDate.toISOString()]?.photos.slice(0, 20)"
                   :key="photo.id"
@@ -229,17 +219,10 @@
                 />
               </v-col>
               <v-col cols="6">
-                <v-chip
-                  v-for="place in getLocationsByDate(dialogDate)"
-                  :key="place.id"
-                  :color="layers[place.layer]?.color"
-                >
-                  {{ place.name }}
-                </v-chip>
                 <div v-if="(eventMap[dialogDate.toISOString()]?.photos.length ?? 0) > 0">
-                  <br>
+                  <br />
                   Total photos: {{ eventMap[dialogDate.toISOString()]?.photos.length }}
-                  <br>
+                  <br />
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
               </v-col>
@@ -279,5 +262,10 @@
 
   .event-bg-half {
     height: 118px;
+  }
+
+  .calendar-photos {
+    display: flex;
+    flex-wrap: wrap;
   }
 </style>

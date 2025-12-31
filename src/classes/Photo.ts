@@ -260,6 +260,7 @@ export class Photo {
 
   public async setDate(value: string) {
     this._date = new Date(value);
+    this.hasDate = true;
     await invoke('set_photo_date', {
       photo: this._id,
       value,

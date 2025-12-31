@@ -1,5 +1,4 @@
-use crate::photos;
-use crate::types;
+use crate::{photos::PhotoState, types::Camera};
 
 pub fn esc(value: &String) -> String {
     String::from(value).replace("\'", "\'\'").to_string()
@@ -7,7 +6,7 @@ pub fn esc(value: &String) -> String {
 
 #[tauri::command]
 pub async fn create_activity(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     icon: String,
@@ -28,7 +27,7 @@ pub async fn create_activity(
 
 #[tauri::command]
 pub async fn create_camera(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
 ) -> Result<(), String> {
@@ -47,14 +46,14 @@ pub async fn create_camera(
         .cameras
         .lock()
         .unwrap()
-        .insert(id.clone(), types::Camera { id, name, count: 0 });
+        .insert(id.clone(), Camera { id, name, count: 0 });
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn create_group(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
 ) -> Result<(), String> {
@@ -73,7 +72,7 @@ pub async fn create_group(
 
 #[tauri::command]
 pub async fn create_journal_entry(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     date: String,
     mood: i32,
@@ -100,7 +99,7 @@ pub async fn create_journal_entry(
 
 #[tauri::command]
 pub async fn set_journal_str(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     journal: String,
     property: String,
     value: String,
@@ -120,7 +119,7 @@ pub async fn set_journal_str(
 
 #[tauri::command]
 pub async fn set_journal_mood(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     journal: String,
     mood: i32,
 ) -> Result<(), String> {
@@ -138,7 +137,7 @@ pub async fn set_journal_mood(
 
 #[tauri::command]
 pub async fn set_setting(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     setting: String,
     value: String,
@@ -177,7 +176,7 @@ pub async fn set_setting(
 
 #[tauri::command]
 pub async fn create_wiki_page(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     id: String,
     name: String,
     content: String,
@@ -200,7 +199,7 @@ pub async fn create_wiki_page(
 
 #[tauri::command]
 pub async fn set_wiki_str(
-    state: tauri::State<'_, photos::PhotoState>,
+    state: tauri::State<'_, PhotoState>,
     page: String,
     property: String,
     value: String,

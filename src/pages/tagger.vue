@@ -8,7 +8,7 @@
 
   const route = useRoute();
 
-  const { setEntryText, journals, viewMode, setViewMode, query } = fileStore;
+  const { setEntryText, journals, viewMode, setViewMode, query, setSearch } = fileStore;
 
   const grid = ref<InstanceType<typeof PhotoGrid>>();
 
@@ -30,6 +30,7 @@
 
   async function searchGrid(query: string[]) {
     searching.value = true;
+    setSearch(query);
     await grid.value?.search(query);
     searching.value = false;
   }
@@ -37,7 +38,7 @@
   async function setDate(date: Date) {
     currentDate.value = date;
     const d = currentDate.value.toISOString();
-    await searchGrid([`date=${d}`]);
+    await searchGrid(['has:date', `date:${d}`]);
     if (journals[d]) {
       mood.value = journals[d].mood;
       entryText.value = journals[d].displayText;
@@ -97,16 +98,16 @@
 
   onMounted(async () => {
     if (route.query.place) {
-      await searchGrid([`at:${route.query.place as string}`]);
+      await searchGrid(['has:location', `at:${route.query.place as string}`]);
       filterByLocation.value = true;
     } else if (route.query.date) {
       await setDate(moment(route.query.date as string).toDate());
       filterByDate.value = true;
     } else if (route.query.person) {
-      await searchGrid([`of:${route.query.person as string}`]);
+      await searchGrid(['has:people', `of:${route.query.person as string}`]);
       filterByPerson.value = true;
     } else if (route.query.photographer) {
-      await searchGrid([`by:${route.query.photographer as string}`]);
+      await searchGrid(['has:photographer', `by:${route.query.photographer as string}`]);
       filterByPhotographer.value = true;
     }
     localViewMode.value = viewMode;
@@ -123,6 +124,7 @@
       <v-row>
         <v-col ref="gridCol" cols="6">
           <div class="flex">
+            {{ query }}
             <search-input
               :loading="searching"
               :value="query"

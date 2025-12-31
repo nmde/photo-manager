@@ -5,7 +5,7 @@
     (e: 'search', query: string[]): void;
   }>();
 
-  defineProps<{
+  const props = defineProps<{
     value: string[];
     loading?: boolean;
   }>();
@@ -13,6 +13,10 @@
   const { tags } = fileStore;
 
   const localQuery = ref<string[]>([]);
+
+  onMounted(() => {
+    localQuery.value = props.value;
+  });
 </script>
 
 <template>

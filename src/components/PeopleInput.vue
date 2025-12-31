@@ -85,6 +85,7 @@
 <template>
   <v-combobox
     v-model="tempPeople"
+    aria-autocomplete="none"
     chips
     clearable
     item-value="value"

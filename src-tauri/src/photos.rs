@@ -1,22 +1,22 @@
-use crate::database;
-use crate::people;
-use crate::places;
-use crate::tags;
-use crate::types;
+use crate::{
+    database,
+    people::{Person, PersonCategory},
+    places::Place,
+    tags::{validate_tags, Tag, ValidationResult},
+    types::{Activity, Camera, Group, Journal, Setting, WikiPage},
+};
 use regex::Regex;
 use sqlite::Connection;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
-use std::sync::Mutex;
-use tauri::Emitter;
-use tauri::Manager;
-use time::Date;
-use time::Month;
-use unique_id::string::StringGenerator;
-use unique_id::Generator;
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+    process::Command,
+    sync::Mutex,
+};
+use tauri::{Emitter, Manager};
+use time::{Date, Month};
+use unique_id::{string::StringGenerator, Generator};
 use walkdir::WalkDir;
 
 const PHOTO_MANAGER_VERSION: i64 = 1;
@@ -43,17 +43,18 @@ pub struct Photo {
     pub camera: String,
     pub valid_tags: bool,
     pub validation_msg: String,
+    pub has_date: bool,
 }
 
 pub struct PhotoState {
     pub db: Mutex<Connection>,
     pub photos: Mutex<HashMap<String, Photo>>,
-    pub people: Mutex<HashMap<String, people::Person>>,
-    pub people_categories: Mutex<Vec<people::PersonCategory>>,
-    pub cameras: Mutex<HashMap<String, types::Camera>>,
-    pub places: Mutex<HashMap<String, places::Place>>,
+    pub people: Mutex<HashMap<String, Person>>,
+    pub people_categories: Mutex<Vec<PersonCategory>>,
+    pub cameras: Mutex<HashMap<String, Camera>>,
+    pub places: Mutex<HashMap<String, Place>>,
     pub newest_place: Mutex<String>,
-    pub tags: Mutex<HashMap<String, tags::Tag>>,
+    pub tags: Mutex<HashMap<String, Tag>>,
 }
 
 impl Default for PhotoState {
@@ -61,12 +62,12 @@ impl Default for PhotoState {
         Self {
             db: Mutex::new(sqlite::open(":memory:").ok().unwrap()),
             photos: Mutex::new(HashMap::<String, Photo>::new()),
-            people: Mutex::new(HashMap::<String, people::Person>::new()),
-            people_categories: Mutex::new(Vec::<people::PersonCategory>::new()),
-            cameras: Mutex::new(HashMap::<String, types::Camera>::new()),
-            places: Mutex::new(HashMap::<String, places::Place>::new()),
+            people: Mutex::new(HashMap::<String, Person>::new()),
+            people_categories: Mutex::new(Vec::<PersonCategory>::new()),
+            cameras: Mutex::new(HashMap::<String, Camera>::new()),
+            places: Mutex::new(HashMap::<String, Place>::new()),
             newest_place: Mutex::new(String::new()),
-            tags: Mutex::new(HashMap::<String, tags::Tag>::new()),
+            tags: Mutex::new(HashMap::<String, Tag>::new()),
         }
     }
 }
@@ -95,13 +96,13 @@ fn parse_date(date: &String) -> Date {
     } else {
         Date::from_calendar_date(
             date.get(0..4).unwrap().parse::<i32>().unwrap(),
-            date.get(6..7)
+            date.get(5..7)
                 .unwrap()
                 .parse::<u8>()
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            date.get(9..10).unwrap().parse::<u8>().unwrap(),
+            date.get(8..10).unwrap().parse::<u8>().unwrap(),
         )
         .unwrap()
     }
@@ -111,11 +112,11 @@ fn parse_date(date: &String) -> Date {
 #[derive(serde::Serialize)]
 pub struct OpenFolderResponse {
     deleted: Vec<String>,
-    groups: Vec<types::Group>,
-    activities: Vec<types::Activity>,
-    settings: Vec<types::Setting>,
-    journals: Vec<types::Journal>,
-    wiki_pages: Vec<types::WikiPage>,
+    groups: Vec<Group>,
+    activities: Vec<Activity>,
+    settings: Vec<Setting>,
+    journals: Vec<Journal>,
+    wiki_pages: Vec<WikiPage>,
     photo_count: usize,
 }
 
@@ -178,7 +179,7 @@ pub async fn open_folder<R: tauri::Runtime>(
     let thumbnail_dir = format!("{data_dir}/thumbnails/");
     fs::create_dir_all(&thumbnail_dir).unwrap();
 
-    let mut tags = HashMap::<String, tags::Tag>::new();
+    let mut tags = HashMap::<String, Tag>::new();
     for row in conn
         .prepare("SELECT * FROM Tag")
         .unwrap()
@@ -203,7 +204,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         }
         tags.insert(
             name.clone(),
-            tags::Tag {
+            Tag {
                 id: row.read::<&str, _>("Id").to_string(),
                 name,
                 color: row.read::<&str, _>("color").to_string(),
@@ -236,7 +237,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                     .unwrap();
                     tags.insert(
                         tag.to_string(),
-                        tags::Tag {
+                        Tag {
                             id,
                             name: tag.to_string(),
                             color: String::new(),
@@ -255,8 +256,9 @@ pub async fn open_folder<R: tauri::Runtime>(
             people = people_row.split(",").map(str::to_string).collect();
         }
 
-        let validation = tags::validate_tags(&state.tags.lock().unwrap(), &photo_tags);
+        let validation = validate_tags(&state.tags.lock().unwrap(), &photo_tags);
         let name = row.read::<&str, _>("name").to_string();
+        let date_row = row.read::<&str, _>("date").to_string();
         existing.insert(
             name.clone(),
             Photo {
@@ -272,7 +274,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                 thumbnail: row.read::<&str, _>("thumbnail").to_string(),
                 video: row.read::<i64, _>("video"),
                 photo_group: row.read::<&str, _>("photoGroup").to_string(),
-                date: parse_date(&row.read::<&str, _>("date").to_string()),
+                date: parse_date(&date_row),
                 raw: row.read::<i64, _>("raw"),
                 people,
                 hide_thumbnail: row.read::<i64, _>("hideThumbnail"),
@@ -280,11 +282,12 @@ pub async fn open_folder<R: tauri::Runtime>(
                 camera: row.read::<&str, _>("camera").to_string(),
                 valid_tags: validation.is_valid,
                 validation_msg: validation.message,
+                has_date: date_row.len() > 0,
             },
         );
     }
 
-    let mut places = HashMap::<String, places::Place>::new();
+    let mut places = HashMap::<String, Place>::new();
     for row in conn
         .prepare("SELECT * FROM Place")
         .unwrap()
@@ -299,7 +302,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         }
         places.insert(
             id.clone(),
-            places::Place {
+            Place {
                 id,
                 name: row.read::<&str, _>("name").to_string(),
                 lat: row.read::<f64, _>("lat"),
@@ -314,14 +317,14 @@ pub async fn open_folder<R: tauri::Runtime>(
         );
     }
 
-    let mut categories = Vec::<people::PersonCategory>::new();
+    let mut categories = Vec::<PersonCategory>::new();
     for row in conn
         .prepare("SELECT * FROM PersonCategory")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        categories.push(people::PersonCategory {
+        categories.push(PersonCategory {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             color: row.read::<&str, _>("color").to_string(),
@@ -329,7 +332,7 @@ pub async fn open_folder<R: tauri::Runtime>(
     }
     *state.people_categories.lock().unwrap() = categories;
 
-    let mut people = HashMap::<String, people::Person>::new();
+    let mut people = HashMap::<String, Person>::new();
     for row in conn
         .prepare("SELECT * FROM Person")
         .unwrap()
@@ -339,7 +342,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         let id = row.read::<&str, _>("Id").to_string();
         people.insert(
             id.clone(),
-            people::Person {
+            Person {
                 id,
                 name: row.read::<&str, _>("name").to_string(),
                 photo: row.read::<&str, _>("photo").to_string(),
@@ -351,7 +354,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         );
     }
 
-    let mut cameras = HashMap::<String, types::Camera>::new();
+    let mut cameras = HashMap::<String, Camera>::new();
     for row in conn
         .prepare("SELECT * FROM Camera")
         .unwrap()
@@ -361,7 +364,7 @@ pub async fn open_folder<R: tauri::Runtime>(
         let id = row.read::<&str, _>("Id").to_string();
         cameras.insert(
             id.clone(),
-            types::Camera {
+            Camera {
                 id,
                 name: row.read::<&str, _>("name").to_string(),
                 count: 0,
@@ -409,7 +412,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                     } else {
                         tags.insert(
                             tag.to_string(),
-                            tags::Tag {
+                            Tag {
                                 id: id_generator.next_id(),
                                 name: tag.to_string(),
                                 color: String::new(),
@@ -519,6 +522,7 @@ pub async fn open_folder<R: tauri::Runtime>(
                         camera: String::new(),
                         valid_tags: true,
                         validation_msg: String::new(),
+                        has_date: false,
                     };
                     conn.execute(
                         format!(
@@ -548,27 +552,27 @@ pub async fn open_folder<R: tauri::Runtime>(
     *state.places.lock().unwrap() = places;
     *state.tags.lock().unwrap() = tags.clone();
 
-    let mut groups = Vec::<types::Group>::new();
+    let mut groups = Vec::<Group>::new();
     for row in conn
         .prepare("SELECT * FROM PhotoGroup")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        groups.push(types::Group {
+        groups.push(Group {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
         });
     }
 
-    let mut activities = Vec::<types::Activity>::new();
+    let mut activities = Vec::<Activity>::new();
     for row in conn
         .prepare("SELECT * FROM Activity")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        activities.push(types::Activity {
+        activities.push(Activity {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             icon: row.read::<&str, _>("icon").to_string(),
@@ -576,14 +580,14 @@ pub async fn open_folder<R: tauri::Runtime>(
     }
 
     let mut project_version = 0;
-    let mut settings = Vec::<types::Setting>::new();
+    let mut settings = Vec::<Setting>::new();
     for row in conn
         .prepare("SELECT * FROM Setting")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        let setting = types::Setting {
+        let setting = Setting {
             id: row.read::<&str, _>("Id").to_string(),
             setting: row.read::<&str, _>("setting").to_string(),
             value: row.read::<i64, _>("value"),
@@ -598,14 +602,14 @@ pub async fn open_folder<R: tauri::Runtime>(
         println!("Database needs upgrade!");
     }
 
-    let mut journals = Vec::<types::Journal>::new();
+    let mut journals = Vec::<Journal>::new();
     for row in conn
         .prepare("SELECT * FROM Journal")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        journals.push(types::Journal {
+        journals.push(Journal {
             id: row.read::<&str, _>("Id").to_string(),
             date: row.read::<&str, _>("date").to_string(),
             mood: row.read::<i64, _>("mood"),
@@ -616,14 +620,14 @@ pub async fn open_folder<R: tauri::Runtime>(
         });
     }
 
-    let mut wiki_pages = Vec::<types::WikiPage>::new();
+    let mut wiki_pages = Vec::<WikiPage>::new();
     for row in conn
         .prepare("SELECT * FROM WikiPage")
         .unwrap()
         .into_iter()
         .map(|row| row.unwrap())
     {
-        wiki_pages.push(types::WikiPage {
+        wiki_pages.push(WikiPage {
             id: row.read::<&str, _>("Id").to_string(),
             name: row.read::<&str, _>("name").to_string(),
             content: row.read::<&str, _>("content").to_string(),
@@ -650,7 +654,7 @@ pub async fn open_folder<R: tauri::Runtime>(
  */
 pub fn search_photos(
     connection: &sqlite::Connection,
-    state_tags: &HashMap<String, tags::Tag>,
+    state_tags: &HashMap<String, Tag>,
     query: Vec<String>,
     sort: String,
 ) -> Result<Vec<Photo>, String> {
@@ -665,14 +669,14 @@ pub fn search_photos(
             chars.next();
         }
         let tmp_term = chars.as_str().to_string();
-        if tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
+        if tmp_term.len() > 3 && tmp_term.get(0..3).unwrap().to_uppercase() == "AT:" {
             let location = database::esc(&tmp_term.get(3..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND location!='{location}'"));
             } else {
                 statement.push_str(&format!(" AND location='{location}'"));
             }
-        } else if tmp_term.get(0..3).unwrap().to_uppercase() == "IS:" {
+        } else if tmp_term.len() > 3 && tmp_term.get(0..3).unwrap().to_uppercase() == "IS:" {
             if tmp_term.get(4..).unwrap().to_uppercase() == "VIDEO" {
                 if negated {
                     statement.push_str(" AND video=0");
@@ -686,21 +690,21 @@ pub fn search_photos(
                     statement.push_str(" AND raw=1");
                 }
             }
-        } else if tmp_term.get(0..5).unwrap().to_uppercase() == "ONLY:" {
+        } else if tmp_term.len() > 5 && tmp_term.get(0..5).unwrap().to_uppercase() == "ONLY:" {
             let person = database::esc(&tmp_term.get(6..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND people!='{person}'"));
             } else {
                 statement.push_str(&format!(" AND people='{person}'"));
             }
-        } else if tmp_term.get(0..3).unwrap().to_uppercase() == "BY:" {
+        } else if tmp_term.len() > 3 && tmp_term.get(0..3).unwrap().to_uppercase() == "BY:" {
             let person = database::esc(&tmp_term.get(4..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND photographer!='{person}'"));
             } else {
                 statement.push_str(&format!(" AND photographer='{person}'"));
             }
-        } else if tmp_term.get(0..4).unwrap().to_uppercase() == "HAS:" {
+        } else if tmp_term.len() > 4 && tmp_term.get(0..4).unwrap().to_uppercase() == "HAS:" {
             if tmp_term.get(4..).unwrap().to_uppercase() == "RATING" {
                 if negated {
                     statement.push_str(" AND rating=0");
@@ -725,8 +729,20 @@ pub fn search_photos(
                 } else {
                     statement.push_str(" AND length(location)>0");
                 }
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "PEOPLE" {
+                if negated {
+                    statement.push_str(" AND length(people)=0");
+                } else {
+                    statement.push_str(" AND length(people)>0");
+                }
+            } else if tmp_term.get(4..).unwrap().to_uppercase() == "TAGS" {
+                if negated {
+                    statement.push_str(" AND length(tags)=0");
+                } else {
+                    statement.push_str(" AND length(tags)>0");
+                }
             }
-        } else if tmp_term.get(0..5).unwrap().to_uppercase() == "NAME:" {
+        } else if tmp_term.len() > 5 && tmp_term.get(0..5).unwrap().to_uppercase() == "NAME:" {
             let name = database::esc(&tmp_term.get(5..).unwrap().to_string());
             if negated {
                 statement.push_str(&format!(" AND Name NOT LIKE '%{name}%'"));
@@ -750,7 +766,7 @@ pub fn search_photos(
             let tags = read_tags(&row);
             let people = read_people(&row);
 
-            let validation = tags::validate_tags(state_tags, &tags);
+            let validation = validate_tags(state_tags, &tags);
             Photo {
                 id: row.read::<&str, _>("Id").to_string(),
                 name: row.read::<&str, _>("name").to_string(),
@@ -772,6 +788,7 @@ pub fn search_photos(
                 camera: row.read::<&str, _>("camera").to_string(),
                 valid_tags: validation.is_valid,
                 validation_msg: validation.message,
+                has_date: false,
             }
         });
 
@@ -781,6 +798,7 @@ pub fn search_photos(
     // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
     if unmet_terms.len() > 0 {
         for photo in photos {
+            let mut meets_terms = true;
             for term in &unmet_terms {
                 let mut chars = term.chars();
                 let negated = term.get(0..1).unwrap() == "-";
@@ -788,50 +806,67 @@ pub fn search_photos(
                     chars.next();
                 }
                 let tmp_term = chars.as_str().to_string();
-                if tmp_term.get(0..3).unwrap().to_uppercase() == "OF:" {
+                if tmp_term.len() > 3 && tmp_term.get(0..3).unwrap().to_uppercase() == "OF:" {
                     let in_photo = photo
                         .people
                         .contains(&tmp_term.get(4..).unwrap().to_string());
-                    if (negated && !in_photo) || (!negated && in_photo) {
-                        if sort == "name" || sort == "name_desc" {
-                            match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        } else if sort == "rating" || sort == "rating_desc" {
-                            match results.binary_search_by_key(&photo.rating, |p| p.rating) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        } else if sort == "date" || sort == "date_desc" {
-                            match results.binary_search_by_key(&photo.date, |p| p.date) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        }
-                    }
-                } else if tmp_term.get(0..5).unwrap().to_uppercase() == "DATE:" {
-                    // TODO
+                    meets_terms = meets_terms && ((negated && !in_photo) || (!negated && in_photo));
+                } else if tmp_term.len() > 5
+                    && tmp_term.get(0..5).unwrap().to_uppercase() == "DATE:"
+                {
+                    let comp_date = parse_date(&tmp_term.get(5..).unwrap().to_string());
+                    meets_terms = meets_terms
+                        && ((negated && photo.date != comp_date)
+                            || (!negated && photo.date == comp_date));
+                } else if tmp_term.len() > 6
+                    && tmp_term.get(0..6).unwrap().to_uppercase() == "DATE>="
+                {
+                    let comp_date = parse_date(&tmp_term.get(6..).unwrap().to_string());
+                    meets_terms = meets_terms
+                        && ((negated && photo.date < comp_date)
+                            || (!negated && photo.date >= comp_date));
+                } else if tmp_term.len() > 6
+                    && tmp_term.get(0..6).unwrap().to_uppercase() == "DATE<="
+                {
+                    let comp_date = parse_date(&tmp_term.get(6..).unwrap().to_string());
+                    meets_terms = meets_terms
+                        && ((negated && photo.date > comp_date)
+                            || (!negated && photo.date <= comp_date));
+                } else if tmp_term.len() > 5
+                    && tmp_term.get(0..5).unwrap().to_uppercase() == "DATE>"
+                {
+                    let comp_date = parse_date(&tmp_term.get(5..).unwrap().to_string());
+                    meets_terms = meets_terms
+                        && ((negated && photo.date < comp_date)
+                            || (!negated && photo.date > comp_date));
+                } else if tmp_term.len() > 5
+                    && tmp_term.get(0..5).unwrap().to_uppercase() == "DATE<"
+                {
+                    let comp_date = parse_date(&tmp_term.get(5..).unwrap().to_string());
+                    meets_terms = meets_terms
+                        && ((negated && photo.date > comp_date)
+                            || (!negated && photo.date < comp_date));
                 } else {
                     // Treat all remaining terms as tags
                     let in_tags = photo.tags.contains(&tmp_term);
-                    if (negated && !in_tags) || (!negated && in_tags) {
-                        if sort == "name" || sort == "name_desc" {
-                            match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        } else if sort == "rating" || sort == "rating_desc" {
-                            match results.binary_search_by_key(&photo.rating, |p| p.rating) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        } else if sort == "date" || sort == "date_desc" {
-                            match results.binary_search_by_key(&photo.date, |p| p.date) {
-                                Ok(_pos) => {}
-                                Err(pos) => results.insert(pos, photo.clone()),
-                            }
-                        }
+                    meets_terms = meets_terms && ((negated && !in_tags) || (!negated && in_tags));
+                }
+            }
+            if meets_terms {
+                if sort == "name" || sort == "name_desc" {
+                    match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
+                        Ok(_pos) => {}
+                        Err(pos) => results.insert(pos, photo.clone()),
+                    }
+                } else if sort == "rating" || sort == "rating_desc" {
+                    match results.binary_search_by_key(&photo.rating, |p| p.rating) {
+                        Ok(pos) => results.insert(pos, photo.clone()),
+                        Err(pos) => results.insert(pos, photo.clone()),
+                    }
+                } else if sort == "date" || sort == "date_desc" {
+                    match results.binary_search_by_key(&photo.date, |p| p.date) {
+                        Ok(pos) => results.insert(pos, photo.clone()),
+                        Err(pos) => results.insert(pos, photo.clone()),
                     }
                 }
             }
@@ -1246,7 +1281,7 @@ pub async fn set_photo_tags(
     state: tauri::State<'_, PhotoState>,
     photo: String,
     value: Vec<String>,
-) -> Result<tags::ValidationResult, String> {
+) -> Result<ValidationResult, String> {
     let connection = state.db.lock().unwrap();
     let mut state_photos = state.photos.lock().unwrap();
     let mut state_tags = state.tags.lock().unwrap();
@@ -1284,7 +1319,7 @@ pub async fn set_photo_tags(
         }
     }
 
-    let validation = tags::validate_tags(&state_tags, &value);
+    let validation = validate_tags(&state_tags, &value);
 
     let joined_tags = database::esc(&value.join(","));
     for target in &targets {
@@ -1315,7 +1350,7 @@ pub async fn set_photo_tags(
                 .unwrap();
             state_tags.insert(
                 tag.clone(),
-                tags::Tag {
+                Tag {
                     id,
                     name: tag.clone(),
                     color: String::new(),
@@ -1459,7 +1494,7 @@ pub async fn set_photo_group(
 
         let tags_vec = collected_tags.into_iter().collect();
         let people_vec: Vec<String> = collected_people.into_iter().collect();
-        let validation = tags::validate_tags(&state.tags.lock().unwrap(), &tags_vec);
+        let validation = validate_tags(&state.tags.lock().unwrap(), &tags_vec);
         let joined_tags = database::esc(&tags_vec.join(","));
         let joined_people = database::esc(&people_vec.join(","));
 

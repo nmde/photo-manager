@@ -458,7 +458,7 @@ class FileStore extends EventEmitter<{
     await this.wikiPages[page]?.setName(newTitle, this.settings.encrypt === 1, this.key);
   };
 
-  public setSearch = (query: string[], sort: string) => {
+  public setSearch = (query: string[], sort = this.sort) => {
     this.query = query;
     this.sort = sort;
   };

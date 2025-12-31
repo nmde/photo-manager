@@ -40,9 +40,9 @@
 <template>
   <v-combobox
     v-model="selected"
+    aria-autocomplete="none"
     chips
     clearable
-    color="primary"
     :error="validate && target ? !target.valid : undefined"
     :error-messages="validate && target ? target.validationMessage : undefined"
     item-title="name"
