@@ -1,17 +1,19 @@
-import { invoke } from '@tauri-apps/api/core';
+import { set_layer_str } from '@/api/places';
 
 export type LayerData = {
   id: string;
   name: string;
   color: string;
+  count: number;
 };
 
 export class Layer {
-  public constructor(private _id: string, private _name: string, private _color: string) {}
-
-  public get id() {
-    return this._id;
-  }
+  public constructor(
+    public readonly id: string,
+    public _name: string,
+    public _color: string,
+    public readonly count: number,
+  ) {}
 
   public get name() {
     return this._name;
@@ -21,19 +23,26 @@ export class Layer {
     return this._color;
   }
 
-  public static createLayers(data: LayerData[]) {
+  public static createLayers = (data: Record<string, LayerData>) => {
     const layers: Record<string, Layer> = {};
-    for (const layer of data.map(({ id, name, color }) => new Layer(id, name, color))) {
-      layers[layer.id] = layer;
+    for (const layer in data) {
+      layers[layer] = new Layer(
+        layer,
+        data[layer]?.name ?? '',
+        data[layer]?.color ?? '',
+        data[layer]?.count ?? 0,
+      );
     }
     return layers;
-  }
+  };
 
   public async setColor(color: string) {
     this._color = color;
-    await invoke('set_layer_color', {
-      layer: this.id,
-      color,
-    });
+    await set_layer_str(this.id, 'color', color);
+  }
+
+  public async setName(name: string) {
+    this._name = name;
+    await set_layer_str(this.id, 'name', name);
   }
 }

@@ -29,5 +29,6 @@ export default defineConfig(await vuetify(), {
         },
       },
     ],
+    '@stylistic/operator-linebreak': 'off',
   },
 });

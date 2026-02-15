@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue';
-
   const props = defineProps<{
     color: string;
   }>();
@@ -24,10 +22,3 @@
     <v-color-picker v-model="tmpColor" @update:model-value="() => emit('update', tmpColor)" />
   </v-menu>
 </template>
-
-<style scoped>
-  .color-indicator {
-    width: 50px;
-    height: 50px;
-  }
-</style>

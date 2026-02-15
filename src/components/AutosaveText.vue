@@ -30,5 +30,11 @@
 </script>
 
 <template>
-  <v-textarea v-model="local" :label="label" @update:model-value="handleKeypress()" />
+  <v-textarea
+    v-model="local"
+    clearable
+    color="primary"
+    :label="label"
+    @update:model-value="handleKeypress()"
+  />
 </template>

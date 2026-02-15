@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { set_place_layer, set_place_position, set_place_str } from '@/api/places';
 import { locToString, type PlaceType, type Position } from './Map';
 
 export type PlaceData = {
@@ -9,37 +9,27 @@ export type PlaceData = {
   layer: string;
   category: PlaceType;
   shape: string;
-  tags: string;
-  notes: string;
   count: number;
 };
 
 export class Place {
-  public isNewestPlace = false;
-
   public constructor(
-    private _id: string,
-    private _name: string,
-    private lat: number,
-    private lng: number,
-    private _layer: string,
-    private _category: PlaceType,
-    private _shape: string,
-    private _tags: string,
-    private _notes: string,
+    public readonly id: string,
+    public _name: string,
+    public _lat: number,
+    public _lng: number,
+    public _layer: string,
+    public _category: PlaceType,
+    public _shape: string,
     public count: number,
   ) {}
-
-  public get id() {
-    return this._id;
-  }
 
   public get name() {
     return this._name;
   }
 
   public get posObj() {
-    return { lat: this.lat, lng: this.lng };
+    return { lat: this._lat, lng: this._lng };
   }
 
   public get pos() {
@@ -58,19 +48,11 @@ export class Place {
     return this._category;
   }
 
-  public get tags() {
-    return this._tags.length === 0 ? [] : this._tags.split(',');
-  }
-
-  public get notes() {
-    return this._notes;
-  }
-
   public static createPlaces(data: Record<string, PlaceData>) {
     const places: Record<string, Place> = {};
     for (const place of Object.values(data).map(
-      ({ id, name, lat, lng, layer, category, shape, tags, notes, count }) =>
-        new Place(id, name, lat, lng, layer, category, shape, tags, notes, count),
+      ({ id, name, lat, lng, layer, category, shape, count }) =>
+        new Place(id, name, lat, lng, layer, category, shape, count),
     )) {
       places[place.id] = place;
     }
@@ -79,60 +61,27 @@ export class Place {
 
   public async setName(name: string) {
     this._name = name;
-    await invoke('set_place_str', {
-      place: this.id,
-      property: 'name',
-      value: name,
-    });
+    await set_place_str(this.id, 'name', name);
   }
 
   public async setPosition(position: Position) {
-    this.lat = position.lat;
-    this.lng = position.lng;
-    await invoke('set_place_position', position);
+    this._lat = position.lat;
+    this._lng = position.lng;
+    await set_place_position(this.id, position.lat, position.lng);
   }
 
   public async setCategory(category: PlaceType) {
     this._category = category;
-    await invoke('set_place_str', {
-      place: this.id,
-      property: 'category',
-      value: category,
-    });
+    await set_place_str(this.id, 'category', category);
   }
 
   public async setShape(shape: string) {
     this._shape = shape;
-    await invoke('set_place_str', {
-      place: this.id,
-      property: 'shape',
-      value: shape,
-    });
-  }
-
-  public async setTags(tags: string[]) {
-    this._tags = tags.join(',');
-    await invoke('set_place_str', {
-      place: this.id,
-      property: 'tags',
-      value: this._tags,
-    });
+    await set_place_str(this.id, 'shape', shape);
   }
 
   public async setLayer(layer: string) {
     this._layer = layer;
-    await invoke('set_place_layer', {
-      place: this.id,
-      layer,
-    });
-  }
-
-  public async setNotes(notes: string) {
-    this._notes = notes;
-    await invoke('set_place_str', {
-      place: this.id,
-      property: 'notes',
-      value: notes,
-    });
+    await set_place_layer(this.id, layer);
   }
 }

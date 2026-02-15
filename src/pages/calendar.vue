@@ -1,18 +1,22 @@
 <script setup lang="ts">
-  import type { Place } from '../classes/Place';
-  import { invoke } from '@tauri-apps/api/core';
-  import { useRouter } from 'vue-router';
-  import { Photo, type PhotoData } from '../classes/Photo';
-  import { fileStore, formatDate, moods } from '../stores/fileStore';
+  import type { Layer } from '@/classes/Layer';
+  import type { Photo } from '@/classes/Photo';
+  import type { Place } from '@/classes/Place';
+  import { photo_grid } from '@/api/photos';
+  import { get_layers, get_places } from '@/api/places';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const store = useFileStore();
   const router = useRouter();
 
   const jumpDate = ref<Date>(new Date());
   const date = ref<Date[]>([new Date()]);
   const dayDialog = ref(false);
   const dialogDate = ref<Date>(new Date());
+  const places = ref<Record<string, Place>>({});
+  const layers = ref<Record<string, Layer>>({});
 
-  const { calendarViewDate, setCalendarViewDate, journals } = fileStore;
+  const { calendarViewDate, setCalendarViewDate } = store;
 
   type Event = {
     start: Date;
@@ -35,28 +39,25 @@
     if (date.value[0]) {
       const year = date.value[0].getFullYear();
       const month = date.value[0].getMonth() + 1;
-      for (const photo of Photo.createPhotos(
-        (
-          await invoke<{ photos: PhotoData[] }>('photo_grid', {
-            query: [
-              'has:date',
-              `date>=${year}-${month.toString().padStart(2, '0')}-01`,
-              `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(
-                year,
-                month,
-                0,
-              ).getDate()}`,
-            ],
-            sort: 'rating_desc',
-          })
-        ).photos,
+      for (const photo of await photo_grid(
+        [
+          'has:date',
+          `date>=${year}-${month.toString().padStart(2, '0')}-01`,
+          `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(
+            year,
+            month,
+            0,
+          ).getDate()}`,
+        ],
+        'rating_desc',
       )) {
-        console.log(photo.date);
-        const k = photo.date.toISOString();
-        if (!eventMap[k]) {
-          eventMap[k] = { date: photo.date, photos: [] };
+        const k = photo.date?.toISOString();
+        if (k) {
+          if (!eventMap[k]) {
+            eventMap[k] = { date: photo.date as Date, photos: [] };
+          }
+          eventMap[k].photos.push(photo);
         }
-        eventMap[k].photos.push(photo);
       }
       for (let i = 1; i <= new Date(year, month, 0).getDate(); i += 1) {
         const d = new Date(year, month, i);
@@ -75,7 +76,6 @@
       allDay: true,
       photos: ev.photos,
     }));
-    console.log(eventMap);
   }
 
   function getLocationsByDate(date: Date) {
@@ -84,7 +84,7 @@
     if (photos) {
       for (const photo of photos) {
         if (photo.hasLocation) {
-          const place = places[photo.location];
+          const place = places.value[photo.location];
           if (place && !locations.some(p => p.id === place.id)) {
             locations.push(place);
           }
@@ -112,95 +112,66 @@
   onMounted(async () => {
     date.value[0] = calendarViewDate;
     await buildEventMap();
+    places.value = await get_places();
+    layers.value = await get_layers();
   });
 </script>
 
 <template>
-  <v-main class="main">
-    <v-container fluid>
-      <v-row>
-        <v-col>
-          <v-date-input
-            v-model="jumpDate"
-            label="Jump to"
-            @update:model-value="
-              async () => {
-                date[0] = jumpDate;
-                setCalendarViewDate(date[0]);
-                await buildEventMap();
-              }
-            "
-          />
-          <v-calendar
-            v-model="date"
-            :events="events"
-            hide-week-number
-            type="month"
-            @update:model-value="
-              async () => {
-                const d = date[0];
-                if (d) {
-                  setCalendarViewDate(d);
-                  await buildEventMap();
-                  console.log(events);
+  <div class="calendar-page">
+    <v-toolbar color="primary">
+      <div class="toolbar-controls">
+        <v-date-input
+          v-model="jumpDate"
+          color="primary"
+          label="Jump to"
+          @update:model-value="
+            async () => {
+              date[0] = jumpDate;
+              setCalendarViewDate(date[0]);
+              await buildEventMap();
+            }
+          "
+        />
+      </div>
+    </v-toolbar>
+    <div class="calendar">
+      <v-calendar
+        v-model="date"
+        :events="events"
+        hide-week-number
+        type="month"
+        @update:model-value="
+          async () => {
+            const d = date[0];
+            if (d) {
+              setCalendarViewDate(d);
+            }
+            await buildEventMap();
+          }
+        "
+      >
+        <template #day-event="{ day, event }">
+          <div class="calendar-photos">
+            <photo-icon
+              v-for="photo in (event as Event)?.photos.slice(0, 4)"
+              :key="photo.id"
+              hide-icons
+              :photo="photo"
+              :size="100"
+              @select="
+                () => {
+                  dialogDate = day?.date ?? new Date();
+                  dayDialog = true;
                 }
-              }
-            "
-          >
-            <template #day-event="{ day, event }">
-              <div
-                v-if="journals[formatDate(day?.date ?? new Date())]"
-                :class="{ 'event-bg': true, 'event-bg-half': ((event as Event).photos?.length ?? 0) < 3 }"
-                :style="{
-                  backgroundColor:
-                    moods[journals[formatDate(day?.date ?? new Date())]?.mood ?? 0]?.color,
-                }"
-                @click="
-                  () => {
-                    dialogDate = day?.date ?? new Date();
-                    dayDialog = true;
-                  }
-                "
-              />
-              <div class="calendar-photos">
-                <photo-icon
-                  v-for="photo in (event as Event)?.photos.slice(0, 4)"
-                  :key="photo.id"
-                  hide-icons
-                  :photo="photo"
-                  :size="100"
-                  @select="
-                    () => {
-                      dialogDate = day?.date ?? new Date();
-                      dayDialog = true;
-                    }
-                  "
-                />
-              </div>
-              <div
-                v-if="(event as Event).photos.length === 0 && !journals[formatDate(day?.date ?? new Date())]"
-                class="focus"
-                @click="
-                  () => {
-                    dialogDate = day?.date ?? new Date();
-                    dayDialog = true;
-                  }
-                "
-              />
-            </template>
-          </v-calendar>
-        </v-col>
-      </v-row>
-    </v-container>
+              "
+            />
+          </div>
+        </template>
+      </v-calendar>
+    </div>
     <v-dialog v-model="dayDialog">
-      <v-card>
-        <v-card-title>
-          {{ dialogDate.toDateString() }}
-          <mood-icon
-            v-if="journals[formatDate(dialogDate)]"
-            :mood="journals[formatDate(dialogDate)]?.mood ?? 0"
-          />
-        </v-card-title>
+      <v-card :title="dialogDate.toDateString()">
         <v-card-text>
           <v-container>
             <v-row>
@@ -225,47 +196,38 @@
                   <br />
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
+                <v-chip
+                  v-for="place in getLocationsByDate(dialogDate)"
+                  :key="place.id"
+                  :color="layers[place.layer]?.color"
+                >
+                  {{ place.name }}
+                </v-chip>
               </v-col>
             </v-row>
           </v-container>
         </v-card-text>
-        <v-card-actions>
-          <v-btn
-            color="primary"
-            @click="
-              () => {
-                router.push(`/journal?date=${dialogDate.toISOString()}`);
-              }
-            "
-          >
-            Open In Journal
-          </v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-main>
+  </div>
 </template>
 
 <style scoped>
-  .focus {
-    height: 200px;
-    width: 200px;
-    display: block;
+  .calendar-page {
+    height: 100%;
+    overflow-y: scroll;
   }
 
-  .event-bg {
-    width: 100%;
-    height: 214px;
-    position: absolute;
-    opacity: 0.5;
-  }
-
-  .event-bg-half {
-    height: 118px;
+  .calendar {
+    margin: 16px;
   }
 
   .calendar-photos {
     display: flex;
     flex-wrap: wrap;
+  }
+
+  .toolbar-controls {
+    margin-left: 18px;
   }
 </style>

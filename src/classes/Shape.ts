@@ -1,5 +1,5 @@
+import { set_shape_str } from '@/api/places';
 import type { Position } from './Map';
-import { invoke } from '@tauri-apps/api/core';
 
 export type ShapeType = 'polygon' | 'line';
 
@@ -13,20 +13,12 @@ export type ShapeData = {
 
 export class Shape {
   public constructor(
-    private _id: string,
-    private _type: ShapeType,
-    private _points: string,
-    private _layer: string,
-    private _name: string,
+    public readonly id: string,
+    public readonly type: ShapeType,
+    public _points: string,
+    public _layer: string,
+    public _name: string,
   ) {}
-
-  public get id() {
-    return this._id;
-  }
-
-  public get type() {
-    return this._type;
-  }
 
   public get points() {
     return JSON.parse(this._points) as Position[];
@@ -56,28 +48,16 @@ export class Shape {
 
   public async setPoints(points: Position[]) {
     this._points = JSON.stringify(points);
-    await invoke('set_shape_str', {
-      shape: this._id,
-      property: 'points',
-      value: this._points,
-    });
+    await set_shape_str(this.id, 'points', this._points);
   }
 
   public async setLayer(layer: string) {
     this._layer = layer;
-    await invoke('set_shape_str', {
-      shape: this._id,
-      property: 'layer',
-      value: layer,
-    });
+    await set_shape_str(this.id, 'layer', layer);
   }
 
   public async setName(name: string) {
     this._name = name;
-    await invoke('set_shape_str', {
-      shape: this._id,
-      property: 'name',
-      value: name,
-    });
+    await set_shape_str(this.id, 'name', name);
   }
 }

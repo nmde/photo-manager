@@ -1,0 +1,14 @@
+html {
+  overflow: hidden;
+}
+
+.toolbar-controls {
+  display: flex;
+  height: 100%;
+  width: -webkit-fill-available;
+  align-items: center;
+}
+
+.toolbar-controls > * {
+  padding-top: 20px;
+}

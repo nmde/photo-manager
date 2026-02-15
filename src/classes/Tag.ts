@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs } from '@/api/tags';
 
 export type TagData = {
   id: string;
@@ -15,22 +15,14 @@ export type TagData = {
  */
 export class Tag {
   public constructor(
-    private _id: string,
-    private _name: string,
-    private _color: string,
-    private _prereqs: string[],
-    private _coreqs: string[],
-    private _incompatible: string[],
+    public readonly id: string,
+    public readonly name: string,
+    public _color: string,
+    public _prereqs: string[],
+    public _coreqs: string[],
+    public _incompatible: string[],
     public count: number,
   ) {}
-
-  public get id() {
-    return this._id;
-  }
-
-  public get name() {
-    return this._name;
-  }
 
   public get color() {
     return this._color;
@@ -48,42 +40,41 @@ export class Tag {
     return this._incompatible;
   }
 
-  public static createTags(data: TagData[]) {
-    return data.map(
-      ({ id, name, color, prereqs, coreqs, incompatible, count }) =>
-        new Tag(id, name, color, prereqs, coreqs, incompatible, count),
-    );
-  }
+  public static createTags = (data: Record<string, TagData>) => {
+    const tags: Record<string, Tag> = {};
+    for (const [key, tag] of Object.entries(data)) {
+      tags[key] = new Tag(
+        tag.id,
+        tag.name,
+        tag.color,
+        tag.prereqs,
+        tag.coreqs,
+        tag.incompatible,
+        tag.count,
+      );
+    }
+    return tags;
+  };
+
+  public static default = (name?: string) => new Tag('', name ?? '', '', [], [], [], 0);
 
   public async setColor(color: string) {
     this._color = color;
-    await invoke('set_tag_color', {
-      tag: this.name,
-      value: color,
-    });
+    await set_tag_color(this.name, color);
   }
 
   public async setPrereqs(tags: string[]) {
     this._prereqs = tags;
-    await invoke('set_tag_prereqs', {
-      tag: this.name,
-      value: this._prereqs,
-    });
+    await set_tag_prereqs(this.name, tags);
   }
 
   public async setCoreqs(tags: string[]) {
     this._coreqs = tags;
-    await invoke('set_tag_coreqs', {
-      tag: this.name,
-      value: this._coreqs,
-    });
+    await set_tag_coreqs(this.name, tags);
   }
 
   public async setIncompatible(tags: string[]) {
     this._incompatible = tags;
-    await invoke('set_tag_incompatible', {
-      tag: this.name,
-      value: this._incompatible,
-    });
+    await set_tag_incompatible(this.name, tags);
   }
 }
