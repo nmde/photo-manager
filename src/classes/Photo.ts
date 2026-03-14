@@ -1,4 +1,14 @@
-import { invoke } from '@tauri-apps/api/core';
+import {
+  set_photo_bool,
+  set_photo_date,
+  set_photo_location,
+  set_photo_people,
+  set_photo_rating,
+  set_photo_str,
+  set_photo_tags,
+  set_photographer,
+} from '@/api/photos';
+import type { ValidationResult } from '@/api/tags';
 
 export type PhotoData = {
   id: string;
@@ -13,59 +23,48 @@ export type PhotoData = {
   thumbnail: string;
   video: number;
   photo_group: string;
-  date: [number, number];
+  date: [number, number] | null;
   raw: number;
   people: string[];
   hide_thumbnail: number;
   photographer: string;
-  camera: string;
   valid_tags: boolean;
   validation_msg: string;
 };
 
+// The _variables here have to be public or eslint complains about them being used in vue components
 export class Photo {
-  private _date: Date;
-
-  public hasDate = false;
+  public readonly video: boolean;
+  public readonly raw: boolean;
+  public _date?: Date;
 
   public constructor(
-    private _id: string,
-    private _name: string,
-    private _path: string,
-    private _title: string,
-    private _description: string,
-    private _location: string,
-    private _tags: string[],
-    private _isDuplicate: boolean,
-    private _thumbnail: string,
-    private _rating: number,
-    private _video: boolean,
-    private photoGroup: string,
-    date: [number, number],
-    private _raw: boolean,
-    private _people: string[],
-    private _hideThumbnail: boolean,
+    public readonly id: string,
+    public readonly name: string,
+    public readonly path: string,
+    public _title: string,
+    public _description: string,
+    public _location: string,
+    public _tags: string[],
+    public _isDuplicate: boolean,
+    public readonly thumbnail: string,
+    public _rating: number,
+    _video: boolean,
+    public _photoGroup: string,
+    date: [number, number] | null,
+    _raw: boolean,
+    public _people: string[],
+    public _hideThumbnail: boolean,
     private _photographer: string,
-    private _camera: string,
     public valid: boolean,
-    public validationMessage: string,
+    public validationMsg: string,
   ) {
-    const d = new Date(date[0], 0, 0);
-    d.setDate(d.getDate() + date[1]);
-    this._date = d;
-    this.hasDate = date[0] !== 1969 && date[1] !== 365; // TODO: There's probably a better way to do this
-  }
-
-  public get id() {
-    return this._id;
-  }
-
-  public get name() {
-    return this._name;
-  }
-
-  public get path() {
-    return this._path;
+    this.video = _video;
+    this.raw = _raw;
+    if (date !== null) {
+      this._date = new Date(date[0], 0, 0);
+      this._date.setDate(this._date.getDate() + date[1]);
+    }
   }
 
   public get title() {
@@ -77,11 +76,11 @@ export class Photo {
   }
 
   public get group() {
-    return this.photoGroup.length === 0 ? undefined : this.photoGroup;
+    return this._photoGroup.length === 0 ? undefined : this._photoGroup;
   }
 
   public get hasLocation() {
-    return typeof this._location === 'string' && this._location.length > 0;
+    return this._location.length > 0;
   }
 
   public get location() {
@@ -96,18 +95,10 @@ export class Photo {
     return this._isDuplicate;
   }
 
-  public get thumbnail() {
-    return this._thumbnail;
-  }
-
   public get rating() {
     if (this.hasRating) {
       return this._rating;
     }
-  }
-
-  public get video() {
-    return this._video;
   }
 
   public get hideThumbnail() {
@@ -125,10 +116,6 @@ export class Photo {
     return this._date;
   }
 
-  public get raw() {
-    return this._raw;
-  }
-
   public get people() {
     return this._people;
   }
@@ -137,12 +124,8 @@ export class Photo {
     return this._photographer;
   }
 
-  public get camera() {
-    return this._camera;
-  }
-
-  public static createPhotos(data: PhotoData[]) {
-    return data.map(
+  public static createPhotos = (data: PhotoData[]) =>
+    data.map(
       ({
         id,
         name,
@@ -161,7 +144,6 @@ export class Photo {
         people,
         hide_thumbnail,
         photographer,
-        camera,
         valid_tags,
         validation_msg,
       }) =>
@@ -183,139 +165,82 @@ export class Photo {
           people,
           hide_thumbnail === 1,
           photographer,
-          camera,
           valid_tags,
           validation_msg,
         ),
     );
-  }
+
+  public static default = () =>
+    new Photo(
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      [],
+      false,
+      '',
+      0,
+      false,
+      '',
+      [0, 0],
+      false,
+      [],
+      false,
+      '',
+      true,
+      '',
+    );
 
   public async setTitle(value: string) {
     this._title = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'title',
-      value,
-    });
+    await set_photo_str(this.id, 'title', value);
   }
 
   public async setDescription(value: string) {
     this._description = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'description',
-      value,
-    });
+    await set_photo_str(this.id, 'description', value);
   }
 
   public async setLocation(value: string) {
     this._location = value;
-    await invoke('set_photo_location', {
-      photo: this._id,
-      value,
-    });
+    await set_photo_location(this.id, value);
   }
 
   public async setTags(value: string[]) {
     this._tags = value;
-    return await invoke<{ is_valid: boolean; message: string }>('set_photo_tags', {
-      photo: this._id,
-      value,
-    });
+    return await set_photo_tags(this.id, value);
   }
 
   public async setDuplicate(value: boolean) {
     this._isDuplicate = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'isDuplicate',
-      value,
-    });
+    await set_photo_bool(this.id, 'isDuplicate', value);
   }
 
   public async setRating(rating: number) {
     this._rating = rating;
-    await invoke('set_photo_rating', {
-      photo: this._id,
-      rating,
-    });
+    await set_photo_rating(this.id, rating);
   }
 
-  public async setThumbnail(value: string) {
-    this._thumbnail = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'thumbnail',
-      value,
-    });
-  }
-
-  public async setGroup(group: string) {
-    this.photoGroup = group;
-    await invoke('set_photo_group', {
-      photo: this._id,
-      value: group,
-    });
-  }
-
-  public async setDate(value: string) {
-    this._date = new Date(value);
-    this.hasDate = true;
-    await invoke('set_photo_date', {
-      photo: this._id,
-      value,
-    });
-  }
-
-  public async setRaw(value: boolean) {
-    this._raw = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'raw',
-      value,
-    });
+  public async setDate(value?: Date) {
+    this._date = value;
+    await set_photo_date(this.id, value ? value.toISOString() : '');
   }
 
   public async setPeople(people: string[]) {
     this._people = people;
-    await invoke('set_photo_people', {
-      photo: this._id,
-      value: this._people,
-    });
+    await set_photo_people(this.id, people);
   }
 
   public async setHideThumbnail(value: boolean) {
     this._hideThumbnail = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'hideThumbnail',
-      value,
-    });
+    await set_photo_bool(this.id, 'hideThumbnail', value);
   }
 
   public async setPhotographer(value: string) {
     this._photographer = value;
-    await invoke('set_photographer', {
-      photo: this._id,
-      value,
-    });
-  }
-
-  public async setVideo(value: boolean) {
-    this._video = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'video',
-      value,
-    });
-  }
-
-  public async setCamera(value: string) {
-    this._camera = value;
-    await invoke('set_photo_camera', {
-      photo: this._id,
-      value,
-    });
+    await set_photographer(this.id, value);
   }
 
   /**
@@ -325,5 +250,10 @@ export class Photo {
    */
   public hasTag(tag: string) {
     return this.tags.includes(tag);
+  }
+
+  public setValidation(validation: ValidationResult) {
+    this.valid = validation.is_valid;
+    this.validationMsg = validation.message;
   }
 }

@@ -1,6 +1,6 @@
 import type { ShapeType } from './Shape';
 import { Loader } from '@googlemaps/js-api-loader';
-import { color as d3color } from 'd3-color';
+import { color } from 'd3';
 import { EventEmitter } from 'ee-ts';
 
 export type Position = {
@@ -161,7 +161,7 @@ export class Map extends EventEmitter<{
    * Places a marker on the map.
    * @param pos - The position to place the marker at.
    * @param icon - An icon to use for the marker.
-   * @param color - The color of the marker.
+   * @param _color - The color of the marker.
    * @param title - The title of the marker.
    * @param id - The ID of the associated Place, if any.
    */
@@ -169,7 +169,7 @@ export class Map extends EventEmitter<{
     pos: string,
     id: string,
     icon?: keyof typeof icons,
-    color?: string,
+    _color?: string,
     title?: string,
     count?: number,
   ) {
@@ -180,15 +180,15 @@ export class Map extends EventEmitter<{
         position,
         title,
       };
-      if (typeof icon === 'string' && typeof color === 'string') {
+      if (typeof icon === 'string' && typeof _color === 'string') {
         const i = document.createElement('div');
         i.innerHTML = `<i class="mdi ${icons[icon]}"></i>`;
         const markerEl = document.createElement('div');
         markerEl.append(
           new this.markerLibrary.PinElement({
             glyph: i,
-            background: color,
-            borderColor: d3color(color)?.darker(0.15).toString(),
+            background: _color,
+            borderColor: color(_color)?.darker(0.15).toString(),
           }).element,
         );
         if (typeof count === 'number' && count > 0) {
@@ -236,14 +236,14 @@ export class Map extends EventEmitter<{
    * Creates a shape on the map.
    * @param type - The type of shape.
    * @param points - The points of the shape.
-   * @param color - The shape color.
+   * @param _color - The shape color.
    * @param id - The Shape id.
    * @param editable - If the shape should be editable.
    */
   public createShape(
     type: ShapeType,
     points: Position[],
-    color: string,
+    _color: string,
     id: string,
     editable = false,
   ) {
@@ -252,15 +252,15 @@ export class Map extends EventEmitter<{
         ? new this.mapsLibrary.Polyline({
             path: points,
             geodesic: true,
-            strokeColor: color,
+            strokeColor: _color,
             strokeWeight: 2,
             editable,
           })
         : new this.mapsLibrary.Polygon({
             paths: points,
             geodesic: true,
-            fillColor: color,
-            strokeColor: d3color(color)?.darker(0.15).toString(),
+            fillColor: _color,
+            strokeColor: color(_color)?.darker(0.15).toString(),
             editable,
           });
     shape.setMap(this.map);

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { load_photos, remove_deleted } from '@/api/photos';
+  import { initialize, remove_deleted } from '@/api/photos';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const store = useFileStore();
   const router = useRouter();
 
   const loading = ref(false);
@@ -10,7 +11,6 @@
   const deleted = ref<string[]>([]);
   const initializing = ref(false);
   const deleting = ref(false);
-  const progress = ref(0);
 
   /**
    * Prompts the user to select the folder to manage.
@@ -23,10 +23,8 @@
     });
     if (typeof selected === 'string') {
       initializing.value = true;
-      getCurrentWindow().listen('load_progress', ({ payload }: { payload: number }) => {
-        progress.value = payload / 100;
-      });
-      deleted.value = await load_photos(selected);
+      deleted.value = await initialize(selected);
+      store.setCurrentDir(selected);
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
@@ -81,7 +79,7 @@
   <v-dialog v-model="initializing" persistent>
     <v-card title="Initializing">
       <v-card-text>
-        <v-progress-linear v-model="progress" color="primary" />
+        <v-progress-linear color="primary" indeterminate />
       </v-card-text>
     </v-card>
   </v-dialog>

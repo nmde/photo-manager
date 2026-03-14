@@ -1,8 +1,8 @@
 [package]
 name = "photo-manager"
-version = "0.0.0"
+version = "1.0.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["nmde"]
 license = ""
 repository = ""
 edition = "2021"
@@ -20,9 +20,12 @@ tauri-plugin-fs = "2"
 sqlite = "0.37.0"
 walkdir = "2.5.0"
 regex = "1.11.3"
-unique_id = "0.1.7"
 url-escape = "0.1.1"
 time = { version = "0.3.44", features = ["serde"] }
+tokio = { version = "1.49.0", features = ["fs", "macros", "process"] }
+rusty_pool = "0.7.0"
+thiserror = "2.0.18"
+uuid = { version = "1.21.0", features = ["v4"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

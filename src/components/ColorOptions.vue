@@ -3,6 +3,10 @@
     (e: 'select', color: string): void;
   }>();
 
+  defineProps<{
+    disabled?: boolean;
+  }>();
+
   const colors = [
     '#F44336',
     '#E91E63',
@@ -33,7 +37,13 @@
       :key="color"
       class="color-opt"
       :style="{ 'background-color': color }"
-      @click="emit('select', color)"
+      @click="
+        () => {
+          if (!disabled) {
+            emit('select', color);
+          }
+        }
+      "
     />
   </div>
 </template>

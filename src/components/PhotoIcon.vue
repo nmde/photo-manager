@@ -1,13 +1,11 @@
 <script setup lang="ts">
-  import type { Photo } from '../classes/Photo';
-  import { computed } from 'vue';
+  import type { Photo } from '@/classes/Photo';
   import hiddenPng from '../assets/hidden.png';
 
   const props = defineProps<{
     photo: Photo;
     size: number;
     selected?: boolean;
-    invalid?: boolean;
     hideIcons?: boolean;
   }>();
 
@@ -15,27 +13,21 @@
     (e: 'select'): void;
   }>();
 
-  const hasThumbnail = computed(() => props.photo.video || props.photo.raw);
+  const photoPath = computed(() =>
+    props.photo.hideThumbnail
+      ? hiddenPng
+      : (props.photo.video || props.photo.raw
+        ? props.photo.thumbnail
+        : props.photo.path),
+  );
 
-  const photoPath = computed(() => {
-    if (props.photo.hideThumbnail) {
-      return hiddenPng;
-    }
-    if (hasThumbnail.value) {
-      return props.photo.thumbnail;
-    }
-    return props.photo.path;
-  });
-
-  const displayName = computed(() => {
-    if (props.photo.group !== undefined) {
-      return props.photo.group;
-    }
-    if (props.photo.title.length > 0) {
-      return props.photo.title;
-    }
-    return props.photo.name;
-  });
+  const displayName = computed(() =>
+    props.photo.group === undefined
+      ? (props.photo.title.length > 0
+        ? props.photo.title
+        : props.photo.name)
+      : props.photo.group,
+  );
 </script>
 
 <template>
@@ -47,11 +39,6 @@
     }"
   >
     <v-card @click="emit('select')">
-      <v-progress-circular
-        v-if="hasThumbnail && photo.thumbnail.length === 0"
-        class="thumbnail-loading"
-        indeterminate
-      />
       <v-img
         aspect-ratio="1/1"
         class="photo-preview align-end text-white"
@@ -65,17 +52,15 @@
           <div v-if="props.photo.hasRating">
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>
-          <div>
-            <v-icon v-if="props.selected">mdi-check</v-icon>
-            <v-icon v-if="props.invalid" color="error">mdi-alert-octagram</v-icon>
-            <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
-            <v-icon v-if="props.photo.hasDate">mdi-calendar</v-icon>
-            <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
-            <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
-            <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
-            <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
-            <v-icon v-if="props.photo.photographer !== undefined">mdi-photo</v-icon>
-          </div>
+          <v-icon v-if="props.selected">mdi-check</v-icon>
+          <v-icon v-if="!props.photo.valid" color="error">mdi-alert-octagram</v-icon>
+          <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
+          <v-icon v-if="props.photo.date">mdi-calendar</v-icon>
+          <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
+          <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
+          <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
+          <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
+          <v-icon v-if="props.photo.photographer !== undefined">mdi-photo</v-icon>
         </div>
       </v-img>
     </v-card>
@@ -96,7 +81,7 @@
     opacity: 1;
   }
 
-  .thumbnail-loading {
-    position: absolute;
+  .icons {
+    background: rgba(0, 0, 0, 0.1);
   }
 </style>

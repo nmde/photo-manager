@@ -8,6 +8,7 @@
 
   const emit = defineEmits<{
     (e: 'save', text: string): void;
+    (e: 'focused', value: boolean): void;
   }>();
 
   const local = ref('');
@@ -35,6 +36,7 @@
     clearable
     color="primary"
     :label="label"
+    @update:focused="val => emit('focused', val)"
     @update:model-value="handleKeypress()"
   />
 </template>

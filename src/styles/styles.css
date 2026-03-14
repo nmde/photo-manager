@@ -12,3 +12,35 @@ html {
 .toolbar-controls > * {
   padding-top: 20px;
 }
+
+.fill-height {
+  height: 100%;
+}
+
+.tag-graph-node {
+  stroke-width: 1;
+}
+
+.tag-graph-link {
+  stroke-width: 1;
+}
+
+.tag-graph-link--default {
+  stroke: rgb(var(--v-theme-surface-light));
+}
+
+.tag-graph-node--default {
+  fill: rgb(var(--v-theme-surface-light));
+  stroke: rgb(var(--v-theme-surface-light));
+}
+
+.tag-graph-label {
+  font-size: 10px;
+  stroke: rgb(var(--v-theme-background));
+  paint-order: stroke;
+  cursor: pointer;
+}
+
+.tag-graph-label--default {
+  fill: rgb(var(--v-theme-on-background));
+}

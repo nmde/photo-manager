@@ -2,17 +2,24 @@
   import { get_tags } from '@/api/tags';
   import { Tag } from '@/classes/Tag';
 
-  defineProps<{
+  const props = defineProps<{
+    id?: string;
     label: string;
     value: string[];
     loading?: boolean;
+    single?: boolean;
+    validation?: string;
+    disabled?: boolean;
+    filtered?: boolean;
   }>();
 
   const emit = defineEmits<{
     (e: 'change', tags: string[]): void;
+    (e: 'focused', value: boolean): void;
   }>();
 
   const tags = ref<Record<string, Tag>>({});
+  const localValue = ref<string[]>([]);
 
   const tagColors = computed(() => {
     const colorMap: Record<string, { color: string }> = {};
@@ -22,21 +29,52 @@
     return colorMap;
   });
 
-  onMounted(async () => {
+  const filteredTags = computed(() => {
+    if (!props.filtered) {
+      return tags.value;
+    }
+    const result: Record<string, Tag> = {};
+    for (const tag of Object.values(tags.value)) {
+      let allPrereqsMet = true;
+      for (const prereq of tag.prereqs) {
+        allPrereqsMet = allPrereqsMet && localValue.value.includes(prereq);
+      }
+      if (allPrereqsMet) {
+        result[tag.name] = tag;
+      }
+    }
+    return result;
+  });
+
+  async function initialize() {
+    localValue.value = props.value;
     tags.value = await get_tags();
+  }
+
+  onMounted(initialize);
+
+  watch([() => props.value, () => props.id], () => {
+    if (props.value !== localValue.value) {
+      initialize();
+    }
   });
 </script>
 
 <template>
   <sorted-combo
+    :id="id"
+    chips
     color-key="name"
     :color-repo="tagColors"
+    :disabled="disabled"
+    :error-messages="validation"
     item-key="name"
-    :items="tags"
+    :items="filteredTags"
     :label="label"
     :loading="loading"
-    multiple
-    :value="value"
+    :multiple="single !== true"
+    :value="localValue"
+    @focused="val => emit('focused', val)"
     @update="
       newTags => {
         for (const tag of newTags) {
@@ -44,6 +82,7 @@
             tags[tag] = Tag.default(tag);
           }
         }
+        localValue = newTags;
         emit('change', newTags as string[]);
       }
     "

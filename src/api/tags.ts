@@ -23,3 +23,6 @@ export const set_tag_incompatible = async (tag: string, value: string[]) =>
 
 export const get_tags = async () =>
   Tag.createTags(await invoke<Record<string, TagData>>('get_tags'));
+
+export const validate_photo = async (photo: string) =>
+  await invoke<ValidationResult>('validate_photo', { photo });

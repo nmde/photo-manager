@@ -1,3 +1,90 @@
+<script setup lang="ts" generic="T extends SortableItem">
+  import type { ColorableItem } from '@/classes/ColorableItem';
+  import type { SortableItem } from '@/classes/SortableItem';
+  import stringSimilarity from 'string-similarity-js';
+
+  const props = defineProps<{
+    avatars?: boolean;
+    chips?: boolean;
+    colorKey: string;
+    colorRepo: Record<string, ColorableItem>;
+    disabled?: boolean;
+    errorMessages?: string;
+    id?: string; // This is for photo-detail to ensure switching photos triggers the local values changing
+    items: Record<string, T>;
+    itemKey?: string;
+    itemSize?: string;
+    label: string;
+    loading?: boolean;
+    multiple?: boolean;
+    sortKey?: keyof T;
+    value: string[];
+  }>();
+
+  const emit = defineEmits<{
+    (e: 'update', value: string[]): void;
+    (e: 'focused', value: boolean): void;
+  }>();
+
+  const counts = ref<Record<string, number>>({});
+  const localValue = ref<string[]>([]);
+  const query = ref('');
+
+  const sortBy = computed(() => (typeof props.sortKey === 'string' ? props.sortKey : 'count'));
+
+  const k = computed(() =>
+    typeof props.itemKey === 'string' ? (props.itemKey as keyof SortableItem) : 'id',
+  );
+
+  const itemList = computed(() => {
+    const items = Object.values(props.items).toSorted(
+      (a, b) => (b[sortBy.value] as number) - (a[sortBy.value] as number),
+    );
+    if (query.value.length < 2) {
+      return items.map(s => s[k.value]);
+    }
+    return items
+      .entries()
+      .map(([i, item]) => ({
+        value: stringSimilarity(query.value, item.name ?? ''),
+        index: i,
+        count: item[sortBy.value],
+      }))
+      .toArray()
+      .filter(i => i.value > 0)
+      .toSorted((a, b) => b.value - a.value)
+      .map(s => items[s.index]?.[k.value]);
+  });
+
+  function updateCounts(prevValue: string[], newValue: string[]) {
+    for (const val of prevValue) {
+      if (!newValue.includes(val) && typeof counts.value[val] === 'number') {
+        counts.value[val] -= 1;
+      }
+    }
+    for (const val of newValue) {
+      if (!prevValue.includes(val) && typeof counts.value[val] === 'number') {
+        counts.value[val] += 1;
+      }
+    }
+  }
+
+  function sync() {
+    localValue.value = props.value;
+    for (const id in props.items) {
+      counts.value[id] = props.items[id]?.[sortBy.value] as number;
+    }
+  }
+
+  watch([() => props.id, () => props.value], () => {
+    if (props.value !== localValue.value) {
+      sync();
+    }
+  });
+
+  onMounted(sync);
+</script>
+
 <template>
   <v-combobox
     v-model="localValue"
@@ -7,10 +94,13 @@
     clearable
     color="primary"
     :custom-filter="() => true"
+    :disabled="disabled"
+    :error-messages="errorMessages"
     :items="itemList"
     :label="label"
     :loading="loading"
     :multiple="multiple"
+    @update:focused="val => emit('focused', val)"
     @update:model-value="
       selected => {
         updateCounts(value, selected);
@@ -30,7 +120,7 @@
           color:
             colorRepo[items[item.raw ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
         }"
-        :title="`${items[item.raw ?? '']?.name} (${items[item.raw ?? '']?.count})`"
+        :title="`${items[item.raw ?? '']?.name} (${items[item.raw ?? '']?.[sortBy]})`"
       />
     </template>
     <template #chip="{ item, props: cprops }">
@@ -39,90 +129,11 @@
         v-bind="cprops"
         :color="colorRepo[items[item.raw ?? '']?.[colorKey as keyof SortableItem] as string]?.color"
         :prepend-avatar="items[item.raw ?? '']?.photo"
-        size="x-large"
+        :size="typeof itemSize === 'string' ? itemSize : 'default'"
       >
-        {{ items[item.raw ?? '']?.name }}
+        {{ items[item.raw ?? ''] ? items[item.raw ?? '']?.name : item.raw }}
       </v-chip>
       <span v-else>{{ items[item.raw ?? '']?.name }}</span>
     </template>
   </v-combobox>
 </template>
-
-<script setup lang="ts">
-  import type { ColorableItem } from '@/classes/ColorableItem';
-  import type { SortableItem } from '@/classes/SortableItem';
-  import stringSimilarity from 'string-similarity-js';
-
-  const props = defineProps<{
-    avatars?: boolean;
-    chips?: boolean;
-    colorKey: string;
-    colorRepo: Record<string, ColorableItem>;
-    items: Record<string, SortableItem>;
-    itemKey?: string;
-    label: string;
-    loading?: boolean;
-    multiple?: boolean;
-    value: string[];
-  }>();
-
-  const emit = defineEmits<{
-    (e: 'update', value: readonly string[]): void;
-  }>();
-
-  const counts = ref<Record<string, number>>({});
-  const localValue = ref<string[]>([]);
-  const query = ref('');
-
-  const k = computed(() =>
-    typeof props.itemKey === 'string' ? (props.itemKey as keyof SortableItem) : 'id',
-  );
-
-  const itemList = computed(() => {
-    const items = Object.values(props.items);
-    if (query.value.length === 0) {
-      return items
-        .toSorted((a, b) => {
-          const aVal = a[k.value];
-          const bVal = b[k.value];
-          if (aVal && bVal) {
-            return (counts.value[bVal] ?? 0) - (counts.value[aVal] ?? 0);
-          }
-          return 0;
-        })
-        .map(item => item[k.value]);
-    }
-    return items
-      .entries()
-      .map(([i, item]) => ({
-        value: stringSimilarity(query.value, item.name ?? ''),
-        index: i,
-      }))
-      .toArray()
-      .toSorted((a, b) => b.value - a.value)
-      .map(s => items[s.index]?.[k.value]);
-  });
-
-  function updateCounts(prevValue: string[], newValue: string[]) {
-    for (const val of prevValue) {
-      if (!newValue.includes(val) && typeof counts.value[val] === 'number') {
-        counts.value[val] -= 1;
-      }
-    }
-    for (const val of newValue) {
-      if (!prevValue.includes(val) && typeof counts.value[val] === 'number') {
-        counts.value[val] += 1;
-      }
-    }
-  }
-
-  watch(
-    () => props.items,
-    () => {
-      localValue.value = props.value;
-      for (const id in props.items) {
-        counts.value[id] = props.items[id]?.count ?? 0;
-      }
-    },
-  );
-</script>

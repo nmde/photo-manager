@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlite::Row;
 use tauri::State;
 
-use crate::{esc, photos::PhotoState, ApiError, NotFoundError};
+use crate::{esc, photos::PhotoState, ApiError};
 
 #[derive(Serialize, Clone)]
 pub struct Layer {
@@ -163,10 +163,10 @@ pub fn delete_layer(
                         esc(&id)
                     ))?;
                 } else {
-                    return Err(ApiError::NotFoundError(NotFoundError::new(format!(
+                    return Err(ApiError::NotFoundError(format!(
                         "Photo with Id '{0}' not found",
                         id
-                    ))));
+                    )));
                 }
             }
         }
@@ -252,10 +252,10 @@ pub fn set_place_layer(
 ) -> Result<(), ApiError> {
     let mut state_places = state.places.lock().unwrap();
     if !state_places.contains_key(&place) {
-        return Err(ApiError::NotFoundError(NotFoundError::new(format!(
+        return Err(ApiError::NotFoundError(format!(
             "Place with Id '{0}' not found",
             place
-        ))));
+        )));
     }
     let state_place = state_places.get_mut(&place).unwrap();
 
@@ -299,10 +299,10 @@ pub fn delete_place(state: State<'_, PhotoState>, place: String) -> Result<(), A
     let mut state_places = state.places.lock().unwrap();
 
     if !state_places.contains_key(&place) {
-        return Err(ApiError::NotFoundError(NotFoundError::new(format!(
+        return Err(ApiError::NotFoundError(format!(
             "Place with Id '{0}' not found",
             place
-        ))));
+        )));
     }
 
     let mut state_photos = state.photos.lock().unwrap();

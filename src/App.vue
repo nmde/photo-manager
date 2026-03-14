@@ -11,7 +11,7 @@
           <v-list-item prepend-icon="mdi-map-marker" title="Locations" to="/locations" />
           <v-list-item prepend-icon="mdi-calendar" title="Calendar" to="/calendar" />
           <v-divider />
-          <v-list-item prepend-icon="mdi-tag" title="Manage Tags" to="/tags" />
+          <v-list-item prepend-icon="mdi-tag" title="Tags" to="/tags" />
           <v-list-item prepend-icon="mdi-account" title="People" to="/people" />
           <v-list-item prepend-icon="mdi-chart-line" title="Statistics" to="/stats" />
         </v-list>
