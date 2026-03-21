@@ -7,10 +7,16 @@ import { VCalendar } from 'vuetify/labs/VCalendar';
 
 export default createVuetify({
   theme: {
-    defaultTheme: 'EpicTheme',
+    defaultTheme: 'Theme',
     themes: {
-      EpicTheme: {
+      Theme: {
         dark: true,
+        colors: {
+          primary: colors.green.base,
+        },
+      },
+      LightTheme: {
+        dark: false,
         colors: {
           primary: colors.green.base,
         },

@@ -1,9 +1,14 @@
 <script setup lang="ts">
+  import { useFileStore } from './stores/fileStore';
+
   const route = useRoute();
+
+  const store = useFileStore();
+  const { darkMode } = storeToRefs(store);
 </script>
 
 <template>
-  <v-app>
+  <v-app :theme="darkMode ? 'Theme' : 'LightTheme'">
     <v-layout>
       <v-navigation-drawer v-if="route.path !== '/'" expand-on-hover permanent rail>
         <v-list class="top-nav" color="primary" nav>

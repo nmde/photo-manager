@@ -33,6 +33,9 @@ export const set_photo_tags = async (photo: string, value: string[]) =>
 export const set_photo_date = async (photo: string, value: string) =>
   await invoke('set_photo_date', { photo, value });
 
+export const set_photo_group = async (photo: string, value: string) =>
+  await invoke('set_photo_group', { photo, value });
+
 export const set_photo_rating = async (photo: string, rating: number) =>
   await invoke('set_photo_rating', { photo, rating });
 

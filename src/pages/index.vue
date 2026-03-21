@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
   import { initialize, remove_deleted } from '@/api/photos';
+  import { get_setting } from '@/api/settings';
   import { useFileStore } from '@/stores/fileStore';
 
   const store = useFileStore();
@@ -25,6 +26,10 @@
       initializing.value = true;
       deleted.value = await initialize(selected);
       store.setCurrentDir(selected);
+      const saved_theme = await get_setting('theme');
+      if (saved_theme !== null) {
+        store.setTheme(Boolean(saved_theme.value));
+      }
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {

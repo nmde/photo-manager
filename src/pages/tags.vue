@@ -1,213 +1,145 @@
 <script setup lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
-  import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
-  import { computed, ref } from 'vue';
-  import { Bar } from 'vue-chartjs';
-  import { Tag } from '../classes/Tag';
+  import type { Tag } from '@/classes/Tag';
+  import stringSimilarity from 'string-similarity-js';
+  import { get_tags } from '@/api/tags';
 
-  /**
-   * TODO:
-   * - Delete a tag
-   * - View redundant tags
-   * - Tag network
-   */
+  const route = useRoute();
+  const router = useRouter();
 
-  ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
+  const selected = ref<string[]>([]);
+  const tags = ref<Record<string, Tag>>({});
+  const query = ref('');
+  const graphContainer = ref<HTMLDivElement | null>();
+  const graphWidth = ref(0);
+  const graphHeight = ref(0);
+  const changeCounter = ref(0);
+  const showGraph = ref(false);
 
-  const cutoff = ref(30);
-  const selected = ref<Tag | undefined>();
-  const filterColor = ref('');
-  const relative = ref(false);
-  const showGraphs = ref(false);
-  const avgTags = ref(0);
-  const avgRating = ref(0);
-
-  const tagChartData = computed(() => {
-    const sorted: string[] = [];
-    const backgroundColor: string[] = [];
-    for (const [tag, value] of Object.entries(tagCounts).filter(
-      count => count[1] >= cutoff.value,
-    )) {
-      let color = getTagColor(tag);
-      if (color === 'black' || color.length === 0) {
-        color = 'rgba(201, 203, 207, 0.8)';
-      }
-      if (filterColor.value.length > 0 && color !== filterColor.value) {
-        continue;
-      }
-      if (sorted.length === 0) {
-        sorted.push(tag);
-        backgroundColor.push(color);
-      } else {
-        let i = 0;
-        while (i < sorted.length && value < tagCounts[sorted[i]]) {
-          i += 1;
-        }
-        sorted.splice(i, 0, tag);
-        backgroundColor.splice(i, 0, color);
-      }
-    }
-    return {
-      labels: sorted,
-      datasets: [
-        {
-          axis: 'y',
-          label: 'Count',
-          data: sorted.map(tag => tagCounts[tag]),
-          backgroundColor,
-        },
-      ],
-    };
+  const sortedTags = computed(() => {
+    const t = Object.values(tags.value).toSorted((a, b) => b.count - a.count);
+    return query.value.length > 1
+      ? t
+        .map(x => ({ value: x, score: stringSimilarity(query.value, x.name) }))
+        .filter(x => x.score > 0)
+        .toSorted((a, b) => b.score - a.score)
+        .map(x => x.value)
+      : t;
   });
 
-  const tagRatingData = computed(() => {
-    let sorted: string[] = [];
-    const ratingsMap: Record<string, number[]> = {};
-    for (const [tag] of Object.entries(tagCounts).filter(count => count[1] >= cutoff.value)) {
-      let color = getTagColor(tag);
-      if (color === 'black' || color.length === 0) {
-        color = 'rgba(201, 203, 207, 0.8)';
-      }
-      if (filterColor.value.length > 0 && color !== filterColor.value) {
-        continue;
-      }
-      sorted.push(tag);
-      ratingsMap[tag] = [0, 0];
-      for (const photo of Object.values(files).filter(photo => photo.hasTag(tag))) {
-        if (photo.rating && ratingsMap[tag][0] && ratingsMap[tag][1]) {
-          ratingsMap[tag][0] += 1;
-          ratingsMap[tag][1] += photo.rating;
-        }
-      }
-    }
-    sorted = sorted
-      .filter(tag => ratingsMap[tag]?.[0] && ratingsMap[tag][0] >= cutoff.value)
-      .toSorted((a, b) => {
-        let aa = ratingsMap[a]?.[1] / ratingsMap[a][0];
-        let ba = ratingsMap[b]?.[1] / ratingsMap[b][0];
-        if (relative.value) {
-          aa -= avgRating.value;
-          ba -= avgRating.value;
-        }
-        if (aa > ba) {
-          return -1;
-        }
-        if (aa < ba) {
-          return 1;
-        }
-        return 0;
-      });
-    return {
-      labels: sorted,
-      datasets: [
-        {
-          axis: 'y',
-          label: 'Avg. Rating',
-          data: sorted.map(tag => {
-            let avg = ratingsMap[tag]?.[1] ?? 0 / (ratingsMap[tag]?.[0] ?? 1);
-            if (relative.value) {
-              avg -= avgRating.value;
-            }
-            return avg;
-          }),
-          backgroundColor: sorted.map(tag => {
-            let color = getTagColor(tag);
-            if (color === 'black' || color.length === 0) {
-              color = 'rgba(201, 203, 207, 0.8)';
-            }
-            return color;
-          }),
-        },
-      ],
-    };
-  });
-
-  async function selectTag(tag: string) {
-    selected.value
-      = Tag.createTags(Object.values(await invoke<Record<string, Tag>>('get_tags'))).find(
-        t => t.name === tag,
-      ) ?? undefined;
-  }
+  const selectedTag = computed(() => tags.value[selected.value[0] ?? '']);
 
   onMounted(async () => {
-    const { avg_count, avg_rating } = await invoke<{
-      avg_count: number;
-      avg_rating: number;
-    }>('get_tag_stats');
-    avgRating.value = avg_rating;
-    avgTags.value = avg_count;
+    tags.value = await get_tags();
+    if (typeof route.query.tag === 'string') {
+      selected.value[0] = route.query.tag;
+    }
+    if (graphContainer.value) {
+      graphWidth.value = graphContainer.value.offsetWidth;
+      graphHeight.value = graphContainer.value.offsetHeight;
+    }
   });
 </script>
 
 <template>
-  <v-main>
-    <v-container fluid>
-      <v-row>
-        <v-col cols="6">
+  <v-container class="tag-page" fluid>
+    <v-row no-gutters>
+      <v-col>
+        <v-toolbar color="primary">
+          <div class="toolbar-controls">
+            <v-text-field v-model="query" clearable label="Filter Tags" />
+          </div>
+        </v-toolbar>
+        <div class="tag-list">
+          <v-list item-title="name" :items="sortedTags">
+            <template #item="{ props: iprops }">
+              <v-list-item
+                v-bind="iprops"
+                :active="selected[0] === iprops.title"
+                :base-color="tags[iprops.title]?.color"
+                :title="`${iprops.title} (${tags[iprops.title]?.count})`"
+                @click="selected[0] = iprops.title"
+              />
+            </template>
+          </v-list>
+        </div>
+      </v-col>
+      <v-col cols="9">
+        <div class="tag-details">
+          <h2 :style="{ color: selectedTag?.color }">
+            {{ selectedTag?.name ?? 'Select a tag' }}
+          </h2>
+          <v-btn
+            v-if="selectedTag"
+            color="primary"
+            @click="router.push(`/tagger?tag=${selectedTag.name}`)"
+          >
+            View Photos ({{ selectedTag.count ?? 0 }})
+          </v-btn>
+          <br />
+          <br />
+          Set Tag Color:
+          <color-options @select="async color => await selectedTag?.setColor(color)" />
+          <br />
           <tag-input
-            label="Select a tag"
-            single
-            :value="selected"
+            :disabled="selectedTag === undefined"
+            label="Prerequisite Tags"
+            :value="selectedTag?.prereqs ?? []"
             @change="
-              tags => {
-                if (tags[0]) {
-                  selectTag(tags[0]);
-                }
+              async tags => {
+                await selectedTag?.setPrereqs(tags);
+                changeCounter += 1;
               }
             "
           />
-          <div v-if="selected">
-            <br />
-            Set color:
-            <color-options @select="async color => await selected?.setColor(color)" />
-            <br />
-            <tag-input
-              label="Prerequisite Tags"
-              :value="selected.prereqs"
-              @change="async tags => {
-                console.log(tags);
-                await selected?.setPrereqs(tags);
-              }"
-            />
-            <tag-input
-              label="Corequisite Tags"
-              :value="selected.coreqs"
-              @change="async tags => await selected?.setCoreqs(tags)"
-            />
-            <tag-input
-              label="Incompatible Tags"
-              :value="selected.incompatible"
-              @change="async tags => await selected?.setIncompatible(tags)"
-            />
-          </div>
-        </v-col>
-        <v-col cols="6">
-          <div v-if="showGraphs">
-            <!-- TODO: this should be one graph with multiple bars / sorting options -->
-            <Bar
-              :data="tagChartData"
-              :options="{
-                indexAxis: 'y',
-              }"
-            />
-            <Bar
-              :data="tagRatingData"
-              :options="{
-                indexAxis: 'y',
-              }"
-            />
-            <v-checkbox v-model="relative" label="Show relative rating impact" />
-            Show tags with a count of at least <v-text-field v-model="cutoff" />
-            Filter by color:
-            <color-options @select="color => (filterColor = color)" />
-          </div>
-          <v-btn v-if="!showGraphs" @click="showGraphs = true">Show Graphs</v-btn>
-          <br />
-          Average tags per photo: {{ avgTags.toPrecision(3) }}
-          <br />
-          Overall average rating: {{ avgRating.toPrecision(3) }}
-        </v-col>
-      </v-row>
-    </v-container>
-  </v-main>
+          <tag-input
+            :disabled="selectedTag === undefined"
+            label="Corequisite Tags"
+            :value="selectedTag?.coreqs ?? []"
+            @change="
+              async tags => {
+                await selectedTag?.setCoreqs(tags);
+                changeCounter += 1;
+              }
+            "
+          />
+          <tag-input
+            :disabled="selectedTag === undefined"
+            label="Incompatible Tags"
+            :value="selectedTag?.incompatible ?? []"
+            @change="
+              async tags => {
+                await selectedTag?.setIncompatible(tags);
+                changeCounter += 1;
+              }
+            "
+          />
+          <v-btn @click="showGraph = !showGraph">Toggle Graph</v-btn>
+        </div>
+        <div ref="graphContainer" class="fill-height">
+          <tag-graph
+            v-if="showGraph"
+            :changed="changeCounter"
+            :data="tags"
+            :height="graphHeight"
+            :width="graphWidth"
+          />
+        </div>
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
+
+<style scoped>
+  .tag-page {
+    margin: 0;
+  }
+
+  .tag-list {
+    max-height: 92vh;
+    overflow-y: scroll;
+  }
+
+  .tag-details {
+    margin: 18px;
+  }
+</style>

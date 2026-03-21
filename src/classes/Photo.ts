@@ -225,7 +225,7 @@ export class Photo {
 
   public async setDate(value?: Date) {
     this._date = value;
-    await set_photo_date(this.id, value ? value.toISOString() : '');
+    await set_photo_date(this.id, value ? value.toISOString().slice(0, 10) : '');
   }
 
   public async setPeople(people: string[]) {

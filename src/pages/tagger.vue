@@ -1,210 +1,440 @@
 <script setup lang="ts">
-  import type { Photo } from '../classes/Photo';
-  import moment from 'moment';
-  import { computed, onMounted, ref } from 'vue';
-  import { useRoute } from 'vue-router';
-  import PhotoGrid from '@/components/PhotoGrid.vue';
-  import { fileStore, formatDate } from '../stores/fileStore';
+  import type { Photo } from '@/classes/Photo';
+  import { photo_grid, refresh, type Sort } from '@/api/photos';
+  import { useFileStore } from '@/stores/fileStore';
 
   const route = useRoute();
 
-  const { setEntryText, journals, viewMode, setViewMode, query, setSearch } = fileStore;
-
-  const grid = ref<InstanceType<typeof PhotoGrid>>();
+  const store = useFileStore();
+  const { query, sortBy, itemsPerRow, currentDir } = storeToRefs(store);
 
   const selected = ref<Photo[]>([]);
   const photos = ref<Photo[]>([]);
-  const filterByLocation = ref(false);
-  const filterByDate = ref(false);
-  const filterByPerson = ref(false);
-  const filterByPhotographer = ref(false);
-  const currentDate = ref(new Date());
-  const localViewMode = ref(0);
-  const spacer = ref(false);
-  const prevDate = ref<Date>(new Date());
   const searching = ref(false);
+  const sorting = ref(false);
+  const current = ref(0);
+  const showDetail = ref(false);
+  const lastSelectedIndex = ref(0);
+  const inputFocus = ref(false);
+  const refreshing = ref(false);
 
-  // Journal editor
-  const mood = ref(2);
-  const entryText = ref('');
-
-  async function searchGrid(query: string[]) {
+  async function searchGrid() {
     searching.value = true;
-    setSearch(query);
-    await grid.value?.search(query);
+    photos.value = await photo_grid(query.value, sortBy.value);
     searching.value = false;
   }
 
-  async function setDate(date: Date) {
-    currentDate.value = date;
-    const d = currentDate.value.toISOString();
-    await searchGrid(['has:date', `date:${d}`]);
-    if (journals[d]) {
-      mood.value = journals[d].mood;
-      entryText.value = journals[d].displayText;
+  async function setSortMode(sort: Sort) {
+    sorting.value = true;
+    store.setQuery(query.value, sort);
+    await searchGrid();
+    sorting.value = false;
+  }
+
+  /**
+   * Handles selecting one or more photos.
+   * @param photo - The photo being selected.
+   * @param index - The index of the photo selected.
+   */
+  function selectPhoto(photo: Photo, index: number) {
+    const s: Photo[] = [photo];
+    if (shiftPressed.value && index !== lastSelectedIndex.value) {
+      const startIndex = Math.min(index, lastSelectedIndex.value);
+      const endIndex = Math.max(index, lastSelectedIndex.value);
+      const range: Photo[] = [];
+      for (let i = startIndex; i <= endIndex; i += 1) {
+        const p = photos.value[i];
+        if (p) {
+          range.push(p);
+        }
+      }
+      selected.value = range;
+      if (current.value >= selected.value.length) {
+        current.value = selected.value.length - 1;
+      }
+    } else if (ctrlPressed.value) {
+      for (const x of s) {
+        const idx = selected.value.findIndex(p => p.name === x.name);
+        if (idx === -1) {
+          selected.value.push(x);
+        } else {
+          selected.value.splice(idx, 1);
+        }
+      }
+      if (current.value >= selected.value.length) {
+        current.value = selected.value.length - 1;
+      }
     } else {
-      mood.value = 2;
-      entryText.value = '';
+      selected.value = s;
+      current.value = 0;
+    }
+    lastSelectedIndex.value = index;
+  }
+
+  const loading = ref(false);
+  const targetTags = ref<string[]>([]);
+  const tagAddDialog = ref(false);
+  const tagReplaceDialog = ref(false);
+
+  async function addTags() {
+    loading.value = true;
+    for (const photo of selected.value) {
+      const combinedTags = new Set(photo.tags);
+      for (const tag of targetTags.value) {
+        combinedTags.add(tag);
+      }
+      await photo.setTags(combinedTags.values().toArray());
+    }
+    loading.value = false;
+    tagAddDialog.value = false;
+  }
+
+  const tagAction = ref('replace');
+  const replacementTag = ref<string[]>([]);
+  async function replaceTags() {
+    loading.value = true;
+    const tag = targetTags.value[0];
+    if (tag) {
+      for (const photo of selected.value) {
+        if (tagAction.value === 'remove') {
+          const updatedTags = [...photo.tags];
+          updatedTags.splice(updatedTags.indexOf(tag), 1);
+          await photo.setTags(updatedTags);
+        } else {
+          const updatedTags = [...photo.tags];
+          updatedTags.splice(updatedTags.indexOf(tag), 1);
+          if (replacementTag.value[0]) {
+            updatedTags.push(replacementTag.value[0]);
+          }
+          await photo.setTags(updatedTags);
+        }
+      }
+    }
+    loading.value = false;
+    tagReplaceDialog.value = false;
+  }
+
+  async function quickGroup(groupName: string) {
+    const target = [...selected.value];
+    selected.value = [];
+    for (const photo of target) {
+      await photo.setGroup(groupName);
     }
   }
 
-  type Folder = {
-    files: string[];
-    children: Record<string, Folder>;
-  };
-
-  // Folder view
-  const folderStructure = computed(() => {
-    const structure: Folder = {
-      files: [],
-      children: {},
-    };
-    /* TODO
-    for (const dir of folder.dirs) {
-      const split = dir.replace(workingDir, '').split(/[/\\]/).slice(1);
-      let curr = structure;
-      for (const seg of split) {
-        if (!curr.children[seg]) {
-          curr.children[seg] = {
-            files: [],
-            children: {},
-          };
-        }
-        curr = curr.children[seg];
-      }
-    }
-    for (const file of photos.value.map(p => p.name)) {
-      const split = file.replace(workingDir, '').split(/[/\\]/).slice(1);
-      let curr = structure;
-      for (let i = 0; i <= split.length - 2; i += 1) {
-        const s = split[i];
-        // I store my photos in dropbox, and this condition catches an issue with dropbox folders.
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (curr === undefined) {
-          console.warn(`Undefined value in folder structure ${split.join(',')}`);
-        } else if (s && curr.children[s]) {
-          curr = curr.children[s];
-        }
-      }
-      curr.files.push(file);
-    }
-      */
-    return structure;
-  });
-
-  function syncRating() {
-    grid.value?.updateRating();
+  async function refreshGrid() {
+    refreshing.value = true;
+    console.log(currentDir.value);
+    await refresh(currentDir.value);
+    await searchGrid();
+    refreshing.value = false;
   }
 
+  const gridSection = ref<HTMLDivElement>();
+  const photoGridWidth = ref(0);
+  const ctrlPressed = ref(false);
+  const shiftPressed = ref(false);
   onMounted(async () => {
-    if (route.query.place) {
-      await searchGrid(['has:location', `at:${route.query.place as string}`]);
-      filterByLocation.value = true;
-    } else if (route.query.date) {
-      await setDate(moment(route.query.date as string).toDate());
-      filterByDate.value = true;
-    } else if (route.query.person) {
-      await searchGrid(['has:people', `of:${route.query.person as string}`]);
-      filterByPerson.value = true;
-    } else if (route.query.photographer) {
-      await searchGrid(['has:photographer', `by:${route.query.photographer as string}`]);
-      filterByPhotographer.value = true;
+    if (gridSection.value) {
+      photoGridWidth.value = gridSection.value.getBoundingClientRect()?.width;
     }
-    localViewMode.value = viewMode;
-  });
-
-  window.addEventListener('scroll', () => {
-    spacer.value = window.scrollY < 100;
+    if (route.query.date) {
+      query.value = ['has:date', `date:${route.query.date}`];
+    } else if (route.query.person) {
+      query.value = ['has:people', `of:${route.query.person}`];
+    } else if (route.query.tag) {
+      query.value = ['has:tags', route.query.tag as string];
+    }
+    window.addEventListener('keydown', event => {
+      if (event.ctrlKey) {
+        ctrlPressed.value = true;
+      }
+      if (event.shiftKey) {
+        shiftPressed.value = true;
+      }
+      if (!inputFocus.value) {
+        if (event.key === 'a' && event.ctrlKey) {
+          event.preventDefault();
+          selected.value = photos.value;
+        }
+        if (event.key === '-' && event.ctrlKey) {
+          event.preventDefault();
+          store.setItemsPerRow(itemsPerRow.value + 1);
+        }
+        if (event.key === '=' && event.ctrlKey) {
+          event.preventDefault();
+          store.setItemsPerRow(itemsPerRow.value - 1);
+        }
+        if (event.key === 'ArrowRight') {
+          if (selected.value.length > 1 && current.value + 1 < selected.value.length) {
+            current.value += 1;
+          } else if (selected.value.length === 1) {
+            const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+            const nextPhoto = photos.value[idx + 1];
+            if (nextPhoto) {
+              selected.value = [nextPhoto];
+            }
+          } else if (selected.value.length === 0) {
+            const firstPhoto = photos.value[0];
+            if (firstPhoto) {
+              selected.value = [firstPhoto];
+            }
+          }
+          showDetail.value = true;
+        }
+        if (event.key === 'ArrowLeft') {
+          if (selected.value.length > 1 && current.value - 1 >= 0) {
+            current.value -= 1;
+          } else if (selected.value.length === 1) {
+            const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+            const prevPhoto = photos.value[idx - 1];
+            if (prevPhoto) {
+              selected.value = [prevPhoto];
+            }
+          } else if (selected.value.length === 0) {
+            const firstPhoto = photos.value[0];
+            if (firstPhoto) {
+              selected.value = [firstPhoto];
+            }
+          }
+          showDetail.value = true;
+        }
+        if (event.key === 'ArrowDown' && selected.value.length === 1) {
+          const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+          const downPhoto = photos.value[idx + itemsPerRow.value];
+          if (downPhoto) {
+            selected.value = [downPhoto];
+          }
+        }
+        if (event.key === 'ArrowUp' && selected.value.length === 1) {
+          const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+          const upPhoto = photos.value[idx - itemsPerRow.value];
+          if (upPhoto) {
+            selected.value = [upPhoto];
+          }
+        }
+      }
+    });
+    window.addEventListener('keyup', event => {
+      if (ctrlPressed.value && event.key === 'Control') {
+        ctrlPressed.value = false;
+      }
+      if (shiftPressed.value && event.key === 'Shift') {
+        shiftPressed.value = false;
+      }
+    });
+    window.addEventListener('resize', () => {
+      if (gridSection.value) {
+        photoGridWidth.value = gridSection.value.getBoundingClientRect()?.width;
+      }
+    });
+    await searchGrid();
   });
 </script>
 
 <template>
-  <v-main class="main">
-    <v-container fluid>
-      <v-row>
-        <v-col ref="gridCol" cols="6">
-          <div class="flex">
-            {{ query }}
-            <search-input
-              :loading="searching"
-              :value="query"
-              @search="async query => searchGrid(query)"
-            />
-            <v-btn
-              v-if="localViewMode === 0"
-              @click="
-                localViewMode = 1;
-                setViewMode(1);
-              "
-            >
-              View Folders
+  <div class="tagger-page">
+    <div ref="gridSection" :class="{ 'grid-section': true, 'grid-section--full': !showDetail }">
+      <v-toolbar color="primary">
+        <v-menu>
+          <template #activator="{ props: bprops }">
+            <v-btn v-bind="bprops" flat icon :loading="sorting">
+              <v-icon>mdi-sort</v-icon>
             </v-btn>
-            <v-btn
-              v-if="localViewMode === 1"
-              @click="
-                localViewMode = 0;
-                setViewMode(0);
-              "
-            >
-              View Grid
-            </v-btn>
-          </div>
-          <photo-grid
-            v-if="localViewMode === 0"
-            ref="grid"
-            :photos="photos as Photo[]"
-            @select="s => (selected = s)"
+          </template>
+          <v-list>
+            <v-list-item @click="setSortMode('name')">Sort by name</v-list-item>
+            <v-list-item @click="setSortMode('name_desc')"> Sort by name (desc) </v-list-item>
+            <v-list-item @click="setSortMode('rating')">Sort by rating</v-list-item>
+            <v-list-item @click="setSortMode('rating_desc')"> Sort by rating (desc) </v-list-item>
+            <v-list-item @click="setSortMode('date')">Sort by date</v-list-item>
+            <v-list-item @click="setSortMode('date_desc')"> Sort by date (desc) </v-list-item>
+          </v-list>
+        </v-menu>
+        <div class="toolbar-controls">
+          <v-combobox
+            v-model="query"
+            chips
+            clearable
+            density="compact"
+            label="Search"
+            multiple
+            variant="outlined"
+            @update:focused="val => (inputFocus = val)"
+          >
+            <template #append>
+              <v-btn density="compact" icon :loading="searching" @click="searchGrid()">
+                <v-icon>mdi-magnify</v-icon>
+              </v-btn>
+              <v-btn density="compact" icon :loading="refreshing" @click="refreshGrid()">
+                <v-icon>mdi-refresh</v-icon>
+              </v-btn>
+            </template>
+          </v-combobox>
+          <template v-if="selected.length > 1">
+            <v-menu>
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon>
+                  <v-icon style="top: -10px">mdi-dots-vertical</v-icon>
+                </v-btn>
+              </template>
+              <v-list>
+                <v-list-item @click="tagAddDialog = true">Add Tag to Selected</v-list-item>
+                <v-list-item @click="tagReplaceDialog = true">
+                  Replace/Remove Tag From Selected
+                </v-list-item>
+                <v-list-item @click="quickGroup(selected[0]?.name ?? 'NewGroup')">
+                  Group Selected
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </template>
+        </div>
+        <template #append>
+          <v-btn flat icon @click="store.setItemsPerRow(itemsPerRow + 1)">
+            <v-icon>mdi-minus</v-icon>
+          </v-btn>
+          <v-btn flat icon @click="store.setItemsPerRow(itemsPerRow - 1)">
+            <v-icon>mdi-plus</v-icon>
+          </v-btn>
+        </template>
+      </v-toolbar>
+      <photo-grid
+        :items-per-row="itemsPerRow"
+        :photos="photos"
+        :selected="selected"
+        :width="showDetail ? photoGridWidth / 2 : photoGridWidth"
+        @select="
+          (photo, index) => {
+            selectPhoto(photo, index);
+            showDetail = true;
+          }
+        "
+      />
+    </div>
+    <div :class="{ 'photo-pane': true, 'photo-pane--visible': showDetail }">
+      <v-toolbar color="secondary">
+        <template v-if="selected.length > 1">
+          <v-btn
+            flat
+            icon
+            @click="
+              () => {
+                if (current > 0) {
+                  current -= 1;
+                }
+              }
+            "
+          >
+            <v-icon>mdi-arrow-left</v-icon>
+          </v-btn>
+          {{ current + 1 }} / {{ selected.length }}
+          <v-btn
+            flat
+            icon
+            @click="
+              () => {
+                if (current < selected.length - 1) {
+                  current += 1;
+                }
+              }
+            "
+          >
+            <v-icon>mdi-arrow-right</v-icon>
+          </v-btn>
+        </template>
+        <v-btn v-else icon @click="showDetail = false">
+          <v-icon>mdi-arrow-collapse-right</v-icon>
+        </v-btn>
+        <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
+        <v-spacer />
+        <v-btn
+          v-if="selected.length > 0"
+          variant="tonal"
+          @click="
+            {
+              selected = [];
+              showDetail = false;
+            }
+          "
+        >
+          Clear Selection ({{ selected.length }})
+        </v-btn>
+      </v-toolbar>
+      <photo-detail
+        :index="current"
+        :photos="selected"
+        @input-focused="val => (inputFocus = val)"
+      />
+    </div>
+  </div>
+  <v-dialog v-model="tagAddDialog" max-width="700">
+    <v-card title="Add Tags">
+      <v-card-text>
+        Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
+        <tag-input label="Tag to add" :value="targetTags" @change="tags => (targetTags = tags)" />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="tagAddDialog = false">Cancel</v-btn>
+          <v-btn color="primary" :loading="loading" @click="addTags()"> Apply Changes </v-btn>
+        </v-card-actions>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="tagReplaceDialog" max-width="700">
+    <v-card title="Remove or Replace">
+      <v-card-title>Remove and Replace Tags</v-card-title>
+      <v-card-text>
+        Search for a tag to remove (<b>this action will effect {{ selected.length }} photos</b>!)
+        <tag-input label="Tag to find" :value="targetTags" @change="tag => (targetTags = tag)" />
+        <v-radio-group v-model="tagAction">
+          <v-radio label="Remove tag" value="remove" />
+          <v-radio label="Replace tag" value="replace" />
+        </v-radio-group>
+        <div v-if="tagAction === 'replace'">
+          Replace with:
+          <tag-input
+            label="Tag to replace with"
+            :value="replacementTag"
+            @change="tag => (replacementTag = tag)"
           />
-          <div v-if="localViewMode === 1">
-            <directory-panels :folder-structure="folderStructure" @select="s => (selected = s)" />
-          </div>
-          <div v-if="filterByDate">
-            <mood-icon
-              :mood="mood"
-              @selected="
-                async newMood => {
-                  await journals[formatDate(currentDate)]?.setMood(newMood);
-                  mood = newMood;
-                }
-              "
-            />
-            <autosave-text
-              :value="entryText"
-              @save="
-                async text => {
-                  await setEntryText(formatDate(currentDate), text);
-                  entryText = text;
-                }
-              "
-            />
-          </div>
-        </v-col>
-        <v-col cols="6">
-          <div class="details">
-            <v-btn :color="selected.length > 0 ? 'primary' : 'default'" flat @click="selected = []">
-              Clear Selection ({{ selected.length }})
-            </v-btn>
-            <photo-group
-              v-if="selected.length > 0"
-              :photos="selected as Photo[]"
-              :prev-date="prevDate"
-              @update-date="date => (prevDate = date)"
-              @update-rating="syncRating"
-            />
-          </div>
-        </v-col>
-      </v-row>
-    </v-container>
-  </v-main>
+          Replacing {{ targetTags[0] }} with {{ replacementTag[0] }}.
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn color="primary" :loading="loading" @click="replaceTags()"> Apply Changes </v-btn>
+        <v-btn @click="tagReplaceDialog = false">Cancel</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
-  .details {
-    position: fixed;
-    height: 100%;
-    margin-top: 8px;
-    overflow: scroll;
-    top: 6px;
-    width: -webkit-fill-available;
+  .tagger-page {
+    display: flex;
+  }
+
+  .tagger-page > div {
+    transition: width 150ms ease-in;
+  }
+
+  .photo-pane {
+    width: 0;
+  }
+
+  .grid-section,
+  .photo-pane--visible {
+    width: 50%;
+  }
+
+  .grid-section--full {
+    width: 100%;
+  }
+</style>
+
+<style>
+  .photo-name > .v-toolbar-title__placeholder {
+    overflow: visible;
   }
 </style>
