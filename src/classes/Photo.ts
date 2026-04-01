@@ -23,7 +23,7 @@ export type PhotoData = {
   thumbnail: string;
   video: number;
   photo_group: string;
-  date: [number, number] | null;
+  date: string;
   raw: number;
   people: string[];
   hide_thumbnail: number;
@@ -51,7 +51,7 @@ export class Photo {
     public _rating: number,
     _video: boolean,
     public _photoGroup: string,
-    date: [number, number] | null,
+    date: string | null,
     _raw: boolean,
     public _people: string[],
     public _hideThumbnail: boolean,
@@ -61,9 +61,9 @@ export class Photo {
   ) {
     this.video = _video;
     this.raw = _raw;
-    if (date !== null) {
-      this._date = new Date(date[0], 0, 0);
-      this._date.setDate(this._date.getDate() + date[1]);
+    if (date !== null && date.length > 0) {
+      const split = date.split('-').map(part => Number.parseInt(part)) as [number, number, number];
+      this._date = new Date(split[0], split[1] - 1, split[2]);
     }
   }
 

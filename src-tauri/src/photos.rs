@@ -111,10 +111,6 @@ impl Default for PhotoState {
     }
 }
 
-fn parse_date(date: &String) -> NaiveDate {
-    NaiveDate::parse_from_str(date, "")
-}
-
 fn clean_thumbnail_path(path: &String) -> String {
     path.chars()
         .map(|c| {
