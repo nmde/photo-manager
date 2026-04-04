@@ -1,199 +1,171 @@
 use std::collections::HashMap;
 
+use diesel::{
+    dsl::{insert_into, update},
+    ExpressionMethods, QueryDsl,
+};
+use diesel_async::RunQueryDsl;
+use log::debug;
 use serde::Serialize;
-use sqlite::Row;
 use tauri::State;
 
-use crate::{esc, photos::PhotoState, ApiError};
+use crate::{
+    models::{Person, PersonCategory},
+    photos::PhotoState,
+    schema::{people, people_categories},
+    ApiError,
+};
 
 #[derive(Serialize, Clone)]
-pub struct Person {
-    pub id: String,
-    pub name: String,
-    pub photo: String,
-    pub notes: String,
-    pub category: String,
+pub struct PersonDto {
+    pub person: Person,
     pub photographer_count: i64,
     pub photo_count: i64,
 }
 
-#[derive(Serialize, Clone)]
-pub struct PersonCategory {
-    pub id: String,
-    pub name: String,
-    pub color: String,
-}
-
-pub fn row_to_person(row: &Row) -> Person {
-    Person {
-        id: row.read::<&str, _>("Id").to_string(),
-        name: row.read::<&str, _>("name").to_string(),
-        photo: row.read::<&str, _>("photo").to_string(),
-        notes: row.read::<&str, _>("notes").to_string(),
-        category: row.read::<&str, _>("category").to_string(),
-        photo_count: 0,
-        photographer_count: 0,
-    }
-}
-
-fn row_to_person_category(row: &Row) -> PersonCategory {
-    PersonCategory {
-        id: row.read::<&str, _>("Id").to_string(),
-        name: row.read::<&str, _>("name").to_string(),
-        color: row.read::<&str, _>("color").to_string(),
+impl From<Person> for PersonDto {
+    fn from(person: Person) -> Self {
+        Self {
+            person,
+            photographer_count: 0,
+            photo_count: 0,
+        }
     }
 }
 
 #[tauri::command]
-pub fn create_person(
+pub async fn create_person(
     state: State<'_, PhotoState>,
     id: String,
     name: String,
-    notes: String,
     category: String,
 ) -> Result<(), ApiError> {
-    state.db.lock().unwrap().execute(format!(
-        "INSERT INTO Person VALUES ('{0}', '{1}', '', '{2}', '{3}')",
-        esc(&id),
-        esc(&name),
-        esc(&notes),
-        esc(&category)
-    ))?;
+    debug!("Creating new person with id {id}, name {name}, and category {category}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
 
-    state.people.lock().unwrap().insert(
-        id.clone(),
-        Person {
-            id,
-            name,
-            photo: String::new(),
-            notes,
-            category,
-            photographer_count: 0,
-            photo_count: 0,
-        },
-    );
+    let new_person = Person {
+        id: id.clone(),
+        name,
+        photo: None,
+        category,
+    };
+
+    insert_into(people::table)
+        .values(new_person.clone())
+        .execute(conn)
+        .await?;
+
+    state
+        .people
+        .lock()
+        .await
+        .insert(id.clone(), PersonDto::from(new_person));
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn create_person_category(
+pub async fn create_person_category(
     state: State<'_, PhotoState>,
     id: String,
     name: String,
     color: String,
-) -> Result<(), String> {
-    state
-        .db
-        .lock()
-        .unwrap()
-        .execute(format!(
-            "INSERT INTO PersonCategory VALUES ('{0}', '{1}', '{2}')",
-            esc(&id),
-            esc(&name),
-            esc(&color)
-        ))
-        .unwrap();
+) -> Result<(), ApiError> {
+    debug!("Creating new people category with id {id}, name {name}, and color {color}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+
+    insert_into(people_categories::table)
+        .values(PersonCategory { id, name, color })
+        .execute(conn)
+        .await?;
+
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_person_name(
+pub async fn set_person_name(
     state: State<'_, PhotoState>,
     person: String,
     value: String,
 ) -> Result<(), ApiError> {
-    state.db.lock().unwrap().execute(format!(
-        "UPDATE Person SET name='{0}' WHERE Id='{1}'",
-        esc(&value),
-        esc(&person)
-    ))?;
+    debug!("Setting person {person} name to {value}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
 
-    let mut state_people = state.people.lock().unwrap();
+    update(people::table.filter(people::id.eq(person.clone())))
+        .set(people::name.eq(value.clone()))
+        .execute(conn)
+        .await?;
+
+    let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().name = value;
+        state_people.get_mut(&person).unwrap().person.name = value;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_person_category(
+pub async fn set_person_category(
     state: State<'_, PhotoState>,
     person: String,
     value: String,
 ) -> Result<(), ApiError> {
-    state.db.lock().unwrap().execute(format!(
-        "UPDATE Person SET category='{0}' WHERE Id='{1}'",
-        esc(&value),
-        esc(&person)
-    ))?;
+    debug!("Setting person {person} category to {value}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
 
-    let mut state_people = state.people.lock().unwrap();
+    update(people::table.filter(people::id.eq(person.clone())))
+        .set(people::category.eq(value.clone()))
+        .execute(conn)
+        .await?;
+
+    let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().category = value;
+        state_people.get_mut(&person).unwrap().person.category = value;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_person_notes(
+pub async fn set_person_photo(
     state: State<'_, PhotoState>,
     person: String,
     value: String,
 ) -> Result<(), ApiError> {
-    state.db.lock().unwrap().execute(format!(
-        "UPDATE Person SET notes='{0}' WHERE Id='{1}'",
-        esc(&value),
-        esc(&person)
-    ))?;
+    debug!("Setting person {person} photo to {value}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
 
-    let mut state_people = state.people.lock().unwrap();
+    update(people::table.filter(people::id.eq(person.clone())))
+        .set(people::photo.eq(value.clone()))
+        .execute(conn)
+        .await?;
+
+    let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().notes = value;
+        state_people.get_mut(&person).unwrap().person.photo = Some(value);
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_person_photo(
+pub async fn get_people(
     state: State<'_, PhotoState>,
-    person: String,
-    value: String,
-) -> Result<(), ApiError> {
-    state.db.lock().unwrap().execute(format!(
-        "UPDATE Person SET photo='{0}' WHERE Id='{1}'",
-        esc(&value),
-        esc(&person)
-    ))?;
-
-    let mut state_people = state.people.lock().unwrap();
-    if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().photo = value;
-    }
-
-    Ok(())
+) -> Result<HashMap<String, PersonDto>, String> {
+    Ok(state.people.lock().await.clone())
 }
 
 #[tauri::command]
-pub fn get_people(state: State<'_, PhotoState>) -> Result<HashMap<String, Person>, String> {
-    Ok(state.people.lock().unwrap().clone())
-}
-
-#[tauri::command]
-pub fn get_people_categories(
+pub async fn get_people_categories(
     state: State<'_, PhotoState>,
 ) -> Result<Vec<PersonCategory>, ApiError> {
-    let mut results = Vec::<PersonCategory>::new();
-    for row in state
-        .db
-        .lock()
-        .unwrap()
-        .prepare("SELECT * FROM PersonCategory")?
-    {
-        results.push(row_to_person_category(&row?));
-    }
-    Ok(results)
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+
+    Ok(people_categories::table.load::<PersonCategory>(conn).await?)
 }

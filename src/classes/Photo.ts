@@ -1,11 +1,13 @@
 import {
-  set_photo_bool,
   set_photo_date,
+  set_photo_desc,
+  set_photo_hide_thumbnail,
+  set_photo_is_duplicate,
   set_photo_location,
   set_photo_people,
   set_photo_rating,
-  set_photo_str,
   set_photo_tags,
+  set_photo_title,
   set_photographer,
 } from '@/api/photos';
 import type { ValidationResult } from '@/api/tags';
@@ -195,12 +197,12 @@ export class Photo {
 
   public async setTitle(value: string) {
     this._title = value;
-    await set_photo_str(this.id, 'title', value);
+    await set_photo_title(this.id, value);
   }
 
   public async setDescription(value: string) {
     this._description = value;
-    await set_photo_str(this.id, 'description', value);
+    await set_photo_desc(this.id, value);
   }
 
   public async setLocation(value: string) {
@@ -215,7 +217,7 @@ export class Photo {
 
   public async setDuplicate(value: boolean) {
     this._isDuplicate = value;
-    await set_photo_bool(this.id, 'isDuplicate', value);
+    await set_photo_is_duplicate(this.id, value);
   }
 
   public async setRating(rating: number) {
@@ -235,7 +237,7 @@ export class Photo {
 
   public async setHideThumbnail(value: boolean) {
     this._hideThumbnail = value;
-    await set_photo_bool(this.id, 'hideThumbnail', value);
+    await set_photo_hide_thumbnail(this.id, value);
   }
 
   public async setPhotographer(value: string) {

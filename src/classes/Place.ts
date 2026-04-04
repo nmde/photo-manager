@@ -1,4 +1,10 @@
-import { set_place_layer, set_place_position, set_place_str } from '@/api/places';
+import {
+  set_place_category,
+  set_place_layer,
+  set_place_name,
+  set_place_position,
+  set_place_shape,
+} from '@/api/places';
 import { locToString, type PlaceType, type Position } from './Map';
 
 export type PlaceData = {
@@ -61,7 +67,7 @@ export class Place {
 
   public async setName(name: string) {
     this._name = name;
-    await set_place_str(this.id, 'name', name);
+    await set_place_name(this.id, name);
   }
 
   public async setPosition(position: Position) {
@@ -72,12 +78,12 @@ export class Place {
 
   public async setCategory(category: PlaceType) {
     this._category = category;
-    await set_place_str(this.id, 'category', category);
+    await set_place_category(this.id, category);
   }
 
   public async setShape(shape: string) {
     this._shape = shape;
-    await set_place_str(this.id, 'shape', shape);
+    await set_place_shape(this.id, shape);
   }
 
   public async setLayer(layer: string) {

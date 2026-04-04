@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 
+use diesel::{dsl::update, ExpressionMethods, QueryDsl, SqliteConnection, TextExpressionMethods};
+use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, RunQueryDsl};
+use log::debug;
 use serde::Serialize;
-use sqlite::{Connection, Row};
 use tauri::State;
-use uuid::Uuid;
 
 use crate::{
-    esc,
-    photos::{get_photo_targets, Photo, PhotoState},
-    row_to_vec, ApiError,
+    models::{Photo, Tag},
+    photos::{get_photo_targets, PhotoDto, PhotoState},
+    row_to_vec,
+    schema::{photos, tags},
+    ApiError,
 };
 
 #[derive(Serialize, Clone)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
-    pub color: String,
+pub struct TagDto {
+    pub tag: Tag,
     pub prereqs: Vec<String>,
     pub coreqs: Vec<String>,
     pub incompatible: Vec<String>,
@@ -23,17 +24,46 @@ pub struct Tag {
     pub has_entry: bool,
 }
 
-impl Tag {
+impl TagDto {
     pub fn new(name: &String) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
-            name: name.clone(),
-            color: String::new(),
-            prereqs: Vec::<String>::new(),
-            coreqs: Vec::<String>::new(),
-            incompatible: Vec::<String>::new(),
+            tag: Tag {
+                name: name.clone(),
+                color: String::new(),
+                prereqs: None,
+                coreqs: None,
+                incompatible: None,
+            },
+            prereqs: vec![],
+            coreqs: vec![],
+            incompatible: vec![],
             count: 0,
             has_entry: false,
+        }
+    }
+}
+
+impl From<Tag> for TagDto {
+    fn from(tag: Tag) -> Self {
+        Self {
+            tag: tag.clone(),
+            prereqs: if tag.prereqs.is_none() {
+                vec![]
+            } else {
+                row_to_vec(&tag.prereqs)
+            },
+            coreqs: if tag.coreqs.is_none() {
+                vec![]
+            } else {
+                row_to_vec(&tag.coreqs)
+            },
+            incompatible: if tag.incompatible.is_none() {
+                vec![]
+            } else {
+                row_to_vec(&tag.incompatible)
+            },
+            count: 0,
+            has_entry: true,
         }
     }
 }
@@ -44,7 +74,7 @@ pub struct ValidationResult {
     pub message: String,
 }
 
-pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> ValidationResult {
+pub fn validate_tags(state_tags: &HashMap<String, TagDto>, tags: &Vec<String>) -> ValidationResult {
     if tags.len() == 0 {
         ValidationResult {
             is_valid: true,
@@ -103,56 +133,25 @@ pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> V
     }
 }
 
-pub fn row_to_tag(row: &Row) -> Tag {
-    Tag {
-        id: row.read::<&str, _>("Id").to_string(),
-        name: row.read::<&str, _>("name").to_string(),
-        color: row.read::<&str, _>("color").to_string(),
-        prereqs: row_to_vec(row, "prereqs"),
-        coreqs: row_to_vec(row, "coreqs"),
-        incompatible: row_to_vec(row, "incompatible"),
-        count: 0,
-        has_entry: true,
-    }
-}
-
-fn ensure_tag(tag: &mut Tag, conn: &Connection) -> Result<(), sqlite::Error> {
-    if !tag.has_entry {
-        conn.execute(format!(
-            "INSERT INTO Tag VALUES ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')",
-            esc(&tag.id),
-            esc(&tag.name),
-            esc(&tag.color),
-            esc(&tag.prereqs.join(",")),
-            esc(&tag.coreqs.join(",")),
-            esc(&tag.incompatible.join(",")),
-        ))?;
-        tag.has_entry = true;
-    }
-
-    Ok(())
-}
-
 #[tauri::command]
-pub fn set_tag_color(
+pub async fn set_tag_color(
     state: State<'_, PhotoState>,
     tag: String,
     value: String,
 ) -> Result<(), ApiError> {
-    let conn = state.db.lock().unwrap();
-    let mut state_tags = state.tags.lock().unwrap();
+    debug!("Setting tag {tag} color to {value}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+    let mut state_tags = state.tags.lock().await;
 
     if state_tags.contains_key(&tag) {
-        let mut state_tag = state_tags.get_mut(&tag).unwrap();
-        ensure_tag(&mut state_tag, &conn)?;
+        let state_tag = state_tags.get_mut(&tag).unwrap();
+        update(tags::table.filter(tags::name.eq(tag)))
+            .set(tags::color.eq(value.clone()))
+            .execute(conn)
+            .await?;
 
-        conn.execute(format!(
-            "UPDATE Tag SET color='{0}' WHERE name='{1}'",
-            esc(&value),
-            esc(&tag)
-        ))?;
-
-        state_tag.color = value.clone();
+        state_tag.tag.color = value.clone();
     } else {
         return Err(ApiError::NotFoundError(format!("Tag '{}' not found", tag)));
     }
@@ -160,39 +159,53 @@ pub fn set_tag_color(
     Ok(())
 }
 
-fn modify_tag_relationships(
-    connection: &Connection,
-    category: &str,
+enum TagRelationship {
+    Prereqs,
+    Coreqs,
+    Incompatible,
+}
+
+async fn modify_tag_relationships(
+    connection: &mut SyncConnectionWrapper<SqliteConnection>,
+    category: TagRelationship,
     tag: &String,
     value: &Vec<String>,
-    state_photos: &mut HashMap<String, Photo>,
-    state_tags: &HashMap<String, Tag>,
+    state_photos: &mut HashMap<String, PhotoDto>,
+    state_tags: &HashMap<String, TagDto>,
 ) -> Result<(), ApiError> {
-    connection.execute(format!(
-        "UPDATE Tag SET {category}='{0}' WHERE name='{1}'",
-        esc(&value.join(",")),
-        esc(tag)
-    ))?;
+    let joined = value.join(",");
+    match category {
+        TagRelationship::Prereqs => {
+            update(tags::table.filter(tags::name.eq(tag)))
+                .set(tags::prereqs.eq(joined))
+                .execute(connection)
+                .await?
+        }
+        TagRelationship::Coreqs => {
+            update(tags::table.filter(tags::name.eq(tag)))
+                .set(tags::coreqs.eq(joined))
+                .execute(connection)
+                .await?
+        }
+        TagRelationship::Incompatible => {
+            update(tags::table.filter(tags::name.eq(tag)))
+                .set(tags::incompatible.eq(joined))
+                .execute(connection)
+                .await?
+        }
+    };
+
     // Gets photos from the database with the tag as a substring in their tags field
-    let maybe_has_tag = connection
-        .prepare(format!(
-            "SELECT * FROM Photo WHERE tags LIKE '%{0}%'",
-            esc(tag)
-        ))?
-        .into_iter()
-        .map(|row| row.unwrap());
+    let maybe_has_tag = photos::table
+        .filter(photos::tags.like(tag))
+        .load::<Photo>(connection)
+        .await?;
 
     for row in maybe_has_tag {
-        let mut tags = Vec::<String>::new();
-        let tags_row = row.read::<&str, _>("tags").to_string();
-        if tags_row.len() > 0 {
-            tags = tags_row.split(",").map(str::to_string).collect();
-        }
-        if tags.contains(&tag) {
-            let target = state_photos
-                .get_mut(&row.read::<&str, _>("Id").to_string())
-                .unwrap();
-            let validation = validate_tags(&state_tags, &tags);
+        let photo = PhotoDto::from(row);
+        if photo.tags.contains(&tag) {
+            let target = state_photos.get_mut(&photo.photo.path).unwrap();
+            let validation = validate_tags(&state_tags, &photo.tags);
             target.valid_tags = validation.is_valid;
             target.validation_msg = validation.message;
         }
@@ -201,28 +214,29 @@ fn modify_tag_relationships(
 }
 
 #[tauri::command]
-pub fn set_tag_prereqs(
+pub async fn set_tag_prereqs(
     state: State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), ApiError> {
-    let connection = state.db.lock().unwrap();
-    let mut state_tags = state.tags.lock().unwrap();
-    let mut state_photos = state.photos.lock().unwrap();
+    debug!("Setting tag {tag} prereqs to {}", value.join(","));
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+    let mut state_tags = state.tags.lock().await;
+    let mut state_photos = state.photos.lock().await;
 
     if state_tags.contains_key(&tag) {
-        let mut state_tag = state_tags.get_mut(&tag).unwrap();
-        ensure_tag(&mut state_tag, &connection)?;
-
+        let state_tag = state_tags.get_mut(&tag).unwrap();
         state_tag.prereqs = value.clone();
         modify_tag_relationships(
-            &connection,
-            "prereqs",
+            conn,
+            TagRelationship::Prereqs,
             &tag,
             &value,
             &mut state_photos,
             &state_tags,
-        )?;
+        )
+        .await?;
     } else {
         return Err(ApiError::NotFoundError(format!("Tag '{}' not found", tag)));
     }
@@ -231,28 +245,29 @@ pub fn set_tag_prereqs(
 }
 
 #[tauri::command]
-pub fn set_tag_coreqs(
+pub async fn set_tag_coreqs(
     state: State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), ApiError> {
-    let connection = state.db.lock().unwrap();
-    let mut state_tags = state.tags.lock().unwrap();
-    let mut state_photos = state.photos.lock().unwrap();
+    debug!("Setting tag {tag} coreqs to {}", value.join(","));
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+    let mut state_tags = state.tags.lock().await;
+    let mut state_photos = state.photos.lock().await;
 
     if state_tags.contains_key(&tag) {
-        let mut state_tag = state_tags.get_mut(&tag).unwrap();
-        ensure_tag(&mut state_tag, &connection)?;
-
+        let state_tag = state_tags.get_mut(&tag).unwrap();
         state_tag.coreqs = value.clone();
         modify_tag_relationships(
-            &connection,
-            "coreqs",
+            conn,
+            TagRelationship::Coreqs,
             &tag,
             &value,
             &mut state_photos,
             &state_tags,
-        )?;
+        )
+        .await?;
     } else {
         return Err(ApiError::NotFoundError(format!("Tag '{}' not found", tag)));
     }
@@ -261,28 +276,29 @@ pub fn set_tag_coreqs(
 }
 
 #[tauri::command]
-pub fn set_tag_incompatible(
+pub async fn set_tag_incompatible(
     state: State<'_, PhotoState>,
     tag: String,
     value: Vec<String>,
 ) -> Result<(), ApiError> {
-    let connection = state.db.lock().unwrap();
-    let mut state_tags = state.tags.lock().unwrap();
-    let mut state_photos = state.photos.lock().unwrap();
+    debug!("Setting tag {tag} incompatible to {}", value.join(","));
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+    let mut state_tags = state.tags.lock().await;
+    let mut state_photos = state.photos.lock().await;
 
     if state_tags.contains_key(&tag) {
-        let mut state_tag = state_tags.get_mut(&tag).unwrap();
-        ensure_tag(&mut state_tag, &connection)?;
-
+        let state_tag = state_tags.get_mut(&tag).unwrap();
         state_tag.incompatible = value.clone();
         modify_tag_relationships(
-            &connection,
-            "incompatible",
+            conn,
+            TagRelationship::Incompatible,
             &tag,
             &value,
             &mut state_photos,
             &state_tags,
-        )?;
+        )
+        .await?;
     } else {
         return Err(ApiError::NotFoundError(format!("Tag '{}' not found", tag)));
     }
@@ -291,26 +307,26 @@ pub fn set_tag_incompatible(
 }
 
 #[tauri::command]
-pub fn get_tags(state: State<'_, PhotoState>) -> Result<HashMap<String, Tag>, String> {
-    Ok(state.tags.lock().unwrap().clone())
+pub async fn get_tags(state: State<'_, PhotoState>) -> Result<HashMap<String, TagDto>, String> {
+    Ok(state.tags.lock().await.clone())
 }
 
 #[tauri::command]
-pub fn validate_photo(
+pub async fn validate_photo(
     state: State<'_, PhotoState>,
     photo: String,
 ) -> Result<ValidationResult, ApiError> {
-    let mut state_photos = state.photos.lock().unwrap();
+    let mut state_photos = state.photos.lock().await;
 
     if state_photos.contains_key(&photo) {
-        let validation = validate_tags(
-            &state.tags.lock().unwrap(),
-            &state_photos.get(&photo).unwrap().tags,
-        );
+        let state_tags = state.tags.lock().await;
+        let validation = validate_tags(&state_tags, &state_photos.get(&photo).unwrap().tags);
 
-        for target in get_photo_targets(&photo, &state.db.lock().unwrap())? {
-            if state_photos.contains_key(&target.id) {
-                let p = state_photos.get_mut(&target.id).unwrap();
+        let mut conn = state.db.lock().await;
+        let conn = conn.as_mut().unwrap();
+        for target in get_photo_targets(&photo, conn).await? {
+            if state_photos.contains_key(&target.path) {
+                let p = state_photos.get_mut(&target.path).unwrap();
                 p.valid_tags = validation.is_valid;
                 p.validation_msg = validation.message.clone();
             }

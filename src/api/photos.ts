@@ -5,7 +5,7 @@ import { Photo, type PhotoData } from '@/classes/Photo';
 import { invoke } from '@tauri-apps/api/core';
 import type { ValidationResult } from './tags';
 
-export type Sort = 'name' | 'name_desc' | 'date' | 'date_desc' | 'rating' | 'rating_desc';
+export type Sort = 'name' | 'namedesc' | 'date' | 'datedesc' | 'rating' | 'ratingdesc';
 
 export const initialize = async (path: string) => await invoke<string[]>('initialize', { path });
 
@@ -15,8 +15,11 @@ export const photo_grid = async (query: string[], sort: Sort) =>
 export const remove_deleted = async (deleted: string[]) =>
   await invoke('remove_deleted', { deleted });
 
-export const set_photo_str = async (photo: string, property: string, value: string) =>
-  await invoke('set_photo_str', { photo, property, value });
+export const set_photo_title = async (photo: string, value: string) =>
+  await invoke('set_photo_title', { photo, value });
+
+export const set_photo_desc = async (photo: string, value: string) =>
+  await invoke('set_photo_desc', { photo, value });
 
 export const set_photographer = async (photo: string, value: string) =>
   await invoke('set_photographer', { photo, value });
@@ -39,7 +42,10 @@ export const set_photo_group = async (photo: string, value: string) =>
 export const set_photo_rating = async (photo: string, rating: number) =>
   await invoke('set_photo_rating', { photo, rating });
 
-export const set_photo_bool = async (photo: string, property: string, value: boolean) =>
-  await invoke('set_photo_bool', { photo, property, value });
+export const set_photo_is_duplicate = async (photo: string, value: boolean) =>
+  await invoke('set_photo_is_duplicate', { photo, value });
+
+export const set_photo_hide_thumbnail = async (photo: string, value: boolean) =>
+  await invoke('set_photo_hide_thumbnail', { photo, value });
 
 export const refresh = async (path: string) => await invoke('refresh', { path });

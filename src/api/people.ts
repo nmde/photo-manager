@@ -2,8 +2,8 @@ import { Person, type PersonData } from '@/classes/Person';
 import { PersonCategory } from '@/classes/PersonCategory';
 import { invoke } from '@tauri-apps/api/core';
 
-export const create_person = async (id: string, name: string, notes: string, category: string) =>
-  await invoke('create_person', { id, name, notes, category });
+export const create_person = async (id: string, name: string, category: string) =>
+  await invoke('create_person', { id, name, category });
 
 export const create_person_category = async (id: string, name: string, color: string) =>
   await invoke('create_person_category', { id, name, color });

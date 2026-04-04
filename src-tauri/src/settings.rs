@@ -1,49 +1,51 @@
-use serde::Serialize;
+use diesel::{dsl::insert_into, query_dsl::methods::FilterDsl, update, ExpressionMethods};
+use diesel_async::RunQueryDsl;
+use log::debug;
 use tauri::State;
-use uuid::Uuid;
 
-use crate::{esc, photos::PhotoState, ApiError};
-
-#[derive(Clone, Serialize)]
-pub struct Setting {
-    pub setting: String,
-    pub value: i64,
-}
+use crate::{models::Setting, photos::PhotoState, schema::settings, ApiError};
 
 #[tauri::command]
-pub fn set_setting(
+pub async fn set_setting(
     state: State<'_, PhotoState>,
     setting: String,
-    value: i64,
+    value: i32,
 ) -> Result<(), ApiError> {
-    let conn = state.db.lock().unwrap();
-    let mut state_settings = state.settings.lock().unwrap();
+    debug!("Setting setting {setting} to {value}");
+    let mut conn = state.db.lock().await;
+    let conn = conn.as_mut().unwrap();
+
+    let mut state_settings = state.settings.lock().await;
 
     if state_settings.contains_key(&setting) {
-        conn.execute(format!(
-            "UPDATE Setting SET value={0} WHERE setting='{1}'",
-            value,
-            esc(&setting)
-        ))?;
+        update(settings::table.filter(settings::setting.eq(setting.clone())))
+            .set(settings::value.eq(value))
+            .execute(conn)
+            .await?;
     } else {
-        conn.execute(format!(
-            "INSERT INTO Setting VALUES ('{0}', '{1}', {2})",
-            Uuid::new_v4(),
-            setting,
-            value
-        ))?;
-        state_settings.insert(setting.clone(), Setting { setting, value });
+        let new_setting = Setting {
+            setting: setting.clone(),
+            value,
+        };
+        insert_into(settings::table)
+            .values(new_setting.clone())
+            .execute(conn)
+            .await?;
+        state_settings.insert(setting.clone(), new_setting);
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_setting(state: State<'_, PhotoState>, setting: String) -> Option<Setting> {
-    let state_settings = state.settings.lock().unwrap();
+pub async fn get_setting(
+    state: State<'_, PhotoState>,
+    setting: String,
+) -> Result<Option<Setting>, ApiError> {
+    let state_settings = state.settings.lock().await;
     let s = state_settings.get(&setting);
     if s.is_some() {
-        return Some(s.unwrap().clone());
+        return Ok(Some(s.unwrap().clone()));
     }
-    None
+    Ok(None)
 }

@@ -1,4 +1,4 @@
-import { set_shape_str } from '@/api/places';
+import { set_shape_layer, set_shape_name, set_shape_points } from '@/api/places';
 import type { Position } from './Map';
 
 export type ShapeType = 'polygon' | 'line';
@@ -48,16 +48,16 @@ export class Shape {
 
   public async setPoints(points: Position[]) {
     this._points = JSON.stringify(points);
-    await set_shape_str(this.id, 'points', this._points);
+    await set_shape_points(this.id, this._points);
   }
 
   public async setLayer(layer: string) {
     this._layer = layer;
-    await set_shape_str(this.id, 'layer', layer);
+    await set_shape_layer(this.id, layer);
   }
 
   public async setName(name: string) {
     this._name = name;
-    await set_shape_str(this.id, 'name', name);
+    await set_shape_name(this.id, name);
   }
 }

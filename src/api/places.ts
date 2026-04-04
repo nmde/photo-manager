@@ -27,8 +27,14 @@ export const create_place = async (
 export const get_places = async () =>
   Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places'));
 
-export const set_place_str = async (place: string, property: string, value: string) =>
-  await invoke('set_place_str', { place, property, value });
+export const set_place_name = async (place: string, value: string) =>
+  await invoke('set_place_name', { place, value });
+
+export const set_place_category = async (place: string, value: string) =>
+  await invoke('set_place_category', { place, value });
+
+export const set_place_shape = async (place: string, value: string) =>
+  await invoke('set_place_shape', { place, value });
 
 export const set_place_layer = async (place: string, layer: string) =>
   await invoke('set_place_layer', { place, layer });
@@ -48,7 +54,13 @@ export const create_shape = async (
   name: string,
 ) => await invoke('create_shape', { id, shapeType, points, layer, name });
 
-export const set_shape_str = async (shape: string, property: string, value: string) =>
-  await invoke('set_shape_str', { shape, property, value });
+export const set_shape_points = async (shape: string, value: string) =>
+  await invoke('set_shape_points', { shape, value });
+
+export const set_shape_layer = async (shape: string, value: string) =>
+  await invoke('set_shape_layer', { shape, value });
+
+export const set_shape_name = async (shape: string, value: string) =>
+  await invoke('set_shape_name', { shape, value });
 
 export const delete_shape = async (shape: string) => await invoke('delete_shape', { shape });
