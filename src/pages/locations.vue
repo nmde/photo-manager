@@ -83,9 +83,11 @@
     map.removeMarker(place.id);
     map.createMarker(place.pos, place.id, place.category, color, place.name, place.count);
     // update color of linked polygons
-    const s = shapes.value[place.shape];
-    if (place.shape.length > 0 && s) {
-      setShapeColor(s, color);
+    if (place.shape !== undefined) {
+      const s = shapes.value[place.shape];
+      if (place.shape.length > 0 && s) {
+        setShapeColor(s, color);
+      }
     }
   }
 
@@ -126,7 +128,7 @@
 
   async function deletePlace(place: Place) {
     await delete_place(place.id);
-    if (place.shape.length > 0) {
+    if (place.shape !== undefined) {
       deleteShapeFunc(place.layer, place.shape);
     }
     placeMap.value[place.layer]?.splice(
@@ -137,22 +139,24 @@
   }
 
   function editPlaceShape(place: Place) {
-    const shape = shapes.value[place.shape];
-    map.removeShape(place.shape);
-    targetLayer.value = place.layer;
-    if (shape) {
-      tmpShape.value = shape.points;
-      editingShape.value = true;
-      targetShape.value = shape.id;
-      tmpShapeType.value = shape.type;
-      map.createShape(
-        shape.type,
-        shape.points,
-        layers.value[shape.layer]?.color ?? '',
-        shape.id,
-        true,
-      );
-      drawMode.value = true;
+    if (place.shape !== undefined) {
+      const shape = shapes.value[place.shape];
+      map.removeShape(place.shape);
+      targetLayer.value = place.layer;
+      if (shape) {
+        tmpShape.value = shape.points;
+        editingShape.value = true;
+        targetShape.value = shape.id;
+        tmpShapeType.value = shape.type;
+        map.createShape(
+          shape.type,
+          shape.points,
+          layers.value[shape.layer]?.color ?? '',
+          shape.id,
+          true,
+        );
+        drawMode.value = true;
+      }
     }
   }
 
@@ -264,7 +268,7 @@
           placeMap.value[place.layer] = [];
         }
         placeMap.value[place.layer]?.push(place);
-        if (place.shape.length > 0) {
+        if (place.shape !== undefined) {
           linkedShapes.push(place.shape);
         }
         map.createMarker(
@@ -389,7 +393,7 @@
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-btn
-                      v-if="place.shape.length === 0"
+                      v-if="place.shape === undefined"
                       color="primary"
                       @click="
                         () => {
@@ -404,7 +408,7 @@
                     >
                       Draw Polygon
                     </v-btn>
-                    <div v-if="place.shape.length > 0">
+                    <div v-if="place.shape !== undefined">
                       <v-btn @click="editPlaceShape(place)">Edit Polygon</v-btn>
                       Area: {{ shapes[place.shape]?.area }}
                     </div>
@@ -620,7 +624,7 @@
         <div class="map-container">
           <div ref="newPlaceMapEl" class="map" />
         </div>
-        Selected position: {{ position }}<br />
+        Selected position: {{ position }}<br>
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>

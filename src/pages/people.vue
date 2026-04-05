@@ -15,7 +15,6 @@
   const editTarget = ref<Person>();
   const addDialog = ref(false);
   const addName = ref('');
-  const addNotes = ref('');
   const addCategory = ref('');
   const addCategoryDialog = ref(false);
   const addCategoryName = ref('');
@@ -50,20 +49,16 @@
       if (addName.value !== editTarget.value.name) {
         await editTarget.value.setName(addName.value);
       }
-      if (addNotes.value !== editTarget.value.notes) {
-        await editTarget.value.setNotes(addNotes.value);
-      }
       if (addCategory.value !== editTarget.value.category) {
         await editTarget.value.setCategory(addCategory.value);
       }
     } else {
-      await create_person(uuid(), addName.value, addNotes.value, addCategory.value);
+      await create_person(uuid(), addName.value, addCategory.value);
     }
     saving.value = false;
     addDialog.value = false;
     addName.value = '';
     addCategory.value = '';
-    addNotes.value = '';
   }
 
   onMounted(async () => {
@@ -117,7 +112,6 @@
                             editing = true;
                             editTarget = person;
                             addName = person.name;
-                            addNotes = person.notes;
                             addCategory = person.category;
                             addDialog = true;
                           }
@@ -136,10 +130,8 @@
                 </v-card-title>
                 <v-card-text>
                   Photo count: {{ person.count }}
-                  <br />
+                  <br>
                   Photos taken: {{ person.photographerCount }}
-                  <br />
-                  <p class="notes">{{ person.notes }}</p>
                 </v-card-text>
               </v-card>
             </div>
@@ -187,10 +179,9 @@
           label="Category"
         >
           <template #item="{ props, item }">
-            <v-list-item v-bind="props" :base-color="item.raw.color" />
+            <v-list-item v-bind="props" :base-color="item.color" />
           </template>
         </v-select>
-        <v-textarea v-model="addNotes" color="primary" label="Notes" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="addDialog = false">Cancel</v-btn>

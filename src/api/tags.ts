@@ -1,28 +1,31 @@
-/**
- * This file provides a TS mirror of src-tauri/src/tags.rs
- */
-import { Tag, type TagData } from '@/classes/Tag';
 import { invoke } from '@tauri-apps/api/core';
+import { Tag, type TagData } from '@/classes/Tag';
 
 export type ValidationResult = {
   is_valid: boolean;
   message: string;
 };
 
-export const set_tag_color = async (tag: string, value: string) =>
-  await invoke('set_tag_color', { tag, value });
+export async function set_tag_color(tag: string, value: string) {
+  return await invoke('set_tag_color', { tag, value });
+}
 
-export const set_tag_prereqs = async (tag: string, value: string[]) =>
-  await invoke('set_tag_prereqs', { tag, value });
+export async function set_tag_prereqs(tag: string, value: string[]) {
+  return await invoke('set_tag_prereqs', { tag, value });
+}
 
-export const set_tag_coreqs = async (tag: string, value: string[]) =>
-  await invoke('set_tag_coreqs', { tag, value });
+export async function set_tag_coreqs(tag: string, value: string[]) {
+  return await invoke('set_tag_coreqs', { tag, value });
+}
 
-export const set_tag_incompatible = async (tag: string, value: string[]) =>
-  await invoke('set_tag_incompatible', { tag, value });
+export async function set_tag_incompatible(tag: string, value: string[]) {
+  return await invoke('set_tag_incompatible', { tag, value });
+}
 
-export const get_tags = async () =>
-  Tag.createTags(await invoke<Record<string, TagData>>('get_tags'));
+export async function get_tags() {
+  return Tag.createTags(await invoke<Record<string, TagData>>('get_tags'));
+}
 
-export const validate_photo = async (photo: string) =>
-  await invoke<ValidationResult>('validate_photo', { photo });
+export async function validate_photo(photo: string) {
+  return await invoke<ValidationResult>('validate_photo', { photo });
+}

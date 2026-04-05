@@ -43,7 +43,7 @@
       const endIndex = Math.max(index, lastSelectedIndex.value);
       const range: Photo[] = [];
       for (let i = startIndex; i <= endIndex; i += 1) {
-        const p = photos.value[i];
+        const p = photos.value[i] as Photo | undefined;
         if (p) {
           range.push(p);
         }
@@ -54,7 +54,7 @@
       }
     } else if (ctrlPressed.value) {
       for (const x of s) {
-        const idx = selected.value.findIndex(p => p.name === x.name);
+        const idx = selected.value.findIndex(p => p.path === x.path);
         if (idx === -1) {
           selected.value.push(x);
         } else {
@@ -169,7 +169,7 @@
           if (selected.value.length > 1 && current.value + 1 < selected.value.length) {
             current.value += 1;
           } else if (selected.value.length === 1) {
-            const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+            const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
             const nextPhoto = photos.value[idx + 1];
             if (nextPhoto) {
               selected.value = [nextPhoto];
@@ -186,7 +186,7 @@
           if (selected.value.length > 1 && current.value - 1 >= 0) {
             current.value -= 1;
           } else if (selected.value.length === 1) {
-            const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+            const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
             const prevPhoto = photos.value[idx - 1];
             if (prevPhoto) {
               selected.value = [prevPhoto];
@@ -200,14 +200,14 @@
           showDetail.value = true;
         }
         if (event.key === 'ArrowDown' && selected.value.length === 1) {
-          const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+          const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
           const downPhoto = photos.value[idx + itemsPerRow.value];
           if (downPhoto) {
             selected.value = [downPhoto];
           }
         }
         if (event.key === 'ArrowUp' && selected.value.length === 1) {
-          const idx = photos.value.findIndex(p => p.id === selected.value[0]?.id);
+          const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
           const upPhoto = photos.value[idx - itemsPerRow.value];
           if (upPhoto) {
             selected.value = [upPhoto];
@@ -244,11 +244,11 @@
           </template>
           <v-list>
             <v-list-item @click="setSortMode('name')">Sort by name</v-list-item>
-            <v-list-item @click="setSortMode('name_desc')"> Sort by name (desc) </v-list-item>
+            <v-list-item @click="setSortMode('namedesc')"> Sort by name (desc) </v-list-item>
             <v-list-item @click="setSortMode('rating')">Sort by rating</v-list-item>
-            <v-list-item @click="setSortMode('rating_desc')"> Sort by rating (desc) </v-list-item>
+            <v-list-item @click="setSortMode('ratingdesc')"> Sort by rating (desc) </v-list-item>
             <v-list-item @click="setSortMode('date')">Sort by date</v-list-item>
-            <v-list-item @click="setSortMode('date_desc')"> Sort by date (desc) </v-list-item>
+            <v-list-item @click="setSortMode('datedesc')"> Sort by date (desc) </v-list-item>
           </v-list>
         </v-menu>
         <div class="toolbar-controls">
@@ -283,7 +283,7 @@
                 <v-list-item @click="tagReplaceDialog = true">
                   Replace/Remove Tag From Selected
                 </v-list-item>
-                <v-list-item @click="quickGroup(selected[0]?.name ?? 'NewGroup')">
+                <v-list-item @click="quickGroup(selected[0]?.path ?? 'NewGroup')">
                   Group Selected
                 </v-list-item>
               </v-list>
@@ -301,8 +301,8 @@
       </v-toolbar>
       <photo-grid
         :items-per-row="itemsPerRow"
-        :photos="photos"
-        :selected="selected"
+        :photos="photos as Photo[]"
+        :selected="selected as Photo[]"
         :width="showDetail ? photoGridWidth / 2 : photoGridWidth"
         @select="
           (photo, index) => {
@@ -346,7 +346,7 @@
         <v-btn v-else icon @click="showDetail = false">
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
-        <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
+        <v-toolbar-title class="photo-name">{{ selected[current]?.path }}</v-toolbar-title>
         <v-spacer />
         <v-btn
           v-if="selected.length > 0"
@@ -363,7 +363,7 @@
       </v-toolbar>
       <photo-detail
         :index="current"
-        :photos="selected"
+        :photos="selected as Photo[]"
         @input-focused="val => (inputFocus = val)"
       />
     </div>

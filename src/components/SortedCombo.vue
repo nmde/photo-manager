@@ -115,25 +115,25 @@
     <template #item="{ item, props: lprops }">
       <v-list-item
         v-bind="lprops"
-        :prepend-avatar="items[item.raw ?? '']?.photo"
+        :prepend-avatar="items[item ?? '']?.photo"
         :style="{
           color:
-            colorRepo[items[item.raw ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
+            colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
         }"
-        :title="`${items[item.raw ?? '']?.name} (${items[item.raw ?? '']?.[sortBy]})`"
+        :title="`${items[item ?? '']?.name} (${items[item ?? '']?.[sortBy]})`"
       />
     </template>
     <template #chip="{ item, props: cprops }">
       <v-chip
         v-if="chips"
         v-bind="cprops"
-        :color="colorRepo[items[item.raw ?? '']?.[colorKey as keyof SortableItem] as string]?.color"
-        :prepend-avatar="items[item.raw ?? '']?.photo"
+        :color="colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color"
+        :prepend-avatar="items[item ?? '']?.photo"
         :size="typeof itemSize === 'string' ? itemSize : 'default'"
       >
-        {{ items[item.raw ?? ''] ? items[item.raw ?? '']?.name : item.raw }}
+        {{ items[item ?? ''] ? items[item ?? '']?.name : item }}
       </v-chip>
-      <span v-else>{{ items[item.raw ?? '']?.name }}</span>
+      <span v-else>{{ items[item ?? '']?.name }}</span>
     </template>
   </v-combobox>
 </template>

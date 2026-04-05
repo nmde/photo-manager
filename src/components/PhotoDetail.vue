@@ -136,7 +136,7 @@
 <template>
   <div v-if="photo && photo.hideThumbnail && !viewConfirmation" class="hidden-message">
     This image is hidden.
-    <br />
+    <br>
     <v-btn @click="viewConfirmation = true">Show Image</v-btn>
   </div>
   <div v-if="photo" class="photo-detail">
@@ -270,7 +270,7 @@
         <v-avatar size="48">
           <v-img :src="photoPath" />
         </v-avatar>
-        <br />
+        <br>
         <sorted-combo
           :id="photo.id"
           avatars

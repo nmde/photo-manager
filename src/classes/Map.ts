@@ -247,8 +247,8 @@ export class Map extends EventEmitter<{
     id: string,
     editable = false,
   ) {
-    const shape =
-      type === 'line'
+    const shape
+      = type === 'line'
         ? new this.mapsLibrary.Polyline({
             path: points,
             geodesic: true,

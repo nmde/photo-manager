@@ -10,7 +10,7 @@
   const router = useRouter();
 
   const jumpDate = ref<Date>(new Date());
-  const date = ref<Date[]>([new Date()]);
+  const date = ref(new Date());
   const dayDialog = ref(false);
   const dialogDate = ref<Date>(new Date());
   const places = ref<Record<string, Place>>({});
@@ -36,9 +36,9 @@
   > = {};
   async function buildEventMap() {
     eventMap = {};
-    if (date.value[0]) {
-      const year = date.value[0].getFullYear();
-      const month = date.value[0].getMonth() + 1;
+    if (date.value) {
+      const year = date.value.getFullYear();
+      const month = date.value.getMonth() + 1;
       for (const photo of await photo_grid(
         [
           'has:date',
@@ -49,7 +49,7 @@
             0,
           ).getDate()}`,
         ],
-        'rating_desc',
+        'ratingdesc',
       )) {
         const k = photo.date?.toISOString();
         if (k) {
@@ -83,7 +83,7 @@
     const photos = eventMap[date.toISOString()]?.photos;
     if (photos) {
       for (const photo of photos) {
-        if (photo.hasLocation) {
+        if (photo.location !== undefined) {
           const place = places.value[photo.location];
           if (place && !locations.some(p => p.id === place.id)) {
             locations.push(place);
@@ -110,7 +110,7 @@
   }
 
   onMounted(async () => {
-    date.value[0] = calendarViewDate;
+    date.value = calendarViewDate;
     await buildEventMap();
     places.value = await get_places();
     layers.value = await get_layers();
@@ -127,8 +127,8 @@
           label="Jump to"
           @update:model-value="
             async () => {
-              date[0] = jumpDate;
-              setCalendarViewDate(date[0]);
+              date = jumpDate;
+              setCalendarViewDate(date);
               await buildEventMap();
             }
           "
@@ -143,25 +143,22 @@
         type="month"
         @update:model-value="
           async () => {
-            const d = date[0];
-            if (d) {
-              setCalendarViewDate(d);
-            }
+            setCalendarViewDate(date);
             await buildEventMap();
           }
         "
       >
-        <template #day-event="{ day, event }">
+        <template #event="{ day, event }">
           <div class="calendar-photos">
             <photo-icon
               v-for="photo in (event as Event)?.photos.slice(0, 4)"
-              :key="photo.id"
+              :key="photo.path"
               hide-icons
               :photo="photo"
               :size="100"
               @select="
                 () => {
-                  dialogDate = day?.date ?? new Date();
+                  dialogDate = new Date(day?.date);
                   dayDialog = true;
                 }
               "
@@ -178,7 +175,7 @@
               <v-col class="calendar-photos" cols="6">
                 <photo-icon
                   v-for="photo in eventMap[dialogDate.toISOString()]?.photos.slice(0, 20)"
-                  :key="photo.id"
+                  :key="photo.path"
                   hide-icons
                   :photo="photo"
                   :size="100"
@@ -191,9 +188,9 @@
               </v-col>
               <v-col cols="6">
                 <div v-if="(eventMap[dialogDate.toISOString()]?.photos.length ?? 0) > 0">
-                  <br />
+                  <br>
                   Total photos: {{ eventMap[dialogDate.toISOString()]?.photos.length }}
-                  <br />
+                  <br>
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
                 <v-chip

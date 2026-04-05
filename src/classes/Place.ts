@@ -14,7 +14,7 @@ export type PlaceData = {
   lng: number;
   layer: string;
   category: PlaceType;
-  shape: string;
+  shape?: string;
   count: number;
 };
 
@@ -26,7 +26,7 @@ export class Place {
     public _lng: number,
     public _layer: string,
     public _category: PlaceType,
-    public _shape: string,
+    public _shape: string | undefined,
     public count: number,
   ) {}
 

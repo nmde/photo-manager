@@ -1,5 +1,5 @@
-import { set_shape_layer, set_shape_name, set_shape_points } from '@/api/places';
 import type { Position } from './Map';
+import { set_shape_layer, set_shape_name, set_shape_points } from '@/api/places';
 
 export type ShapeType = 'polygon' | 'line';
 

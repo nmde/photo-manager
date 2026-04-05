@@ -1,34 +1,47 @@
 import vuetify from 'eslint-config-vuetify';
 import { defineConfig } from 'eslint/config';
 
-export default defineConfig(await vuetify(), {
-  languageOptions: {
-    parserOptions: {
-      projectService: true,
-      tsconfigRootDir: import.meta.dirname,
+// eslint-disable-next-line no-restricted-exports
+export default defineConfig(
+  await vuetify({
+    rules: {
+      '@stylistic/semi': ['warn', 'always'],
+      '@stylistic/jsx-one-expression-per-line': ['warn', { allow: 'non-jsx' }],
+      '@stylistic/space-before-function-paren': ['warn', { named: 'never', anonymous: 'always' }],
+      'no-restricted-exports': [
+        'error',
+        {
+          restrictDefaultExports: {
+            direct: true,
+          },
+        },
+      ],
+      '@stylistic/member-delimiter-style': [
+        'warn',
+        {
+          multiline: {
+            delimiter: 'semi',
+            requireLast: true,
+          },
+        },
+      ],
+      '@stylistic/multiline-ternary': 'off',
+      '@stylistic/jsx-wrap-multilines': 'off',
+      '@stylistic/quote-props': ['warn', 'as-needed'],
+      'unicorn/no-nested-ternary': 'off',
+      'unicorn/prefer-event-target': 'off',
+      'no-control-regex': 'off',
+      complexity: 'off',
+    },
+  }),
+
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
     },
   },
-  rules: {
-    '@stylistic/semi': ['warn', 'always'],
-    '@stylistic/member-delimiter-style': [
-      'warn',
-      {
-        multiline: {
-          delimiter: 'semi',
-          requireLast: true,
-        },
-      },
-    ],
-    '@stylistic/space-before-function-paren': ['warn', { anonymous: 'always', named: 'never' }],
-    'unicorn/prefer-event-target': 'off',
-    'vue/html-self-closing': [
-      'warn',
-      {
-        html: {
-          void: 'always',
-        },
-      },
-    ],
-    '@stylistic/operator-linebreak': 'off',
-  },
-});
+
+  { ignores: ['**/*.js', '**/vite.config.ts'] },
+);

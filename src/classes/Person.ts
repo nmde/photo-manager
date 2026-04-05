@@ -1,15 +1,9 @@
-import {
-  set_person_category,
-  set_person_name,
-  set_person_notes,
-  set_person_photo,
-} from '@/api/people';
+import { set_person_category, set_person_name, set_person_photo } from '@/api/people';
 
 export type PersonData = {
   id: string;
   name: string;
   photo: string;
-  notes: string;
   category: string;
   photographer_count: number;
   photo_count: number;
@@ -20,7 +14,6 @@ export class Person {
     public readonly id: string,
     private _name: string,
     private _photo: string,
-    private _notes: string,
     private _category: string,
     public photographerCount: number,
     public count: number,
@@ -34,10 +27,6 @@ export class Person {
     return this._photo;
   }
 
-  public get notes() {
-    return this._notes;
-  }
-
   public get category() {
     return this._category;
   }
@@ -49,7 +38,6 @@ export class Person {
         person,
         people[person]?.name ?? '',
         people[person]?.photo ?? '',
-        people[person]?.notes ?? '',
         people[person]?.category ?? '',
         people[person]?.photographer_count ?? 0,
         people[person]?.photo_count ?? 0,
@@ -61,11 +49,6 @@ export class Person {
   public async setName(name: string) {
     this._name = name;
     await set_person_name(this.id, name);
-  }
-
-  public async setNotes(notes: string) {
-    this._notes = notes;
-    await set_person_notes(this.id, notes);
   }
 
   public async setCategory(category: string) {

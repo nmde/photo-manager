@@ -75,11 +75,11 @@
           >
             View Photos ({{ selectedTag.count ?? 0 }})
           </v-btn>
-          <br />
-          <br />
+          <br>
+          <br>
           Set Tag Color:
           <color-options @select="async color => await selectedTag?.setColor(color)" />
-          <br />
+          <br>
           <tag-input
             :disabled="selectedTag === undefined"
             label="Prerequisite Tags"
