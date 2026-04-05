@@ -14,7 +14,8 @@ import {
 } from '@/api/photos';
 
 export type PhotoData = {
-  path: string;
+  name: string;
+  asset_path: string;
   title?: string;
   description?: string;
   tags: string[];
@@ -38,7 +39,8 @@ export class Photo {
   public _date?: Date;
 
   public constructor(
-    public readonly path: string,
+    public readonly name: string,
+    public readonly asset_path: string,
     public _title: string | undefined,
     public _description: string | undefined,
     public _location: string | undefined,
@@ -74,10 +76,6 @@ export class Photo {
     return this._photoGroup;
   }
 
-  public get hasLocation() {
-    return this._location !== undefined;
-  }
-
   public get location() {
     return this._location;
   }
@@ -91,20 +89,11 @@ export class Photo {
   }
 
   public get rating() {
-    if (this.hasRating) {
-      return this._rating;
-    }
+    return this._rating;
   }
 
   public get hideThumbnail() {
     return this._hideThumbnail;
-  }
-
-  /**
-   * If the photo has a rating.
-   */
-  public get hasRating() {
-    return typeof this._rating === 'number' && this._rating > 0;
   }
 
   public get date() {
@@ -122,7 +111,8 @@ export class Photo {
   public static createPhotos = (data: PhotoData[]) =>
     data.map(
       ({
-        path,
+        name,
+        asset_path,
         title,
         description,
         tags,
@@ -141,7 +131,8 @@ export class Photo {
         validation_msg,
       }) =>
         new Photo(
-          path,
+          name,
+          asset_path,
           title,
           description,
           location,
@@ -164,6 +155,7 @@ export class Photo {
   public static default = () =>
     new Photo(
       '',
+      '',
       undefined,
       undefined,
       undefined,
@@ -184,57 +176,57 @@ export class Photo {
 
   public async setTitle(value: string) {
     this._title = value;
-    await set_photo_title(this.path, value);
+    await set_photo_title(this.name, value);
   }
 
   public async setDescription(value: string) {
     this._description = value;
-    await set_photo_desc(this.path, value);
+    await set_photo_desc(this.name, value);
   }
 
   public async setLocation(value: string) {
     this._location = value;
-    await set_photo_location(this.path, value);
+    await set_photo_location(this.name, value);
   }
 
   public async setTags(value: string[]) {
     this._tags = value;
-    return await set_photo_tags(this.path, value);
+    return await set_photo_tags(this.name, value);
   }
 
   public async setDuplicate(value: boolean) {
     this._isDuplicate = value;
-    await set_photo_is_duplicate(this.path, value);
+    await set_photo_is_duplicate(this.name, value);
   }
 
   public async setRating(rating: number) {
     this._rating = rating;
-    await set_photo_rating(this.path, rating);
+    await set_photo_rating(this.name, rating);
   }
 
   public async setDate(value?: Date) {
     this._date = value;
-    await set_photo_date(this.path, value ? value.toISOString().slice(0, 10) : '');
+    await set_photo_date(this.name, value ? value.toISOString().slice(0, 10) : '');
   }
 
   public async setPeople(people: string[]) {
     this._people = people;
-    await set_photo_people(this.path, people);
+    await set_photo_people(this.name, people);
   }
 
   public async setHideThumbnail(value: boolean) {
     this._hideThumbnail = value;
-    await set_photo_hide_thumbnail(this.path, value);
+    await set_photo_hide_thumbnail(this.name, value);
   }
 
   public async setPhotographer(value: string) {
     this._photographer = value;
-    await set_photographer(this.path, value);
+    await set_photographer(this.name, value);
   }
 
   public async setGroup(value: string) {
     this._photoGroup = value;
-    await set_photo_group(this.path, value);
+    await set_photo_group(this.name, value);
   }
 
   /**

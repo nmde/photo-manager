@@ -16,16 +16,16 @@
   const photoPath = computed(() =>
     props.photo.hideThumbnail
       ? hiddenPng
-      : (props.photo.video || props.photo.raw
+      : props.photo.is_video || props.photo.is_raw
         ? props.photo.thumbnail
-        : props.photo.path),
+        : props.photo.asset_path,
   );
 
   const displayName = computed(() =>
     props.photo.group === undefined
-      ? (props.photo.title.length > 0
-        ? props.photo.title
-        : props.photo.name)
+      ? props.photo.title === undefined
+        ? props.photo.name
+        : props.photo.title
       : props.photo.group,
   );
 </script>
@@ -49,16 +49,16 @@
       >
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
         <div v-if="props.hideIcons !== true" class="icons">
-          <div v-if="props.photo.hasRating">
+          <div v-if="props.photo.rating !== undefined">
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>
           <v-icon v-if="props.selected">mdi-check</v-icon>
           <v-icon v-if="!props.photo.valid" color="error">mdi-alert-octagram</v-icon>
-          <v-icon v-if="props.photo.hasLocation">mdi-map-marker</v-icon>
+          <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
           <v-icon v-if="props.photo.date">mdi-calendar</v-icon>
           <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
           <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
-          <v-icon v-if="props.photo.video">mdi-video-outline</v-icon>
+          <v-icon v-if="props.photo.is_video">mdi-video-outline</v-icon>
           <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
           <v-icon v-if="props.photo.photographer !== undefined">mdi-photo</v-icon>
         </div>

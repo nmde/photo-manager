@@ -204,7 +204,7 @@ async fn modify_tag_relationships(
     for row in maybe_has_tag {
         let photo = PhotoDto::from(row);
         if photo.tags.contains(&tag) {
-            let target = state_photos.get_mut(&photo.photo.path).unwrap();
+            let target = state_photos.get_mut(&photo.photo.name).unwrap();
             let validation = validate_tags(&state_tags, &photo.tags);
             target.valid_tags = validation.is_valid;
             target.validation_msg = validation.message;
@@ -325,8 +325,8 @@ pub async fn validate_photo(
         let mut conn = state.db.lock().await;
         let conn = conn.as_mut().unwrap();
         for target in get_photo_targets(&photo, conn).await? {
-            if state_photos.contains_key(&target.path) {
-                let p = state_photos.get_mut(&target.path).unwrap();
+            if state_photos.contains_key(&target.name) {
+                let p = state_photos.get_mut(&target.name).unwrap();
                 p.valid_tags = validation.is_valid;
                 p.validation_msg = validation.message.clone();
             }

@@ -25,14 +25,14 @@
   const photo = computed(() => props.photos[props.index] as Photo);
 
   const photoPath = computed(() =>
-    photo.value.thumbnail.length > 0 ? photo.value.thumbnail : photo.value?.path,
+    photo.value.thumbnail === undefined ? photo.value?.asset_path : photo.value.thumbnail,
   );
 
   const rating = ref<number>();
   const isDuplicate = ref(false);
   const photoTags = ref<string[]>([]);
-  const title = ref('');
-  const description = ref('');
+  const title = ref<string>();
+  const description = ref<string>();
   const date = ref<Date>();
   const closeUp = ref(false);
   const location = ref<string[]>([]);
@@ -58,10 +58,10 @@
       title.value = photo.value.title;
       description.value = photo.value.description;
       date.value = photo.value.date;
-      location.value = photo.value.hasLocation ? [photo.value.location] : [];
+      location.value = photo.value.location === undefined ? [] : [photo.value.location];
       hideThumbnail.value = photo.value.hideThumbnail;
       photoPeople.value = photo.value.people;
-      photographer.value = photo.value.photographer.length > 0 ? [photo.value.photographer] : [];
+      photographer.value = photo.value.photographer === undefined ? [] : [photo.value.photographer];
       validTags.value = photo.value.valid ? undefined : photo.value.validationMsg;
     }
     peopleCategories.value = await get_people_categories();
@@ -136,23 +136,23 @@
 <template>
   <div v-if="photo && photo.hideThumbnail && !viewConfirmation" class="hidden-message">
     This image is hidden.
-    <br>
+    <br />
     <v-btn @click="viewConfirmation = true">Show Image</v-btn>
   </div>
   <div v-if="photo" class="photo-detail">
     <div v-if="!photo.hideThumbnail || viewConfirmation">
       <video-player
-        v-if="photo.video"
+        v-if="photo.is_video"
         controls
         :height="400"
         :poster="photo.thumbnail"
-        :src="photo.path"
+        :src="photo.asset_path"
         :width="700"
       />
-      <v-img v-if="!photo.video" max-height="600" :src="photoPath" @click="closeUp = true" />
+      <v-img v-if="!photo.is_video" max-height="600" :src="photoPath" @click="closeUp = true" />
     </div>
     <tag-input
-      :id="photo.id"
+      :id="photo.name"
       filtered
       :label="`Tags (${photo.tags.length})`"
       :loading="savingTags"
@@ -162,7 +162,7 @@
       @focused="val => emit('input-focused', val)"
     />
     <sorted-combo
-      :id="photo.id"
+      :id="photo.name"
       color-key="layer"
       :color-repo="layers"
       :items="placeList"
@@ -173,7 +173,7 @@
       @update="location => saveLocation(location)"
     />
     <sorted-combo
-      :id="photo.id"
+      :id="photo.name"
       avatars
       chips
       color-key="category"
@@ -194,7 +194,7 @@
       @update:model-value="rating => photo.setRating(Number(rating))"
     />
     <sorted-combo
-      :id="photo.id"
+      :id="photo.name"
       avatars
       chips
       color-key="category"
@@ -218,7 +218,7 @@
     />
     <autosave-text
       label="Description"
-      :value="description"
+      :value="description ?? ''"
       @focused="val => emit('input-focused', val)"
       @save="description => photo.setDescription(description)"
     />
@@ -249,14 +249,14 @@
     <v-card :title="photo.name">
       <v-card-text>
         <video-player
-          v-if="photo.video"
+          v-if="photo.is_video"
           controls
           :height="400"
           :poster="photo.thumbnail"
-          :src="photo.path"
+          :src="photo.asset_path"
           :width="700"
         />
-        <v-img v-if="!photo.video" max-height="calc(100vh - 136px)" :src="photoPath" />
+        <v-img v-if="!photo.is_video" max-height="calc(100vh - 136px)" :src="photoPath" />
       </v-card-text>
     </v-card>
   </v-dialog>
@@ -270,9 +270,9 @@
         <v-avatar size="48">
           <v-img :src="photoPath" />
         </v-avatar>
-        <br>
+        <br />
         <sorted-combo
-          :id="photo.id"
+          :id="photo.name"
           avatars
           chips
           color-key="category"

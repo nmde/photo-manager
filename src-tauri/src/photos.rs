@@ -64,7 +64,8 @@ pub struct PhotoDto {
 impl Photo {
     fn new(filename: String) -> Self {
         Self {
-            path: format!(
+            name: filename.clone(),
+            asset_path: format!(
                 "https://asset.localhost/{0}",
                 url_escape::encode_component(&filename)
             ),
@@ -95,8 +96,8 @@ impl From<Photo> for PhotoDto {
             } else {
                 None
             },
-            is_raw: RAW.is_match(&photo.path.to_uppercase()),
-            is_video: VIDEO.is_match(&photo.path.to_uppercase()),
+            is_raw: RAW.is_match(&photo.name.to_uppercase()),
+            is_video: VIDEO.is_match(&photo.name.to_uppercase()),
             people: row_to_vec(&photo.people),
             hide_thumbnail: photo.hide_thumbnail.unwrap_or(0) == 1,
             valid_tags: true,
@@ -200,7 +201,7 @@ async fn load_photos(
         let validation = validate_tags(&tags, &photo.tags);
         photo.valid_tags = validation.is_valid;
         photo.validation_msg = validation.message;
-        existing.insert(photo.photo.path.clone(), photo);
+        existing.insert(photo.photo.name.clone(), photo);
     }
 
     // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
@@ -244,7 +245,7 @@ async fn load_photos(
                         }
                     }
                 }
-                photos.insert(existing_photo.photo.path.clone(), existing_photo.clone());
+                photos.insert(existing_photo.photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
                 let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
@@ -305,7 +306,7 @@ async fn load_photos(
                         .values(&photo)
                         .execute(conn)
                         .await?;
-                    photos.insert(photo.path.clone(), PhotoDto::from(photo));
+                    photos.insert(photo.name.clone(), PhotoDto::from(photo));
                 }
             }
         }
@@ -317,7 +318,7 @@ async fn load_photos(
             .values(result.photo.clone())
             .execute(conn)
             .await?;
-        photos.insert(result.photo.path.clone(), result);
+        photos.insert(result.photo.name.clone(), result);
     }
 
     Ok(LoadedPhotos {
@@ -445,7 +446,7 @@ pub enum SearchError {
     TermError(#[from] SearchTermError),
     #[error("Could not parse provided date: {0}")]
     DateError(#[from] chrono::ParseError),
-    #[error("Invalid search term: {0}")]
+    #[error("Invalid sort option: {0}")]
     SortTermError(#[from] strum::ParseError),
     #[error("{0}")]
     AnyError(#[from] anyhow::Error),
@@ -462,11 +463,17 @@ impl Serialize for SearchError {
 
 #[derive(EnumString, PartialEq)]
 enum Sort {
+    #[strum(ascii_case_insensitive)]
     Date,
+    #[strum(ascii_case_insensitive)]
     DateDesc,
+    #[strum(ascii_case_insensitive)]
     Name,
+    #[strum(ascii_case_insensitive)]
     NameDesc,
+    #[strum(ascii_case_insensitive)]
     Rating,
+    #[strum(ascii_case_insensitive)]
     RatingDesc,
 }
 
@@ -570,9 +577,9 @@ async fn search_photos(
         } else if term_matches(&tmp_term, "NAME:") {
             let name = try_get_term(&tmp_term, 5)?;
             if negated {
-                statement = statement.filter(photos::path.not_like(name));
+                statement = statement.filter(photos::name.not_like(name));
             } else {
-                statement = statement.filter(photos::path.like(name));
+                statement = statement.filter(photos::name.like(name));
             }
         } else if term_matches(&tmp_term, "RATING<=") {
             let rating = try_get_term(&tmp_term, 8)?.parse::<i32>()?;
@@ -725,7 +732,7 @@ async fn search_photos(
             }
             if meets_terms {
                 if sort == Sort::Name || sort == Sort::NameDesc {
-                    match results.binary_search_by_key(&photo.photo.path, |p| p.photo.path.clone())
+                    match results.binary_search_by_key(&photo.photo.name, |p| p.photo.name.clone())
                     {
                         Ok(_pos) => {}
                         Err(pos) => results.insert(pos, photo.clone()),
@@ -746,7 +753,7 @@ async fn search_photos(
     } else {
         results = photo_records.into_iter().collect::<Vec<PhotoDto>>();
         if sort == Sort::Name || sort == Sort::NameDesc {
-            results.sort_by_key(|p| p.photo.path.clone());
+            results.sort_by_key(|p| p.photo.name.clone());
         } else if sort == Sort::Rating || sort == Sort::RatingDesc {
             results.sort_by_key(|p| p.photo.rating);
         } else if sort == Sort::Date || sort == Sort::DateDesc {
@@ -795,12 +802,12 @@ pub async fn remove_deleted(
     let cloned = state_photos.clone();
 
     for name in deleted {
-        delete(photos::table.filter(photos::path.eq(&name)))
+        delete(photos::table.filter(photos::name.eq(&name)))
             .execute(connection)
             .await?;
 
         let test = cloned.iter().find_map(|(key, value)| {
-            if name == value.photo.path {
+            if name == value.photo.name {
                 Some(key)
             } else {
                 None
@@ -820,7 +827,7 @@ pub async fn get_photo_targets(
     let mut targets = Vec::<Photo>::new();
     targets.push(
         photos::table
-            .filter(photos::path.eq(id))
+            .filter(photos::name.eq(id))
             .first::<Photo>(connection)
             .await?,
     );
@@ -830,7 +837,7 @@ pub async fn get_photo_targets(
             .filter(
                 photos::photo_group
                     .eq(existing_group.as_ref().unwrap())
-                    .and(photos::path.ne(id)),
+                    .and(photos::name.ne(id)),
             )
             .load::<Photo>(connection)
             .await?
@@ -851,7 +858,7 @@ pub async fn set_photo_title(
     let mut connection = state.db.lock().await;
     let connection = connection.as_mut().unwrap();
 
-    update(photos::table.filter(photos::path.eq(photo)))
+    update(photos::table.filter(photos::name.eq(photo)))
         .set(photos::title.eq(value))
         .execute(connection)
         .await?;
@@ -869,7 +876,7 @@ pub async fn set_photo_desc(
     let mut connection = state.db.lock().await;
     let connection = connection.as_mut().unwrap();
 
-    update(photos::table.filter(photos::path.eq(photo)))
+    update(photos::table.filter(photos::name.eq(photo)))
         .set(photos::description.eq(value))
         .execute(connection)
         .await?;
@@ -891,13 +898,13 @@ pub async fn set_photographer(
 
     let targets = get_photo_targets(&photo, connection).await?;
     for target in &targets {
-        update(photos::table.filter(photos::path.eq(target.path.clone())))
+        update(photos::table.filter(photos::name.eq(target.name.clone())))
             .set(photos::photographer.eq(value.clone()))
             .execute(connection)
             .await?;
-        if state_photos.contains_key(&target.path) {
+        if state_photos.contains_key(&target.name) {
             state_photos
-                .get_mut(&target.path)
+                .get_mut(&target.name)
                 .unwrap()
                 .photo
                 .photographer = Some(value.clone());
@@ -937,12 +944,12 @@ pub async fn set_photo_people(
     let targets = get_photo_targets(&photo, connection).await?;
     let joined_people = &value.join(",");
     for target in &targets {
-        update(photos::table.filter(photos::path.eq(target.path.clone())))
+        update(photos::table.filter(photos::name.eq(target.name.clone())))
             .set(photos::people.eq(joined_people))
             .execute(connection)
             .await?;
-        if state_photos.contains_key(&target.path) {
-            state_photos.get_mut(&target.path).unwrap().people = value.clone();
+        if state_photos.contains_key(&target.name) {
+            state_photos.get_mut(&target.name).unwrap().people = value.clone();
         }
     }
 
@@ -978,16 +985,16 @@ pub async fn set_photo_location(
     let existing_location = &targets[0].location;
 
     for target in &targets {
-        update(photos::table.filter(photos::path.eq(target.path.clone())))
+        update(photos::table.filter(photos::name.eq(target.name.clone())))
             .set(photos::location.eq(value.clone()))
             .execute(connection)
             .await?;
-        if state_photos.contains_key(&target.path) {
-            state_photos.get_mut(&target.path).unwrap().photo.location = Some(value.clone());
+        if state_photos.contains_key(&target.name) {
+            state_photos.get_mut(&target.name).unwrap().photo.location = Some(value.clone());
         } else {
             return Err(ApiError::NotFoundError(format!(
                 "Photo {} not found",
-                target.path
+                target.name
             )));
         }
     }
@@ -1028,19 +1035,19 @@ pub async fn set_photo_tags(
 
     let validation = validate_tags(&state_tags, &value);
     for target in &mut targets.clone() {
-        update(photos::table.filter(photos::path.eq(target.photo.path.clone())))
+        update(photos::table.filter(photos::name.eq(target.photo.name.clone())))
             .set(photos::tags.eq(value.join(",")))
             .execute(connection)
             .await?;
         target.tags = value.clone();
         target.valid_tags = validation.is_valid;
         target.validation_msg = validation.message.clone();
-        if state_photos.contains_key(&target.photo.path) {
-            *state_photos.get_mut(&target.photo.path).unwrap() = target.clone();
+        if state_photos.contains_key(&target.photo.name) {
+            *state_photos.get_mut(&target.photo.name).unwrap() = target.clone();
         } else {
             return Err(ApiError::NotFoundError(format!(
                 "Photo {} not found",
-                target.photo.path
+                target.photo.name
             )));
         }
     }
@@ -1075,18 +1082,18 @@ pub async fn set_photo_date(
     let mut state_photos = state.photos.lock().await;
 
     for target in &get_photo_targets(&photo, connection).await? {
-        update(photos::table.filter(photos::path.eq(target.path.clone())))
+        update(photos::table.filter(photos::name.eq(target.name.clone())))
             .set(photos::date.eq(value.clone()))
             .execute(connection)
             .await?;
 
-        if state_photos.contains_key(&target.path) {
-            state_photos.get_mut(&target.path).unwrap().date =
+        if state_photos.contains_key(&target.name) {
+            state_photos.get_mut(&target.name).unwrap().date =
                 Some(NaiveDate::parse_from_str(&value, DATE_FORMAT)?);
         } else {
             return Err(ApiError::NotFoundError(format!(
                 "Photo {} not found",
-                target.path
+                target.name
             )));
         }
     }
@@ -1119,7 +1126,7 @@ pub async fn set_photo_group(
     let targets = get_photo_targets(&photo, connection).await?;
     if value.len() == 0 {
         for target in &targets {
-            update(photos::table.filter(photos::path.eq(target.path.clone())))
+            update(photos::table.filter(photos::name.eq(target.name.clone())))
                 .set(photos::photo_group.eq::<Option<String>>(None))
                 .execute(connection)
                 .await?;
@@ -1134,7 +1141,7 @@ pub async fn set_photo_group(
             for tag in row_to_vec(&row.tags) {
                 collected_tags.insert(tag.clone());
             }
-            if collected_location.clone().is_none() || (row.path == photo && row.location.is_some())
+            if collected_location.clone().is_none() || (row.name == photo && row.location.is_some())
             {
                 collected_location = row.location.clone();
             }
@@ -1142,12 +1149,12 @@ pub async fn set_photo_group(
                 collected_people.insert(person.clone());
             }
             if collected_photographer.clone().is_none()
-                || (row.path == photo && row.photographer.is_some())
+                || (row.name == photo && row.photographer.is_some())
             {
                 collected_photographer = row.photographer.clone();
             }
             if row.date.is_some()
-                && (collected_date.is_none() || (row.path == photo && row.date.is_some()))
+                && (collected_date.is_none() || (row.name == photo && row.date.is_some()))
             {
                 collected_date = row.date.clone();
             }
@@ -1167,12 +1174,12 @@ pub async fn set_photo_group(
         };
 
         for row in &targets {
-            if !state_photos.contains_key(&row.path) {
-                state_photos.insert(row.path.clone(), PhotoDto::from(row.clone()));
+            if !state_photos.contains_key(&row.name) {
+                state_photos.insert(row.name.clone(), PhotoDto::from(row.clone()));
             }
 
-            let target_photo = state_photos.get_mut(&row.path).unwrap();
-            update(photos::table.filter(photos::path.eq(row.path.clone())))
+            let target_photo = state_photos.get_mut(&row.name).unwrap();
+            update(photos::table.filter(photos::name.eq(row.name.clone())))
                 .into_boxed()
                 .set(GroupFields {
                     photo_group: value.clone(),
@@ -1216,7 +1223,7 @@ pub async fn set_photo_rating(
     let mut connection = state.db.lock().await;
     let connection = connection.as_mut().unwrap();
 
-    update(photos::table.filter(photos::path.eq(photo.clone())))
+    update(photos::table.filter(photos::name.eq(photo.clone())))
         .set(photos::rating.eq(rating))
         .execute(connection)
         .await?;
@@ -1245,7 +1252,7 @@ pub async fn set_photo_is_duplicate(
     let connection = connection.as_mut().unwrap();
 
     let int_val = if value { 1 } else { 0 };
-    update(photos::table.filter(photos::path.eq(photo)))
+    update(photos::table.filter(photos::name.eq(photo)))
         .set(photos::is_duplicate.eq(int_val))
         .execute(connection)
         .await?;
@@ -1264,7 +1271,7 @@ pub async fn set_photo_hide_thumbnail(
     let connection = connection.as_mut().unwrap();
 
     let int_val = if value { 1 } else { 0 };
-    update(photos::table.filter(photos::path.eq(photo)))
+    update(photos::table.filter(photos::name.eq(photo)))
         .set(photos::hide_thumbnail.eq(int_val))
         .execute(connection)
         .await?;

@@ -126,16 +126,16 @@ pub async fn delete_layer(
                 .load::<Photo>(conn)
                 .await?
             {
-                if state_photos.contains_key(&photo.path) {
-                    state_photos.get_mut(&photo.path).unwrap().photo.location = None;
-                    update(photos::table.filter(photos::path.eq(photo.path.clone())))
+                if state_photos.contains_key(&photo.name) {
+                    state_photos.get_mut(&photo.name).unwrap().photo.location = None;
+                    update(photos::table.filter(photos::name.eq(photo.name.clone())))
                         .set(photos::location.eq::<Option<String>>(None))
                         .execute(conn)
                         .await?;
                 } else {
                     return Err(ApiError::NotFoundError(format!(
                         "Photo '{0}' not found",
-                        photo.path
+                        photo.name
                     )));
                 }
             }
@@ -344,9 +344,9 @@ pub async fn delete_place(state: State<'_, PhotoState>, place: String) -> Result
         .load::<Photo>(conn)
         .await?
     {
-        if state_photos.contains_key(&photo.path) {
-            state_photos.get_mut(&photo.path).unwrap().photo.location = None;
-            update(photos::table.filter(photos::path.eq(photo.path)))
+        if state_photos.contains_key(&photo.name) {
+            state_photos.get_mut(&photo.name).unwrap().photo.location = None;
+            update(photos::table.filter(photos::name.eq(photo.name)))
                 .set(photos::location.eq::<Option<String>>(None))
                 .execute(conn)
                 .await?;

@@ -38,7 +38,7 @@
         <div class="photo-row">
           <photo-icon
             v-for="(photo, j) in item"
-            :key="photo.id"
+            :key="photo.name"
             :photo="photo"
             :size="size"
             :selected="selected.findIndex(p => p.name === photo.name) >= 0"

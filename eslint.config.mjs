@@ -32,6 +32,7 @@ export default defineConfig(
       'unicorn/prefer-event-target': 'off',
       'no-control-regex': 'off',
       complexity: 'off',
+      'vue/html-self-closing': 'off',
     },
   }),
 

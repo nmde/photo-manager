@@ -40,7 +40,8 @@ pub struct PhotoGroup {
 #[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
 #[diesel(table_name = photos)]
 pub struct Photo {
-    pub path: String,
+    pub name: String,
+    pub asset_path: String,
     pub title: Option<String>,
     pub description: Option<String>,
     pub tags: Option<String>,

@@ -152,7 +152,7 @@
           <div class="calendar-photos">
             <photo-icon
               v-for="photo in (event as Event)?.photos.slice(0, 4)"
-              :key="photo.path"
+              :key="photo.name"
               hide-icons
               :photo="photo"
               :size="100"
@@ -175,7 +175,7 @@
               <v-col class="calendar-photos" cols="6">
                 <photo-icon
                   v-for="photo in eventMap[dialogDate.toISOString()]?.photos.slice(0, 20)"
-                  :key="photo.path"
+                  :key="photo.name"
                   hide-icons
                   :photo="photo"
                   :size="100"

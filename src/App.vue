@@ -26,7 +26,9 @@
           <v-list-item prepend-icon="mdi-exit-to-app" title="Close Project" to="/" />
         </v-list>
       </v-navigation-drawer>
-      <RouterView />
+      <v-main>
+        <RouterView />
+      </v-main>
     </v-layout>
   </v-app>
 </template>

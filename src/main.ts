@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import { registerPlugins } from '@/plugins';
 import App from './App.vue';
-import 'unfonts.css';
+import '@fontsource/roboto/500.css';
 import './styles/styles.css';
 
 const app = createApp(App);

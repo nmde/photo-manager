@@ -54,7 +54,7 @@
       }
     } else if (ctrlPressed.value) {
       for (const x of s) {
-        const idx = selected.value.findIndex(p => p.path === x.path);
+        const idx = selected.value.findIndex(p => p.name === x.name);
         if (idx === -1) {
           selected.value.push(x);
         } else {
@@ -169,7 +169,7 @@
           if (selected.value.length > 1 && current.value + 1 < selected.value.length) {
             current.value += 1;
           } else if (selected.value.length === 1) {
-            const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
+            const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const nextPhoto = photos.value[idx + 1];
             if (nextPhoto) {
               selected.value = [nextPhoto];
@@ -186,7 +186,7 @@
           if (selected.value.length > 1 && current.value - 1 >= 0) {
             current.value -= 1;
           } else if (selected.value.length === 1) {
-            const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
+            const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const prevPhoto = photos.value[idx - 1];
             if (prevPhoto) {
               selected.value = [prevPhoto];
@@ -200,14 +200,14 @@
           showDetail.value = true;
         }
         if (event.key === 'ArrowDown' && selected.value.length === 1) {
-          const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
+          const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const downPhoto = photos.value[idx + itemsPerRow.value];
           if (downPhoto) {
             selected.value = [downPhoto];
           }
         }
         if (event.key === 'ArrowUp' && selected.value.length === 1) {
-          const idx = photos.value.findIndex(p => p.path === selected.value[0]?.path);
+          const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const upPhoto = photos.value[idx - itemsPerRow.value];
           if (upPhoto) {
             selected.value = [upPhoto];
@@ -283,7 +283,7 @@
                 <v-list-item @click="tagReplaceDialog = true">
                   Replace/Remove Tag From Selected
                 </v-list-item>
-                <v-list-item @click="quickGroup(selected[0]?.path ?? 'NewGroup')">
+                <v-list-item @click="quickGroup(selected[0]?.name ?? 'NewGroup')">
                   Group Selected
                 </v-list-item>
               </v-list>
@@ -346,7 +346,7 @@
         <v-btn v-else icon @click="showDetail = false">
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
-        <v-toolbar-title class="photo-name">{{ selected[current]?.path }}</v-toolbar-title>
+        <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
         <v-spacer />
         <v-btn
           v-if="selected.length > 0"

@@ -33,8 +33,9 @@ diesel::table! {
 }
 
 diesel::table! {
-    photos (path) {
-        path -> Text,
+    photos (name) {
+        name -> Text,
+        asset_path -> Text,
         title -> Nullable<Text>,
         description -> Nullable<Text>,
         tags -> Nullable<Text>,

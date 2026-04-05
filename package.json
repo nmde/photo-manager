@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
+    "@tsconfig/node22": "^22.0.5",
     "@types/d3": "^7.4.3",
     "@types/google.maps": "^3.58.1",
     "@types/node": "^25.5.2",
@@ -49,6 +50,7 @@
     "eslint": "^10.2.0",
     "eslint-config-vuetify": "^4.5.0",
     "eslint-plugin-vue": "^10.5.0",
+    "sass-embedded": "^1.99.0",
     "typescript": "^6.0.2",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^32.0.0",

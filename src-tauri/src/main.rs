@@ -89,9 +89,7 @@ fn setup_logger() -> anyhow::Result<()> {
 async fn main() {
     setup_logger().expect("Failed to initialize logger");
     tauri::Builder::default()
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(photos::PhotoState::default())
         .invoke_handler(tauri::generate_handler![
             people::create_person,
