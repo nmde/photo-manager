@@ -4,7 +4,6 @@ export type LayerData = {
   id: string;
   name: string;
   color: string;
-  count: number;
 };
 
 export class Layer {

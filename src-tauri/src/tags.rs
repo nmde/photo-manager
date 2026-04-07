@@ -8,62 +8,19 @@ use tauri::State;
 
 use crate::{
     models::{Photo, Tag},
-    photos::{get_photo_targets, PhotoDto, PhotoState},
-    row_to_vec,
+    photos::{get_photo_targets, PhotoState},
     schema::{photos, tags},
     ApiError,
 };
 
-#[derive(Serialize, Clone)]
-pub struct TagDto {
-    pub tag: Tag,
-    pub prereqs: Vec<String>,
-    pub coreqs: Vec<String>,
-    pub incompatible: Vec<String>,
-    pub count: i64,
-    pub has_entry: bool,
-}
-
-impl TagDto {
+impl Tag {
     pub fn new(name: &String) -> Self {
         Self {
-            tag: Tag {
-                name: name.clone(),
-                color: String::new(),
-                prereqs: None,
-                coreqs: None,
-                incompatible: None,
-            },
-            prereqs: vec![],
-            coreqs: vec![],
-            incompatible: vec![],
-            count: 0,
-            has_entry: false,
-        }
-    }
-}
-
-impl From<Tag> for TagDto {
-    fn from(tag: Tag) -> Self {
-        Self {
-            tag: tag.clone(),
-            prereqs: if tag.prereqs.is_none() {
-                vec![]
-            } else {
-                row_to_vec(&tag.prereqs)
-            },
-            coreqs: if tag.coreqs.is_none() {
-                vec![]
-            } else {
-                row_to_vec(&tag.coreqs)
-            },
-            incompatible: if tag.incompatible.is_none() {
-                vec![]
-            } else {
-                row_to_vec(&tag.incompatible)
-            },
-            count: 0,
-            has_entry: true,
+            name: name.clone(),
+            color: String::new(),
+            prereqs: None,
+            coreqs: None,
+            incompatible: None,
         }
     }
 }
@@ -74,7 +31,7 @@ pub struct ValidationResult {
     pub message: String,
 }
 
-pub fn validate_tags(state_tags: &HashMap<String, TagDto>, tags: &Vec<String>) -> ValidationResult {
+pub fn validate_tags(state_tags: &HashMap<String, Tag>, tags: &Vec<String>) -> ValidationResult {
     if tags.len() == 0 {
         ValidationResult {
             is_valid: true,
@@ -151,7 +108,7 @@ pub async fn set_tag_color(
             .execute(conn)
             .await?;
 
-        state_tag.tag.color = value.clone();
+        state_tag.color = value.clone();
     } else {
         return Err(ApiError::NotFoundError(format!("Tag '{}' not found", tag)));
     }
@@ -170,8 +127,8 @@ async fn modify_tag_relationships(
     category: TagRelationship,
     tag: &String,
     value: &Vec<String>,
-    state_photos: &mut HashMap<String, PhotoDto>,
-    state_tags: &HashMap<String, TagDto>,
+    state_photos: &mut HashMap<String, Photo>,
+    state_tags: &HashMap<String, Tag>,
 ) -> Result<(), ApiError> {
     let joined = value.join(",");
     match category {
@@ -201,8 +158,7 @@ async fn modify_tag_relationships(
         .load::<Photo>(connection)
         .await?;
 
-    for row in maybe_has_tag {
-        let photo = PhotoDto::from(row);
+    for photo in maybe_has_tag {
         if photo.tags.contains(&tag) {
             let target = state_photos.get_mut(&photo.photo.name).unwrap();
             let validation = validate_tags(&state_tags, &photo.tags);
@@ -307,7 +263,7 @@ pub async fn set_tag_incompatible(
 }
 
 #[tauri::command]
-pub async fn get_tags(state: State<'_, PhotoState>) -> Result<HashMap<String, TagDto>, String> {
+pub async fn get_tags(state: State<'_, PhotoState>) -> Result<HashMap<String, Tag>, String> {
     Ok(state.tags.lock().await.clone())
 }
 

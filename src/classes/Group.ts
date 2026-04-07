@@ -1,3 +1,8 @@
+export type GroupData = {
+  id: string;
+  name: string;
+};
+
 export class Group {
   public constructor(
     public readonly id: string,

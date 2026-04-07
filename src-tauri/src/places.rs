@@ -8,7 +8,6 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use log::debug;
-use serde::Serialize;
 use tauri::State;
 
 use crate::{
@@ -18,34 +17,8 @@ use crate::{
     ApiError,
 };
 
-#[derive(Serialize, Clone)]
-pub struct LayerDto {
-    pub layer: Layer,
-    pub count: i64,
-}
-
-impl From<Layer> for LayerDto {
-    fn from(layer: Layer) -> Self {
-        LayerDto { layer, count: 0 }
-    }
-}
-
-#[derive(Serialize, Clone)]
-pub struct PlaceDto {
-    pub place: Place,
-    pub count: i64,
-}
-
-impl From<Place> for PlaceDto {
-    fn from(place: Place) -> Self {
-        PlaceDto { place, count: 0 }
-    }
-}
-
 #[tauri::command]
-pub async fn get_layers(
-    state: State<'_, PhotoState>,
-) -> Result<HashMap<String, LayerDto>, ApiError> {
+pub async fn get_layers(state: State<'_, PhotoState>) -> Result<HashMap<String, Layer>, ApiError> {
     Ok(state.layers.lock().await.clone())
 }
 
@@ -58,7 +31,7 @@ pub async fn get_shapes(state: State<'_, PhotoState>) -> Result<Vec<Shape>, ApiE
 }
 
 #[tauri::command]
-pub async fn get_places(state: State<'_, PhotoState>) -> Result<HashMap<String, PlaceDto>, String> {
+pub async fn get_places(state: State<'_, PhotoState>) -> Result<HashMap<String, Place>, String> {
     Ok(state.places.lock().await.clone())
 }
 
@@ -127,7 +100,7 @@ pub async fn delete_layer(
                 .await?
             {
                 if state_photos.contains_key(&photo.name) {
-                    state_photos.get_mut(&photo.name).unwrap().photo.location = None;
+                    state_photos.get_mut(&photo.name).unwrap().location = None;
                     update(photos::table.filter(photos::name.eq(photo.name.clone())))
                         .set(photos::location.eq::<Option<String>>(None))
                         .execute(conn)
@@ -197,11 +170,7 @@ pub async fn create_place(
         state_layers.get_mut(&layer).unwrap().count += 1;
     }
 
-    state
-        .places
-        .lock()
-        .await
-        .insert(id.clone(), PlaceDto::from(new_place));
+    state.places.lock().await.insert(id.clone(), new_place);
 
     Ok(())
 }
@@ -284,7 +253,7 @@ pub async fn set_place_layer(
         .execute(conn)
         .await?;
 
-    let existing_layer = &state_place.place.layer;
+    let existing_layer = &state_place.layer;
     let mut state_layers = state.layers.lock().await;
     if state_layers.contains_key(existing_layer) {
         state_layers.get_mut(existing_layer).unwrap().count -= 1;
@@ -292,7 +261,7 @@ pub async fn set_place_layer(
     if state_layers.contains_key(&layer) {
         state_layers.get_mut(&layer).unwrap().count += 1;
     }
-    state_place.place.layer = layer;
+    state_place.layer = layer;
 
     Ok(())
 }
@@ -345,7 +314,7 @@ pub async fn delete_place(state: State<'_, PhotoState>, place: String) -> Result
         .await?
     {
         if state_photos.contains_key(&photo.name) {
-            state_photos.get_mut(&photo.name).unwrap().photo.location = None;
+            state_photos.get_mut(&photo.name).unwrap().location = None;
             update(photos::table.filter(photos::name.eq(photo.name)))
                 .set(photos::location.eq::<Option<String>>(None))
                 .execute(conn)
@@ -355,9 +324,9 @@ pub async fn delete_place(state: State<'_, PhotoState>, place: String) -> Result
 
     let state_place = state_places.get(&place).unwrap();
     let mut state_layers = state.layers.lock().await;
-    if state_layers.contains_key(&state_place.place.layer) {
+    if state_layers.contains_key(&state_place.layer) {
         state_layers
-            .get_mut(&state_place.place.layer)
+            .get_mut(&state_place.layer)
             .unwrap()
             .count -= 1;
     }

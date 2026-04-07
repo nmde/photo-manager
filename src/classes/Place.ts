@@ -15,7 +15,6 @@ export type PlaceData = {
   layer: string;
   category: PlaceType;
   shape?: string;
-  count: number;
 };
 
 export class Place {

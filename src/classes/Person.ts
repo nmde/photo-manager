@@ -5,8 +5,6 @@ export type PersonData = {
   name: string;
   photo: string;
   category: string;
-  photographer_count: number;
-  photo_count: number;
 };
 
 export class Person {

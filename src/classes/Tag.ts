@@ -6,7 +6,6 @@ export type TagData = {
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
-  count: number;
 };
 
 /**

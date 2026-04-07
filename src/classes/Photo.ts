@@ -23,15 +23,11 @@ export type PhotoData = {
   rating?: number;
   location?: string;
   thumbnail?: string;
-  is_video: boolean;
   photo_group?: string;
   date?: string;
-  is_raw: boolean;
   people: string[];
   hide_thumbnail: boolean;
   photographer?: string;
-  valid_tags: boolean;
-  validation_msg: string;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components

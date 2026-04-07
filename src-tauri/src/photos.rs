@@ -31,11 +31,9 @@ use walkdir::WalkDir;
 
 use crate::{
     models::{Layer, Person, Photo, PhotoGroup, Place, Setting, Tag},
-    people::PersonDto,
-    places::{LayerDto, PlaceDto},
     row_to_vec,
     schema::{layers, people, photo_groups, photos, places, settings, tags},
-    tags::{validate_tags, TagDto, ValidationResult},
+    tags::{validate_tags, ValidationResult},
     ApiError, MIGRATIONS,
 };
 
@@ -45,20 +43,6 @@ lazy_static! {
     static ref RAW: Regex = Regex::new(r"^.*\.(ORF|NRW|HEIC|TIFF|TIF)$").unwrap();
     static ref VIDEO: Regex =
         Regex::new(r"^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$").unwrap();
-}
-
-#[derive(Serialize, Clone)]
-pub struct PhotoDto {
-    pub photo: Photo,
-    pub tags: Vec<String>,
-    pub is_duplicate: bool,
-    pub is_video: bool,
-    pub date: Option<NaiveDate>,
-    pub is_raw: bool,
-    pub people: Vec<String>,
-    pub hide_thumbnail: bool,
-    pub valid_tags: bool,
-    pub validation_msg: String,
 }
 
 impl Photo {
@@ -85,34 +69,13 @@ impl Photo {
     }
 }
 
-impl From<Photo> for PhotoDto {
-    fn from(photo: Photo) -> Self {
-        Self {
-            photo: photo.clone(),
-            tags: row_to_vec(&photo.tags),
-            is_duplicate: photo.is_duplicate.unwrap_or(0) == 1,
-            date: if photo.date.is_some() {
-                NaiveDate::parse_from_str(&photo.date.clone().unwrap(), DATE_FORMAT).ok()
-            } else {
-                None
-            },
-            is_raw: RAW.is_match(&photo.name.to_uppercase()),
-            is_video: VIDEO.is_match(&photo.name.to_uppercase()),
-            people: row_to_vec(&photo.people),
-            hide_thumbnail: photo.hide_thumbnail.unwrap_or(0) == 1,
-            valid_tags: true,
-            validation_msg: String::new(),
-        }
-    }
-}
-
 pub struct PhotoState {
     pub db: Mutex<Option<SyncConnectionWrapper<SqliteConnection>>>,
-    pub photos: Mutex<HashMap<String, PhotoDto>>,
-    pub people: Mutex<HashMap<String, PersonDto>>,
-    pub places: Mutex<HashMap<String, PlaceDto>>,
-    pub layers: Mutex<HashMap<String, LayerDto>>,
-    pub tags: Mutex<HashMap<String, TagDto>>,
+    pub photos: Mutex<HashMap<String, Photo>>,
+    pub people: Mutex<HashMap<String, Person>>,
+    pub places: Mutex<HashMap<String, Place>>,
+    pub layers: Mutex<HashMap<String, Layer>>,
+    pub tags: Mutex<HashMap<String, Tag>>,
     pub groups: Mutex<HashMap<String, PhotoGroup>>,
     pub settings: Mutex<HashMap<String, Setting>>,
 }
@@ -121,11 +84,11 @@ impl Default for PhotoState {
     fn default() -> Self {
         Self {
             db: Mutex::new(None),
-            photos: Mutex::new(HashMap::<String, PhotoDto>::new()),
-            people: Mutex::new(HashMap::<String, PersonDto>::new()),
-            places: Mutex::new(HashMap::<String, PlaceDto>::new()),
-            layers: Mutex::new(HashMap::<String, LayerDto>::new()),
-            tags: Mutex::new(HashMap::<String, TagDto>::new()),
+            photos: Mutex::new(HashMap::<String, Photo>::new()),
+            people: Mutex::new(HashMap::<String, Person>::new()),
+            places: Mutex::new(HashMap::<String, Place>::new()),
+            layers: Mutex::new(HashMap::<String, Layer>::new()),
+            tags: Mutex::new(HashMap::<String, Tag>::new()),
             groups: Mutex::new(HashMap::<String, PhotoGroup>::new()),
             settings: Mutex::new(HashMap::<String, Setting>::new()),
         }
@@ -169,31 +132,31 @@ impl Serialize for LoadPhotoError {
 }
 
 struct LoadedPhotos {
-    photos: HashMap<String, PhotoDto>,
+    photos: HashMap<String, Photo>,
     removed: Vec<String>,
 }
 
 async fn load_photos(
     conn: &mut SyncConnectionWrapper<SqliteConnection>,
-    tags: &mut HashMap<String, TagDto>,
-    people: &mut HashMap<String, PersonDto>,
-    places: &mut HashMap<String, PlaceDto>,
+    tags: &mut HashMap<String, Tag>,
+    people: &mut HashMap<String, Person>,
+    places: &mut HashMap<String, Place>,
     path: &String,
     thumbnail_dir: &PathBuf,
     counts: bool,
 ) -> anyhow::Result<LoadedPhotos> {
     info!("Loading photos from {path}");
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
-    let mut existing = HashMap::<String, PhotoDto>::new();
+    let mut existing = HashMap::<String, Photo>::new();
 
     for row in photos::table.load::<Photo>(conn).await? {
-        let mut photo = PhotoDto::from(row);
+        let mut photo = row;
         for tag in &photo.tags {
             if counts && tags.contains_key(tag) {
                 tags.get_mut(tag).unwrap().count += 1;
             }
             if !tags.contains_key(tag) {
-                let mut t = TagDto::new(tag);
+                let mut t = Tag::new(tag);
                 t.count = 1;
                 tags.insert(tag.clone(), t);
             }
@@ -201,11 +164,11 @@ async fn load_photos(
         let validation = validate_tags(&tags, &photo.tags);
         photo.valid_tags = validation.is_valid;
         photo.validation_msg = validation.message;
-        existing.insert(photo.photo.name.clone(), photo);
+        existing.insert(photo.name.clone(), photo);
     }
 
     // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
-    let mut photos = HashMap::<String, PhotoDto>::new();
+    let mut photos = HashMap::<String, Photo>::new();
 
     // Read the files in the selected folder
     let mut file_queue = VecDeque::<PathBuf>::new();
@@ -214,7 +177,7 @@ async fn load_photos(
         file_queue.push_back(entry.path());
     }
     let pool = ThreadPool::new(4, 4, Duration::from_millis(50));
-    let mut threads = Vec::<JoinHandle<PhotoDto>>::new();
+    let mut threads = Vec::<JoinHandle<Photo>>::new();
     for file in WalkDir::new(path) {
         let file = file?;
         if file.metadata().unwrap().is_file() {
@@ -227,13 +190,13 @@ async fn load_photos(
                             people.get_mut(person).unwrap().photo_count += 1;
                         }
                     }
-                    if existing_photo.photo.photographer.is_some() {
-                        let photographer = existing_photo.photo.photographer.as_ref().unwrap();
+                    if existing_photo.photographer.is_some() {
+                        let photographer = existing_photo.photographer.as_ref().unwrap();
                         if people.contains_key(photographer) {
                             people.get_mut(photographer).unwrap().photographer_count += 1;
                         }
                     }
-                    if existing_photo.photo.location.is_some() {
+                    if existing_photo.location.is_some() {
                         let location = existing_photo.photo.location.as_ref().unwrap();
                         if places.contains_key(location) {
                             places.get_mut(location).unwrap().count += 1;
@@ -245,7 +208,7 @@ async fn load_photos(
                         }
                     }
                 }
-                photos.insert(existing_photo.photo.name.clone(), existing_photo.clone());
+                photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
                 let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
@@ -264,9 +227,8 @@ async fn load_photos(
                                     &output.err().unwrap().to_string()
                                 );
                             }
-                            let mut photo = PhotoDto::from(Photo::new(filename));
-                            photo.photo.thumbnail =
-                                Some(thumbnail_path.to_str().unwrap().to_string());
+                            let mut photo = Photo::new(filename);
+                            photo.thumbnail = Some(thumbnail_path.to_str().unwrap().to_string());
                             photo.is_raw = true;
                             photo
                         }));
@@ -293,9 +255,8 @@ async fn load_photos(
                                     &output.err().unwrap().to_string()
                                 );
                             }
-                            let mut photo = PhotoDto::from(Photo::new(filename));
-                            photo.photo.thumbnail =
-                                Some(thumbnail_path.to_str().unwrap().to_string());
+                            let mut photo = Photo::new(filename);
+                            photo.thumbnail = Some(thumbnail_path.to_str().unwrap().to_string());
                             photo.is_video = true;
                             photo
                         }));
@@ -306,7 +267,7 @@ async fn load_photos(
                         .values(&photo)
                         .execute(conn)
                         .await?;
-                    photos.insert(photo.name.clone(), PhotoDto::from(photo));
+                    photos.insert(photo.name.clone(), photo);
                 }
             }
         }
@@ -315,10 +276,10 @@ async fn load_photos(
     for thread in threads {
         let result = thread.await_complete();
         insert_into(photos::table)
-            .values(result.photo.clone())
+            .values(result.clone())
             .execute(conn)
             .await?;
-        photos.insert(result.photo.name.clone(), result);
+        photos.insert(result.name.clone(), result);
     }
 
     Ok(LoadedPhotos {
@@ -350,27 +311,27 @@ pub async fn initialize<R: Runtime>(
         fs::create_dir_all(&thumbnail_dir).await?;
     }
 
-    let mut tags = HashMap::<String, TagDto>::new();
+    let mut tags = HashMap::<String, Tag>::new();
     for tag in tags::table.load::<Tag>(&mut conn).await? {
-        tags.insert(tag.name.clone(), TagDto::from(tag));
+        tags.insert(tag.name.clone(), Tag::from(tag));
     }
 
-    let mut layers = HashMap::<String, LayerDto>::new();
+    let mut layers = HashMap::<String, Layer>::new();
     for layer in layers::table.load::<Layer>(&mut conn).await? {
-        layers.insert(layer.id.clone(), LayerDto::from(layer));
+        layers.insert(layer.id.clone(), Layer::from(layer));
     }
 
-    let mut places = HashMap::<String, PlaceDto>::new();
+    let mut places = HashMap::<String, Place>::new();
     for place in places::table.load::<Place>(&mut conn).await? {
         if layers.contains_key(&place.layer) {
             layers.get_mut(&place.layer).unwrap().count += 1;
         }
-        places.insert(place.id.clone(), PlaceDto::from(place));
+        places.insert(place.id.clone(), Place::from(place));
     }
 
-    let mut people = HashMap::<String, PersonDto>::new();
+    let mut people = HashMap::<String, Person>::new();
     for person in people::table.load::<Person>(&mut conn).await? {
-        people.insert(person.id.clone(), PersonDto::from(person));
+        people.insert(person.id.clone(), Person::from(person));
     }
 
     let photo_load = load_photos(
@@ -495,9 +456,9 @@ async fn search_photos(
     connection: &mut SyncConnectionWrapper<SqliteConnection>,
     query: Vec<String>,
     sort: Sort,
-    tags: &HashMap<String, TagDto>,
-    people: &HashMap<String, PersonDto>,
-) -> anyhow::Result<Vec<PhotoDto>> {
+    tags: &HashMap<String, Tag>,
+    people: &HashMap<String, Person>,
+) -> anyhow::Result<Vec<Photo>> {
     debug!(
         "Searching photos with query \"{0}\", sorted by {1}",
         query.join(","),
@@ -629,10 +590,10 @@ async fn search_photos(
         }
     }
 
-    let mut results = Vec::<PhotoDto>::new();
-    let mut photo_records = Vec::<PhotoDto>::new();
+    let mut results = Vec::<Photo>::new();
+    let mut photo_records = Vec::<Photo>::new();
     for row in statement.load::<Photo>(connection).await? {
-        let mut photo = PhotoDto::from(row);
+        let mut photo = Photo::from(row);
         let validation = validate_tags(tags, &photo.tags);
         photo.valid_tags = validation.is_valid;
         photo.validation_msg = validation.message;
@@ -660,7 +621,7 @@ async fn search_photos(
                         in_photo = photo
                             .people
                             .iter()
-                            .map(|id| people.get(id).unwrap().person.name.to_uppercase())
+                            .map(|id| people.get(id).unwrap().name.to_uppercase())
                             .collect::<Vec<String>>()
                             .contains(&q.to_uppercase());
                     }
@@ -732,13 +693,12 @@ async fn search_photos(
             }
             if meets_terms {
                 if sort == Sort::Name || sort == Sort::NameDesc {
-                    match results.binary_search_by_key(&photo.photo.name, |p| p.photo.name.clone())
-                    {
+                    match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
                         Ok(_pos) => {}
                         Err(pos) => results.insert(pos, photo.clone()),
                     }
                 } else if sort == Sort::Rating || sort == Sort::RatingDesc {
-                    match results.binary_search_by_key(&photo.photo.rating, |p| p.photo.rating) {
+                    match results.binary_search_by_key(&photo.rating, |p| p.rating) {
                         Ok(pos) => results.insert(pos, photo.clone()),
                         Err(pos) => results.insert(pos, photo.clone()),
                     }
@@ -751,11 +711,11 @@ async fn search_photos(
             }
         }
     } else {
-        results = photo_records.into_iter().collect::<Vec<PhotoDto>>();
+        results = photo_records.into_iter().collect::<Vec<Photo>>();
         if sort == Sort::Name || sort == Sort::NameDesc {
-            results.sort_by_key(|p| p.photo.name.clone());
+            results.sort_by_key(|p| p.name.clone());
         } else if sort == Sort::Rating || sort == Sort::RatingDesc {
-            results.sort_by_key(|p| p.photo.rating);
+            results.sort_by_key(|p| p.rating);
         } else if sort == Sort::Date || sort == Sort::DateDesc {
             results.sort_by_key(|p| p.date);
         }
@@ -773,7 +733,7 @@ pub async fn photo_grid(
     state: State<'_, PhotoState>,
     query: Vec<String>,
     sort: String,
-) -> Result<Vec<PhotoDto>, SearchError> {
+) -> Result<Vec<Photo>, SearchError> {
     let mut connection = state.db.lock().await;
     let connection = connection.as_mut().unwrap();
 
@@ -806,13 +766,15 @@ pub async fn remove_deleted(
             .execute(connection)
             .await?;
 
-        let test = cloned.iter().find_map(|(key, value)| {
-            if name == value.photo.name {
-                Some(key)
-            } else {
-                None
-            }
-        });
+        let test = cloned.iter().find_map(
+            |(key, value)| {
+                if name == value.name {
+                    Some(key)
+                } else {
+                    None
+                }
+            },
+        );
         if test.is_some() {
             state_photos.remove(test.unwrap());
         }
@@ -903,11 +865,7 @@ pub async fn set_photographer(
             .execute(connection)
             .await?;
         if state_photos.contains_key(&target.name) {
-            state_photos
-                .get_mut(&target.name)
-                .unwrap()
-                .photo
-                .photographer = Some(value.clone());
+            state_photos.get_mut(&target.name).unwrap().photographer = Some(value.clone());
         }
     }
 
@@ -990,7 +948,7 @@ pub async fn set_photo_location(
             .execute(connection)
             .await?;
         if state_photos.contains_key(&target.name) {
-            state_photos.get_mut(&target.name).unwrap().photo.location = Some(value.clone());
+            state_photos.get_mut(&target.name).unwrap().location = Some(value.clone());
         } else {
             return Err(ApiError::NotFoundError(format!(
                 "Photo {} not found",
@@ -1026,28 +984,24 @@ pub async fn set_photo_tags(
     let mut state_photos = state.photos.lock().await;
     let mut state_tags = state.tags.lock().await;
 
-    let targets = get_photo_targets(&photo, connection)
-        .await?
-        .iter()
-        .map(|p| PhotoDto::from(p.clone()))
-        .collect::<Vec<PhotoDto>>();
+    let targets = get_photo_targets(&photo, connection).await?;
     let existing_tags = &targets[0].tags;
 
     let validation = validate_tags(&state_tags, &value);
     for target in &mut targets.clone() {
-        update(photos::table.filter(photos::name.eq(target.photo.name.clone())))
+        update(photos::table.filter(photos::name.eq(target.name.clone())))
             .set(photos::tags.eq(value.join(",")))
             .execute(connection)
             .await?;
         target.tags = value.clone();
         target.valid_tags = validation.is_valid;
         target.validation_msg = validation.message.clone();
-        if state_photos.contains_key(&target.photo.name) {
-            *state_photos.get_mut(&target.photo.name).unwrap() = target.clone();
+        if state_photos.contains_key(&target.name) {
+            *state_photos.get_mut(&target.name).unwrap() = target.clone();
         } else {
             return Err(ApiError::NotFoundError(format!(
                 "Photo {} not found",
-                target.photo.name
+                target.name
             )));
         }
     }
@@ -1055,7 +1009,7 @@ pub async fn set_photo_tags(
     let count = targets.len() as i64;
     for tag in &value {
         if !state_tags.contains_key(tag) {
-            state_tags.insert(tag.clone(), TagDto::new(tag));
+            state_tags.insert(tag.clone(), Tag::new(tag));
         }
         if !existing_tags.contains(tag) {
             state_tags.get_mut(tag).unwrap().count += count;
@@ -1175,7 +1129,7 @@ pub async fn set_photo_group(
 
         for row in &targets {
             if !state_photos.contains_key(&row.name) {
-                state_photos.insert(row.name.clone(), PhotoDto::from(row.clone()));
+                state_photos.insert(row.name.clone(), row.clone());
             }
 
             let target_photo = state_photos.get_mut(&row.name).unwrap();
@@ -1199,13 +1153,13 @@ pub async fn set_photo_group(
                 })
                 .execute(connection)
                 .await?;
-            target_photo.photo.photo_group = Some(value.clone());
+            target_photo.photo_group = Some(value.clone());
             target_photo.tags = tags_vec.clone();
             target_photo.valid_tags = validation.is_valid;
             target_photo.validation_msg = validation.message.clone();
-            target_photo.photo.location = collected_location.clone();
+            target_photo.location = collected_location.clone();
             target_photo.people = people_vec.clone();
-            target_photo.photo.photographer = collected_photographer.clone();
+            target_photo.photographer = collected_photographer.clone();
             target_photo.date = parsed_date;
         }
     }
@@ -1230,7 +1184,7 @@ pub async fn set_photo_rating(
 
     let mut state_photos = state.photos.lock().await;
     if state_photos.contains_key(&photo) {
-        state_photos.get_mut(&photo).unwrap().photo.rating = Some(rating);
+        state_photos.get_mut(&photo).unwrap().rating = Some(rating);
     } else {
         return Err(ApiError::NotFoundError(format!(
             "Photo {} not found",

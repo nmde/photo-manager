@@ -6,7 +6,6 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use log::debug;
-use serde::Serialize;
 use tauri::State;
 
 use crate::{
@@ -15,23 +14,6 @@ use crate::{
     schema::{people, people_categories},
     ApiError,
 };
-
-#[derive(Serialize, Clone)]
-pub struct PersonDto {
-    pub person: Person,
-    pub photographer_count: i64,
-    pub photo_count: i64,
-}
-
-impl From<Person> for PersonDto {
-    fn from(person: Person) -> Self {
-        Self {
-            person,
-            photographer_count: 0,
-            photo_count: 0,
-        }
-    }
-}
 
 #[tauri::command]
 pub async fn create_person(
@@ -56,11 +38,7 @@ pub async fn create_person(
         .execute(conn)
         .await?;
 
-    state
-        .people
-        .lock()
-        .await
-        .insert(id.clone(), PersonDto::from(new_person));
+    state.people.lock().await.insert(id.clone(), new_person);
 
     Ok(())
 }
@@ -101,7 +79,7 @@ pub async fn set_person_name(
 
     let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().person.name = value;
+        state_people.get_mut(&person).unwrap().name = value;
     }
 
     Ok(())
@@ -124,7 +102,7 @@ pub async fn set_person_category(
 
     let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().person.category = value;
+        state_people.get_mut(&person).unwrap().category = value;
     }
 
     Ok(())
@@ -147,16 +125,14 @@ pub async fn set_person_photo(
 
     let mut state_people = state.people.lock().await;
     if state_people.contains_key(&person) {
-        state_people.get_mut(&person).unwrap().person.photo = Some(value);
+        state_people.get_mut(&person).unwrap().photo = Some(value);
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_people(
-    state: State<'_, PhotoState>,
-) -> Result<HashMap<String, PersonDto>, String> {
+pub async fn get_people(state: State<'_, PhotoState>) -> Result<HashMap<String, Person>, String> {
     Ok(state.people.lock().await.clone())
 }
 
@@ -167,5 +143,7 @@ pub async fn get_people_categories(
     let mut conn = state.db.lock().await;
     let conn = conn.as_mut().unwrap();
 
-    Ok(people_categories::table.load::<PersonCategory>(conn).await?)
+    Ok(people_categories::table
+        .load::<PersonCategory>(conn)
+        .await?)
 }
