@@ -4,7 +4,7 @@ import { Place, type PlaceData } from '@/classes/Place';
 import { Shape, type ShapeData, type ShapeType } from '@/classes/Shape';
 
 export async function get_layers() {
-  return Layer.createLayers(await invoke<Record<string, Layer>>('get_layers'));
+  return Layer.createLayers(await invoke<Layer[]>('get_layers'));
 }
 
 export async function create_layer(id: string, name: string, color: string) {
@@ -31,7 +31,7 @@ export async function create_place(
 }
 
 export async function get_places() {
-  return Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places'));
+  return Place.createPlaces(await invoke<PlaceData[]>('get_places'));
 }
 
 export async function set_place_name(place: string, value: string) {

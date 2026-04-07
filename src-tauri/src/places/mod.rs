@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use anyhow::Result;
 use diesel::{
     delete,
     dsl::{insert_into, update},
@@ -7,264 +6,14 @@ use diesel::{
     ExpressionMethods, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
-use log::debug;
-use tauri::State;
 
 use crate::{
     models::{Layer, Photo, Place, Shape},
-    photos::PhotoState,
     schema::{layers, photos, places, shapes},
-    ApiError,
+    PhotoManager,
 };
 
-#[tauri::command]
-pub async fn get_layers(state: State<'_, PhotoState>) -> Result<HashMap<String, Layer>, ApiError> {
-    Ok(state.layers.lock().await.clone())
-}
-
-#[tauri::command]
-pub async fn get_shapes(state: State<'_, PhotoState>) -> Result<Vec<Shape>, ApiError> {
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    Ok(shapes::table.load::<Shape>(conn).await?)
-}
-
-#[tauri::command]
-pub async fn get_places(state: State<'_, PhotoState>) -> Result<HashMap<String, Place>, String> {
-    Ok(state.places.lock().await.clone())
-}
-
-#[tauri::command]
-pub async fn create_layer(
-    state: State<'_, PhotoState>,
-    id: String,
-    name: String,
-    color: String,
-) -> Result<(), ApiError> {
-    debug!("Creating layer with id {id}, name {name} and color {color}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    insert_into(layers::table)
-        .values(Layer { id, name, color })
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_layer_color(
-    state: State<'_, PhotoState>,
-    layer: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Setting layer {layer} color to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    update(layers::table.filter(layers::id.eq(layer)))
-        .set(layers::color.eq(value))
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn delete_layer(
-    state: State<'_, PhotoState>,
-    layer: String,
-    recursive: bool,
-    new_layer: Option<String>,
-) -> Result<(), ApiError> {
-    debug!("Deleting layer {layer}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    if recursive {
-        delete(shapes::table.filter(shapes::layer.eq(layer.clone())))
-            .execute(conn)
-            .await?;
-
-        let mut state_photos = state.photos.lock().await;
-        for place in places::table
-            .filter(places::layer.eq(layer.clone()))
-            .load::<Place>(conn)
-            .await?
-        {
-            for photo in photos::table
-                .filter(photos::location.eq(place.id))
-                .load::<Photo>(conn)
-                .await?
-            {
-                if state_photos.contains_key(&photo.name) {
-                    state_photos.get_mut(&photo.name).unwrap().location = None;
-                    update(photos::table.filter(photos::name.eq(photo.name.clone())))
-                        .set(photos::location.eq::<Option<String>>(None))
-                        .execute(conn)
-                        .await?;
-                } else {
-                    return Err(ApiError::NotFoundError(format!(
-                        "Photo '{0}' not found",
-                        photo.name
-                    )));
-                }
-            }
-        }
-
-        delete(places::table.filter(places::layer.eq(layer.clone())))
-            .execute(conn)
-            .await?;
-    } else if new_layer.is_some() {
-        let new_layer = new_layer.unwrap();
-        update(shapes::table.filter(shapes::layer.eq(layer.clone())))
-            .set(shapes::layer.eq(new_layer.clone()))
-            .execute(conn)
-            .await?;
-        update(places::table.filter(places::layer.eq(layer.clone())))
-            .set(places::layer.eq(new_layer))
-            .execute(conn)
-            .await?;
-    }
-
-    delete(layers::table.filter(layers::id.eq(layer)))
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn create_place(
-    state: State<'_, PhotoState>,
-    id: String,
-    name: String,
-    lat: f32,
-    lng: f32,
-    layer: String,
-    category: String,
-) -> Result<(), ApiError> {
-    debug!("Creating place {name} at {lat},{lng}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    let new_place = Place {
-        id: id.clone(),
-        name,
-        lat,
-        lng,
-        layer: layer.clone(),
-        category,
-        shape: None,
-    };
-
-    insert_into(places::table)
-        .values(new_place.clone())
-        .execute(conn)
-        .await?;
-
-    let mut state_layers = state.layers.lock().await;
-    if state_layers.contains_key(&layer) {
-        state_layers.get_mut(&layer).unwrap().count += 1;
-    }
-
-    state.places.lock().await.insert(id.clone(), new_place);
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_place_name(
-    state: State<'_, PhotoState>,
-    place: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Set place {place} name to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    update(places::table.filter(places::id.eq(place)))
-        .set(places::name.eq(value))
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_place_category(
-    state: State<'_, PhotoState>,
-    place: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Set place {place} category to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    update(places::table.filter(places::id.eq(place)))
-        .set(places::name.eq(value))
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_place_shape(
-    state: State<'_, PhotoState>,
-    place: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Set place {place} shape to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    update(places::table.filter(places::id.eq(place)))
-        .set(places::shape.eq(value))
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_place_layer(
-    state: State<'_, PhotoState>,
-    place: String,
-    layer: String,
-) -> Result<(), ApiError> {
-    debug!("Set place {place} layer to {layer}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    let mut state_places = state.places.lock().await;
-    if !state_places.contains_key(&place) {
-        return Err(ApiError::NotFoundError(format!(
-            "Place with Id '{0}' not found",
-            place
-        )));
-    }
-    let state_place = state_places.get_mut(&place).unwrap();
-
-    update(places::table.filter(places::id.eq(place)))
-        .set(places::layer.eq(layer.clone()))
-        .execute(conn)
-        .await?;
-
-    let existing_layer = &state_place.layer;
-    let mut state_layers = state.layers.lock().await;
-    if state_layers.contains_key(existing_layer) {
-        state_layers.get_mut(existing_layer).unwrap().count -= 1;
-    }
-    if state_layers.contains_key(&layer) {
-        state_layers.get_mut(&layer).unwrap().count += 1;
-    }
-    state_place.layer = layer;
-
-    Ok(())
-}
+pub mod api;
 
 #[derive(AsChangeset)]
 #[diesel(table_name = places)]
@@ -273,161 +22,261 @@ struct PositionUpdate {
     lng: f32,
 }
 
-#[tauri::command]
-pub async fn set_place_position(
-    state: State<'_, PhotoState>,
-    place: String,
-    lat: f32,
-    lng: f32,
-) -> Result<(), ApiError> {
-    debug!("Set place {place} position to {lat},{lng}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    update(places::table.filter(places::id.eq(place)))
-        .set(PositionUpdate { lat, lng })
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn delete_place(state: State<'_, PhotoState>, place: String) -> Result<(), ApiError> {
-    debug!("Deleting place {place}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
-
-    let mut state_places = state.places.lock().await;
-
-    if !state_places.contains_key(&place) {
-        return Err(ApiError::NotFoundError(format!(
-            "Place with Id '{0}' not found",
-            place
-        )));
+impl PhotoManager {
+    pub async fn get_layers(&mut self) -> Result<Vec<Layer>> {
+        Ok(layers::table.load(&mut self.db).await?)
     }
 
-    let mut state_photos = state.photos.lock().await;
-    for photo in photos::table
-        .filter(photos::location.eq(place.clone()))
-        .load::<Photo>(conn)
-        .await?
-    {
-        if state_photos.contains_key(&photo.name) {
-            state_photos.get_mut(&photo.name).unwrap().location = None;
-            update(photos::table.filter(photos::name.eq(photo.name)))
-                .set(photos::location.eq::<Option<String>>(None))
-                .execute(conn)
+    pub async fn get_shapes(&mut self) -> Result<Vec<Shape>> {
+        Ok(shapes::table.load(&mut self.db).await?)
+    }
+
+    pub async fn get_places(&mut self) -> Result<Vec<Place>> {
+        Ok(places::table.load(&mut self.db).await?)
+    }
+
+    pub async fn create_layer(&mut self, id: &String, name: &String, color: &String) -> Result<()> {
+        insert_into(layers::table)
+            .values(Layer {
+                id: id.clone(),
+                name: name.clone(),
+                color: color.clone(),
+            })
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_layer_color(&mut self, id: &String, color: &String) -> Result<()> {
+        update(layers::table.filter(layers::id.eq(id)))
+            .set(layers::color.eq(color))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_layer(
+        &mut self,
+        layer: &String,
+        recursive: bool,
+        new_layer: &Option<String>,
+    ) -> Result<()> {
+        if recursive {
+            delete(shapes::table.filter(shapes::layer.eq(layer.clone())))
+                .execute(&mut self.db)
+                .await?;
+
+            for place in places::table
+                .filter(places::layer.eq(layer.clone()))
+                .load::<Place>(&mut self.db)
+                .await?
+            {
+                for photo in photos::table
+                    .filter(photos::location.eq(place.id))
+                    .load::<Photo>(&mut self.db)
+                    .await?
+                {
+                    update(photos::table.filter(photos::name.eq(photo.name.clone())))
+                        .set(photos::location.eq::<Option<String>>(None))
+                        .execute(&mut self.db)
+                        .await?;
+                }
+            }
+
+            delete(places::table.filter(places::layer.eq(layer.clone())))
+                .execute(&mut self.db)
+                .await?;
+        } else if new_layer.is_some() {
+            let new_layer = new_layer.as_ref().unwrap();
+            update(shapes::table.filter(shapes::layer.eq(layer.clone())))
+                .set(shapes::layer.eq(new_layer.clone()))
+                .execute(&mut self.db)
+                .await?;
+            update(places::table.filter(places::layer.eq(layer.clone())))
+                .set(places::layer.eq(new_layer))
+                .execute(&mut self.db)
                 .await?;
         }
+
+        delete(layers::table.filter(layers::id.eq(layer)))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
     }
 
-    let state_place = state_places.get(&place).unwrap();
-    let mut state_layers = state.layers.lock().await;
-    if state_layers.contains_key(&state_place.layer) {
-        state_layers
-            .get_mut(&state_place.layer)
-            .unwrap()
-            .count -= 1;
+    pub async fn create_place(
+        &mut self,
+        id: String,
+        name: &String,
+        lat: f32,
+        lng: f32,
+        layer: &String,
+        category: &String,
+    ) -> Result<()> {
+        insert_into(places::table)
+            .values(Place {
+                id: id.clone(),
+                name: name.clone(),
+                lat,
+                lng,
+                layer: layer.clone(),
+                category: category.clone(),
+                shape: None,
+            })
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
     }
 
-    delete(places::table.filter(places::id.eq(place.clone())))
-        .execute(conn)
-        .await?;
-    state_places.remove(&place);
-    Ok(())
-}
+    pub async fn set_place_name(&mut self, id: &String, name: &String) -> Result<()> {
+        update(places::table.filter(places::id.eq(id)))
+            .set(places::name.eq(name))
+            .execute(&mut self.db)
+            .await?;
 
-#[tauri::command]
-pub async fn create_shape(
-    state: State<'_, PhotoState>,
-    id: String,
-    shape_type: String,
-    points: String,
-    layer: String,
-    name: String,
-) -> Result<(), ApiError> {
-    debug!("Creating shape {id}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
+        Ok(())
+    }
 
-    insert_into(shapes::table)
-        .values(Shape {
-            id,
-            shape_type,
-            points,
-            layer,
-            name,
-        })
-        .execute(conn)
-        .await?;
+    pub async fn set_place_category(&mut self, id: &String, category: &String) -> Result<()> {
+        update(places::table.filter(places::id.eq(id)))
+            .set(places::category.eq(category))
+            .execute(&mut self.db)
+            .await?;
 
-    Ok(())
-}
+        Ok(())
+    }
 
-#[tauri::command]
-pub async fn set_shape_points(
-    state: State<'_, PhotoState>,
-    shape: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Setting shape {shape} points");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
+    pub async fn set_place_shape(&mut self, id: &String, shape: &String) -> Result<()> {
+        update(places::table.filter(places::id.eq(id)))
+            .set(places::shape.eq::<Option<String>>(Some(shape.to_string())))
+            .execute(&mut self.db)
+            .await?;
 
-    update(shapes::table.filter(shapes::id.eq(shape)))
-        .set(shapes::points.eq(value))
-        .execute(conn)
-        .await?;
+        Ok(())
+    }
 
-    Ok(())
-}
+    pub async fn set_place_layer(&mut self, place: &String, layer: &String) -> Result<()> {
+        update(places::table.filter(places::id.eq(place)))
+            .set(places::layer.eq(layer))
+            .execute(&mut self.db)
+            .await?;
 
-#[tauri::command]
-pub async fn set_shape_layer(
-    state: State<'_, PhotoState>,
-    shape: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Setting shape {shape} layer to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
+        Ok(())
+    }
 
-    update(shapes::table.filter(shapes::id.eq(shape)))
-        .set(shapes::layer.eq(value))
-        .execute(conn)
-        .await?;
+    pub async fn set_place_position(&mut self, id: &String, lat: f32, lng: f32) -> Result<()> {
+        update(places::table.filter(places::id.eq(id)))
+            .set(PositionUpdate { lat, lng })
+            .execute(&mut self.db)
+            .await?;
 
-    Ok(())
-}
+        Ok(())
+    }
 
-#[tauri::command]
-pub async fn set_shape_name(
-    state: State<'_, PhotoState>,
-    shape: String,
-    value: String,
-) -> Result<(), ApiError> {
-    debug!("Setting shape {shape} name to {value}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
+    pub async fn delete_place(&mut self, place: &String) -> Result<()> {
+        for photo in photos::table
+            .filter(photos::location.eq(place.clone()))
+            .load::<Photo>(&mut self.db)
+            .await?
+        {
+            update(photos::table.filter(photos::name.eq(photo.name)))
+                .set(photos::location.eq::<Option<String>>(None))
+                .execute(&mut self.db)
+                .await?;
+        }
 
-    update(shapes::table.filter(shapes::id.eq(shape)))
-        .set(shapes::name.eq(value))
-        .execute(conn)
-        .await?;
+        delete(places::table.filter(places::id.eq(place)))
+            .execute(&mut self.db)
+            .await?;
 
-    Ok(())
-}
+        Ok(())
+    }
 
-#[tauri::command]
-pub async fn delete_shape(state: State<'_, PhotoState>, shape: String) -> Result<(), ApiError> {
-    debug!("Deleting shape {shape}");
-    let mut conn = state.db.lock().await;
-    let conn = conn.as_mut().unwrap();
+    pub async fn create_shape(
+        &mut self,
+        id: &String,
+        shape_type: &String,
+        points: &String,
+        layer: &String,
+        name: &String,
+    ) -> Result<()> {
+        insert_into(shapes::table)
+            .values(Shape {
+                id: id.clone(),
+                shape_type: shape_type.clone(),
+                points: points.clone(),
+                layer: layer.clone(),
+                name: name.clone(),
+            })
+            .execute(&mut self.db)
+            .await?;
 
-    delete(shapes::table.filter(shapes::id.eq(shape)))
-        .execute(conn)
-        .await?;
+        Ok(())
+    }
 
-    Ok(())
+    pub async fn set_shape_points(&mut self, shape: &String, points: &String) -> Result<()> {
+        update(shapes::table.filter(shapes::id.eq(shape)))
+            .set(shapes::points.eq(points))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_shape_layer(&mut self, shape: &String, layer: &String) -> Result<()> {
+        update(shapes::table.filter(shapes::id.eq(shape)))
+            .set(shapes::layer.eq(layer))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_shape_name(&mut self, shape: &String, name: &String) -> Result<()> {
+        update(shapes::table.filter(shapes::id.eq(shape)))
+            .set(shapes::name.eq(name))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_shape(&mut self, shape: &String) -> Result<()> {
+        for place in places::table
+            .filter(places::shape.eq::<Option<String>>(Some(shape.clone())))
+            .load::<Place>(&mut self.db)
+            .await?
+        {
+            update(places::table.filter(places::id.eq(place.id)))
+                .set(places::shape.eq::<Option<String>>(None))
+                .execute(&mut self.db)
+                .await?;
+        }
+
+        delete(shapes::table.filter(shapes::id.eq(shape)))
+            .execute(&mut self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn count_places_in_layer(&mut self, layer: &String) -> Result<usize> {
+        Ok(places::table
+            .filter(places::layer.eq(layer))
+            .load::<Place>(&mut self.db)
+            .await?
+            .len())
+    }
+
+    pub async fn count_photos_in_place(&mut self, place: &String) -> Result<usize> {
+        Ok(photos::table
+            .filter(photos::location.eq(place))
+            .load::<Photo>(&mut self.db)
+            .await?
+            .len())
+    }
 }

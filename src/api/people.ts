@@ -23,7 +23,7 @@ export async function set_person_photo(person: string, value: string) {
 }
 
 export async function get_people() {
-  return Person.createPeople(await invoke<Record<string, PersonData>>('get_people'));
+  return Person.createPeople(await invoke<PersonData[]>('get_people'));
 }
 
 export async function get_people_categories() {

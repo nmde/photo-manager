@@ -23,7 +23,7 @@ export async function set_tag_incompatible(tag: string, value: string[]) {
 }
 
 export async function get_tags() {
-  return Tag.createTags(await invoke<Record<string, TagData>>('get_tags'));
+  return Tag.createTags(await invoke<TagData[]>('get_tags'));
 }
 
 export async function validate_photo(photo: string) {

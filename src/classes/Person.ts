@@ -5,6 +5,8 @@ export type PersonData = {
   name: string;
   photo: string;
   category: string;
+  photographer_count: number;
+  photo_count: number;
 };
 
 export class Person {
@@ -29,16 +31,16 @@ export class Person {
     return this._category;
   }
 
-  public static createPeople(people: Record<string, PersonData>) {
+  public static createPeople(people: PersonData[]) {
     const mapped: Record<string, Person> = {};
-    for (const person in people) {
-      mapped[person] = new Person(
-        person,
-        people[person]?.name ?? '',
-        people[person]?.photo ?? '',
-        people[person]?.category ?? '',
-        people[person]?.photographer_count ?? 0,
-        people[person]?.photo_count ?? 0,
+    for (const person of people) {
+      mapped[person.id] = new Person(
+        person.id,
+        person.name,
+        person.photo,
+        person.category,
+        person.photographer_count,
+        person.photo_count,
       );
     }
     return mapped;

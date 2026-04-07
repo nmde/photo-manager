@@ -6,6 +6,7 @@ export type TagData = {
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
+  count: number;
 };
 
 /**
@@ -41,10 +42,10 @@ export class Tag {
     return this._incompatible;
   }
 
-  public static createTags = (data: Record<string, TagData>) => {
+  public static createTags = (data: TagData[]) => {
     const tags: Record<string, Tag> = {};
-    for (const [key, tag] of Object.entries(data)) {
-      tags[key] = new Tag(
+    for (const tag of data) {
+      tags[tag.name] = new Tag(
         tag.name,
         tag.color,
         tag.prereqs,

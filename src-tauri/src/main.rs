@@ -1,20 +1,39 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{
-    io::{self, stdout},
-    time::SystemTime,
-};
+use std::{io::stdout, time::SystemTime};
 
 use chrono::{DateTime, Utc};
-use diesel::{ConnectionError, result};
+use diesel::{Connection, SqliteConnection};
+use diesel_async::sync_connection_wrapper::SyncConnectionWrapper;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use fern::{log_file, Dispatch};
 use log::LevelFilter;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
-use crate::photos::LoadPhotoError;
+use crate::{
+    people::api::{
+        create_person, create_person_category, get_people, get_people_categories,
+        set_person_category, set_person_name, set_person_photo,
+    },
+    photos::api::{
+        initialize, photo_grid, refresh, remove_deleted, set_photo_date, set_photo_desc,
+        set_photo_group, set_photo_hide_thumbnail, set_photo_is_duplicate, set_photo_location,
+        set_photo_people, set_photo_rating, set_photo_tags, set_photo_title, set_photographer,
+    },
+    places::api::{
+        create_layer, create_place, create_shape, delete_layer, delete_place, delete_shape,
+        get_layers, get_places, get_shapes, set_layer_color, set_place_category, set_place_layer,
+        set_place_name, set_place_position, set_place_shape, set_shape_layer, set_shape_name,
+        set_shape_points,
+    },
+    settings::api::{get_setting, set_setting},
+    tags::api::{
+        get_tags, set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs,
+        validate_photo,
+    },
+};
 
 mod models;
 mod people;
@@ -40,22 +59,12 @@ pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
 
 #[derive(Debug, Error)]
 enum ApiError {
-    #[error("Failed to parse date: {0}")]
-    DateParseError(#[from] chrono::ParseError),
-    #[error("Database error: {0}")]
-    SqliteError(#[from] result::Error),
-    #[error("Database connection error: {0}")]
-    ConnectionError(#[from] ConnectionError),
-    #[error("Item not found: {0}")]
-    NotFoundError(String),
     #[error("Application error: {0}")]
     TauriError(#[from] tauri::Error),
-    #[error("I/O error: {0}")]
-    IoError(#[from] io::Error),
-    #[error("Failed to load photos: {0}")]
-    LoadPhotoError(#[from] LoadPhotoError),
     #[error("{0}")]
-    AnyError(#[from] anyhow::Error),
+    Error(#[from] anyhow::Error),
+    #[error("Key error: {0}")]
+    KeyError(#[from] strum::ParseError),
 }
 
 impl Serialize for ApiError {
@@ -64,6 +73,18 @@ impl Serialize for ApiError {
         S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+pub struct PhotoManager {
+    db: SyncConnectionWrapper<SqliteConnection>,
+}
+
+impl Default for PhotoManager {
+    fn default() -> Self {
+        Self {
+            db: SyncConnectionWrapper::new(SqliteConnection::establish(":memory:").unwrap()),
+        }
     }
 }
 
@@ -92,54 +113,54 @@ async fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(photos::PhotoState::default())
         .invoke_handler(tauri::generate_handler![
-            people::create_person,
-            people::create_person_category,
-            people::set_person_name,
-            people::set_person_category,
-            people::set_person_photo,
-            people::get_people,
-            people::get_people_categories,
-            photos::initialize,
-            photos::photo_grid,
-            photos::remove_deleted,
-            photos::set_photo_title,
-            photos::set_photo_desc,
-            photos::set_photographer,
-            photos::set_photo_people,
-            photos::set_photo_location,
-            photos::set_photo_tags,
-            photos::set_photo_date,
-            photos::set_photo_group,
-            photos::set_photo_rating,
-            photos::set_photo_is_duplicate,
-            photos::set_photo_hide_thumbnail,
-            photos::refresh,
-            places::get_layers,
-            places::get_shapes,
-            places::get_places,
-            places::create_layer,
-            places::set_layer_color,
-            places::delete_layer,
-            places::create_place,
-            places::set_place_name,
-            places::set_place_category,
-            places::set_place_shape,
-            places::set_place_layer,
-            places::set_place_position,
-            places::delete_place,
-            places::create_shape,
-            places::set_shape_layer,
-            places::set_shape_points,
-            places::set_shape_name,
-            places::delete_shape,
-            tags::set_tag_color,
-            tags::set_tag_prereqs,
-            tags::set_tag_coreqs,
-            tags::set_tag_incompatible,
-            tags::get_tags,
-            tags::validate_photo,
-            settings::set_setting,
-            settings::get_setting,
+            create_person,
+            create_person_category,
+            set_person_name,
+            set_person_category,
+            set_person_photo,
+            get_people,
+            get_people_categories,
+            initialize,
+            photo_grid,
+            remove_deleted,
+            set_photo_title,
+            set_photo_desc,
+            set_photographer,
+            set_photo_people,
+            set_photo_location,
+            set_photo_tags,
+            set_photo_date,
+            set_photo_group,
+            set_photo_rating,
+            set_photo_is_duplicate,
+            set_photo_hide_thumbnail,
+            refresh,
+            get_layers,
+            get_shapes,
+            get_places,
+            create_layer,
+            set_layer_color,
+            delete_layer,
+            create_place,
+            set_place_name,
+            set_place_category,
+            set_place_shape,
+            set_place_layer,
+            set_place_position,
+            delete_place,
+            create_shape,
+            set_shape_layer,
+            set_shape_points,
+            set_shape_name,
+            delete_shape,
+            set_tag_color,
+            set_tag_prereqs,
+            set_tag_coreqs,
+            set_tag_incompatible,
+            get_tags,
+            validate_photo,
+            set_setting,
+            get_setting,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

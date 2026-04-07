@@ -5,7 +5,7 @@ use crate::schema::{
     layers, people, people_categories, photo_groups, photos, places, settings, shapes, tags,
 };
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = layers)]
 pub struct Layer {
     pub id: String,
@@ -13,7 +13,7 @@ pub struct Layer {
     pub color: String,
 }
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = people)]
 pub struct Person {
     pub id: String,
@@ -37,7 +37,7 @@ pub struct PhotoGroup {
     pub name: String,
 }
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = photos)]
 pub struct Photo {
     pub name: String,
@@ -56,7 +56,7 @@ pub struct Photo {
     pub photographer: Option<String>,
 }
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = places)]
 pub struct Place {
     pub id: String,
@@ -85,7 +85,7 @@ pub struct Shape {
     pub name: String,
 }
 
-#[derive(Clone, Queryable, Selectable, Serialize)]
+#[derive(Clone, Queryable, Selectable)]
 #[diesel(table_name = tags)]
 pub struct Tag {
     pub name: String,

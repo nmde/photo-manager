@@ -4,6 +4,7 @@ export type LayerData = {
   id: string;
   name: string;
   color: string;
+  count: number;
 };
 
 export class Layer {
@@ -22,15 +23,10 @@ export class Layer {
     return this._color;
   }
 
-  public static createLayers = (data: Record<string, LayerData>) => {
+  public static createLayers = (data: LayerData[]) => {
     const layers: Record<string, Layer> = {};
-    for (const layer in data) {
-      layers[layer] = new Layer(
-        layer,
-        data[layer]?.name ?? '',
-        data[layer]?.color ?? '',
-        data[layer]?.count ?? 0,
-      );
+    for (const layer of data) {
+      layers[layer.id] = new Layer(layer.id, layer.name, layer.color, layer.count);
     }
     return layers;
   };
