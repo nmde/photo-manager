@@ -81,7 +81,7 @@ CREATE TABLE
 CREATE TABLE
     IF NOT EXISTS "tags" (
         "name" TEXT NOT NULL UNIQUE,
-        "color" TEXT NOT NULL,
+        "color" TEXT,
         "prereqs" TEXT,
         "coreqs" TEXT,
         "incompatible" TEXT,

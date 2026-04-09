@@ -1,16 +1,20 @@
 use std::{collections::HashMap, result, sync};
 
-use anyhow::Result;
-use diesel::{dsl::update, ExpressionMethods, QueryDsl};
-use diesel_async::RunQueryDsl;
+use anyhow::{anyhow, Result};
+use diesel::{
+    dsl::{insert_into, update},
+    ExpressionMethods, QueryDsl, SqliteConnection,
+};
+use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, RunQueryDsl};
 use lazy_static::lazy_static;
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
     app::{ensure_db, row_to_vec, DB},
-    models::{Photo, Tag},
-    schema::{photos, tags},
+    models::Tag,
+    photos::PHOTOS,
+    schema::tags,
 };
 
 pub mod api;
@@ -33,78 +37,23 @@ pub enum TagRelationship {
     Incompatible,
 }
 
-impl Tag {
-    pub fn prereqs(&self) -> Vec<String> {
-        row_to_vec(&self.prereqs)
-    }
-
-    pub fn coreqs(&self) -> Vec<String> {
-        row_to_vec(&self.coreqs)
-    }
-
-    pub fn incompatible(&self) -> Vec<String> {
-        row_to_vec(&self.incompatible)
-    }
-
-    pub async fn set_tag_color(&self, tag: &String, value: &String) -> Result<()> {
-        ensure_db().await?;
-        update(tags::table.filter(tags::name.eq(tag)))
-            .set(tags::color.eq(value))
-            .execute(DB.lock().await.as_mut().unwrap())
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn modify_tag_relationships(
-        &self,
-        category: TagRelationship,
-        tag: &String,
-        value: &Vec<String>,
-    ) -> Result<()> {
-        ensure_db().await?;
-        let joined = value.join(",");
-        let mut conn = DB.lock().await;
-        let conn = conn.as_mut().unwrap();
-        match category {
-            TagRelationship::Prereqs => {
-                update(tags::table.filter(tags::name.eq(tag)))
-                    .set(tags::prereqs.eq(joined))
-                    .execute(conn)
-                    .await?
-            }
-            TagRelationship::Coreqs => {
-                update(tags::table.filter(tags::name.eq(tag)))
-                    .set(tags::coreqs.eq(joined))
-                    .execute(conn)
-                    .await?
-            }
-            TagRelationship::Incompatible => {
-                update(tags::table.filter(tags::name.eq(tag)))
-                    .set(tags::incompatible.eq(joined))
-                    .execute(conn)
-                    .await?
-            }
-        };
-        Ok(())
-    }
-}
-
-impl Serialize for Tag {
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+async fn ensure_tag(
+    tag: &String,
+    conn: &mut SyncConnectionWrapper<SqliteConnection>,
+) -> Result<()> {
+    if tags::table
+        .filter(tags::name.eq(tag))
+        .load::<Tag>(conn)
+        .await?
+        .len()
+        == 0
     {
-        let counts_cache = TAG_COUNTS.lock().unwrap();
-        let mut state = serializer.serialize_struct("TagDto", 6)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("color", &self.color)?;
-        state.serialize_field("prereqs", &self.prereqs())?;
-        state.serialize_field("coreqs", &self.coreqs())?;
-        state.serialize_field("incompatible", &self.incompatible())?;
-        state.serialize_field("count", &counts_cache.get(&self.name).unwrap_or(&0))?;
-        state.end()
+        insert_into(tags::table)
+            .values(Tag::new(tag))
+            .execute(conn)
+            .await?;
     }
+    Ok(())
 }
 
 pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
@@ -119,10 +68,10 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
         let mut missing_prereqs = String::new();
         let mut missing_coreqs = String::new();
         let mut incompatibles = String::new();
+        let tags_repo = TAGS.lock().await;
         for tag in tags {
-            let tag_data = get_tag(tag).await;
-            if tag_data.is_ok() {
-                let tag_data = tag_data.unwrap();
+            if tags_repo.contains_key(tag) {
+                let tag_data = tags_repo.get(tag).unwrap();
                 for prereq in &tag_data.prereqs() {
                     if !tags.contains(prereq) {
                         valid = false;
@@ -171,24 +120,108 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
     }
 }
 
-async fn get_tag(tag: &String) -> Result<Tag> {
-    ensure_db().await?;
-    Ok(tags::table
-        .filter(tags::name.eq(tag))
-        .first(DB.lock().await.as_mut().unwrap())
-        .await?)
-}
-
-pub async fn get_tags() -> Result<Vec<Tag>> {
-    ensure_db().await?;
-    Ok(tags::table.load(DB.lock().await.as_mut().unwrap()).await?)
+pub async fn get_tags() -> Result<HashMap<String, Tag>> {
+    Ok(TAGS.lock().await.clone())
 }
 
 pub async fn validate_photo(photo: &String) -> Result<ValidationResult> {
-    ensure_db().await?;
-    let target = photos::table
-        .filter(photos::name.eq(photo))
-        .first::<Photo>(DB.lock().await.as_mut().unwrap())
-        .await?;
+    let photos = PHOTOS.lock().await;
+    if !photos.contains_key(photo) {
+        return Err(anyhow!("Photo {photo} not found!"));
+    }
+    let target = photos.get(photo).unwrap();
+
     Ok(validate_tags(&target.tags()).await?)
+}
+
+impl Tag {
+    pub fn new(name: &String) -> Self {
+        Self {
+            name: name.clone(),
+            color: None,
+            prereqs: None,
+            coreqs: None,
+            incompatible: None,
+        }
+    }
+
+    pub fn prereqs(&self) -> Vec<String> {
+        row_to_vec(&self.prereqs)
+    }
+
+    pub fn coreqs(&self) -> Vec<String> {
+        row_to_vec(&self.coreqs)
+    }
+
+    pub fn incompatible(&self) -> Vec<String> {
+        row_to_vec(&self.incompatible)
+    }
+
+    pub async fn set_tag_color(&mut self, tag: &String, value: &Option<String>) -> Result<()> {
+        ensure_db().await?;
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
+        ensure_tag(tag, conn).await?;
+        update(tags::table.filter(tags::name.eq(tag)))
+            .set(tags::color.eq(value))
+            .execute(conn)
+            .await?;
+        self.color = value.clone();
+
+        Ok(())
+    }
+
+    pub async fn modify_tag_relationships(
+        &mut self,
+        category: TagRelationship,
+        tag: &String,
+        value: &Vec<String>,
+    ) -> Result<()> {
+        ensure_db().await?;
+        let joined = value.join(",");
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
+        ensure_tag(tag, conn).await?;
+        match category {
+            TagRelationship::Prereqs => {
+                self.prereqs = Some(joined.clone());
+                update(tags::table.filter(tags::name.eq(tag)))
+                    .set(tags::prereqs.eq(joined))
+                    .execute(conn)
+                    .await?
+            }
+            TagRelationship::Coreqs => {
+                self.coreqs = Some(joined.clone());
+                update(tags::table.filter(tags::name.eq(tag)))
+                    .set(tags::coreqs.eq(joined))
+                    .execute(conn)
+                    .await?
+            }
+            TagRelationship::Incompatible => {
+                self.incompatible = Some(joined.clone());
+                update(tags::table.filter(tags::name.eq(tag)))
+                    .set(tags::incompatible.eq(joined))
+                    .execute(conn)
+                    .await?
+            }
+        };
+        Ok(())
+    }
+}
+
+impl Serialize for Tag {
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let counts_cache = TAG_COUNTS.lock().unwrap();
+        let mut state = serializer.serialize_struct("TagDto", 6)?;
+        state.serialize_field("name", &self.name)?;
+        state.serialize_field("color", &self.color)?;
+        state.serialize_field("prereqs", &self.prereqs())?;
+        state.serialize_field("coreqs", &self.coreqs())?;
+        state.serialize_field("incompatible", &self.incompatible())?;
+        state.serialize_field("count", &counts_cache.get(&self.name).unwrap_or(&0))?;
+        state.end()
+    }
 }

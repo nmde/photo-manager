@@ -1,5 +1,4 @@
 <script setup lang="ts">
-  import type { ValidationResult } from '@/api/tags';
   import type { Layer } from '@/classes/Layer';
   import type { Person } from '@/classes/Person';
   import type { PersonCategory } from '@/classes/PersonCategory';
@@ -12,6 +11,8 @@
   import 'video.js/dist/video-js.css';
 
   const store = useFileStore();
+  const { reportError, setLastDate } = store;
+  const { lastSetDate } = storeToRefs(store);
 
   const props = defineProps<{
     index: number;
@@ -25,7 +26,7 @@
   const photo = computed(() => props.photos[props.index] as Photo);
 
   const photoPath = computed(() =>
-    photo.value.thumbnail === undefined ? photo.value?.asset_path : photo.value.thumbnail,
+    photo.value.thumbnail === undefined ? photo.value?.asset_path : photo.value.thumbnail as string,
   );
 
   const rating = ref<number>();
@@ -52,22 +53,34 @@
   async function initialize() {
     viewConfirmation.value = false;
     if (photo.value) {
-      rating.value = photo.value.rating;
+      rating.value = photo.value.rating ?? undefined;
       isDuplicate.value = photo.value.isDuplicate;
       photoTags.value = photo.value.tags;
-      title.value = photo.value.title;
-      description.value = photo.value.description;
-      date.value = photo.value.date;
-      location.value = photo.value.location === undefined ? [] : [photo.value.location];
+      title.value = photo.value.title ?? undefined;
+      description.value = photo.value.description ?? undefined;
+      date.value = photo.value.date ?? undefined;
+      location.value = photo.value.location === null ? [] : [photo.value.location];
       hideThumbnail.value = photo.value.hideThumbnail;
       photoPeople.value = photo.value.people;
-      photographer.value = photo.value.photographer === undefined ? [] : [photo.value.photographer];
+      photographer.value = photo.value.photographer === null ? [] : [photo.value.photographer];
       validTags.value = photo.value.valid ? undefined : photo.value.validationMsg;
     }
-    peopleCategories.value = await get_people_categories();
-    placeList.value = await get_places();
-    people.value = await get_people();
-    layers.value = await get_layers();
+    await get_people_categories()
+      .ok(c => (peopleCategories.value = c))
+      .err(msg => reportError(msg))
+      .send();
+    await get_places()
+      .ok(p => (placeList.value = p))
+      .err(msg => reportError(msg))
+      .send();
+    await get_people()
+      .ok(p => (people.value = p))
+      .err(msg => reportError(msg))
+      .send();
+    await get_layers()
+      .ok(l => (layers.value = l))
+      .err(message => reportError(message))
+      .send();
   }
 
   const savingLocation = ref(false);
@@ -94,7 +107,7 @@
   async function savePhotographer(photographer: string[]) {
     savingPeople.value = true;
     for (const photo of props.photos) {
-      await photo.setPhotographer(photographer[0] as string);
+      await photo.setPhotographer(photographer[0] ?? null);
     }
     savingPeople.value = false;
   }
@@ -102,12 +115,10 @@
   const savingTags = ref(false);
   async function saveTags(new_tags: string[]) {
     savingTags.value = true;
-    let validation: ValidationResult = { is_valid: true, message: '' };
     for (const photo of props.photos) {
-      validation = await photo.setTags(new_tags);
-      photo.setValidation(validation);
+      await photo.setTags(new_tags);
     }
-    validTags.value = validation.is_valid ? undefined : validation.message;
+    validTags.value = props.photos[0]?.valid ? undefined : props.photos[0]?.validationMsg;
     savingTags.value = false;
   }
 
@@ -120,7 +131,7 @@
     }
     if (date) {
       focusDate.value = date;
-      store.setLastDate(date);
+      setLastDate(date);
     }
     savingDate.value = false;
   }
@@ -129,7 +140,7 @@
 
   onMounted(() => {
     initialize();
-    focusDate.value = store.lastSetDate;
+    focusDate.value = lastSetDate.value;
   });
 </script>
 
@@ -145,7 +156,7 @@
         v-if="photo.is_video"
         controls
         :height="400"
-        :poster="photo.thumbnail"
+        :poster="photo.thumbnail as string"
         :src="photo.asset_path"
         :width="700"
       />
@@ -252,7 +263,7 @@
           v-if="photo.is_video"
           controls
           :height="400"
-          :poster="photo.thumbnail"
+          :poster="photo.thumbnail as string"
           :src="photo.asset_path"
           :width="700"
         />

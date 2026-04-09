@@ -13,8 +13,10 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{ensure_db, get_photo_targets, row_to_vec, DATE_FORMAT, DB},
+    app::{ensure_db, get_photo_targets, row_to_vec, vec_to_row, DATE_FORMAT, DB},
     models::Photo,
+    people::PEOPLE_COUNTS,
+    places::PLACE_COUNTS,
     schema::photos,
     tags::{validate_tags, ValidationResult, TAG_COUNTS},
 };
@@ -124,7 +126,7 @@ impl Photo {
         VIDEO.is_match(&self.name.to_uppercase())
     }
 
-    pub async fn set_photo_title(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photo_title(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -132,11 +134,12 @@ impl Photo {
             .set(photos::title.eq(value))
             .execute(conn)
             .await?;
+        self.title = value.clone();
 
         Ok(())
     }
 
-    pub async fn set_photo_desc(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photo_desc(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -144,11 +147,12 @@ impl Photo {
             .set(photos::description.eq(value))
             .execute(conn)
             .await?;
+        self.description = value.clone();
 
         Ok(())
     }
 
-    pub async fn set_photographer(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photographer(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
@@ -159,41 +163,89 @@ impl Photo {
                 .execute(conn)
                 .await?;
         }
+        self.photographer = value.clone();
 
         Ok(())
     }
 
     pub async fn set_photo_people(&self, photo: &String, value: &Vec<String>) -> Result<()> {
         ensure_db().await?;
-        let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
-        for target in targets {
-            update(photos::table.filter(photos::name.eq(target.name)))
-                .set(photos::people.eq(value.join(",")))
+
+        let mut targets = get_photo_targets(&photo).await?;
+        let existing_people = targets[0].people();
+        let joined = vec_to_row(&value);
+        for target in &mut targets {
+            update(photos::table.filter(photos::name.eq(target.name.clone())))
+                .set(photos::people.eq(joined.clone()))
                 .execute(conn)
                 .await?;
+            target.people = joined.clone();
+        }
+
+        // Acquire sync lock after all awaits
+        let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
+
+        let count = targets.len();
+        for person in &existing_people {
+            if !value.contains(person) {
+                if people_counts.contains_key(person) {
+                    *people_counts.get_mut(person).unwrap() -= count;
+                }
+            }
+        }
+        for person in value {
+            if !existing_people.contains(person) {
+                if people_counts.contains_key(person) {
+                    *people_counts.get_mut(person).unwrap() += count;
+                } else {
+                    people_counts.insert(person.clone(), count);
+                }
+            }
         }
 
         Ok(())
     }
 
-    pub async fn set_photo_location(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photo_location(&self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
-        for target in targets {
-            update(photos::table.filter(photos::name.eq(target.name)))
-                .set(photos::location.eq(value))
+
+        let mut targets = get_photo_targets(&photo).await?;
+        let existing_place = targets[0].location.clone();
+        for target in &mut targets {
+            update(photos::table.filter(photos::name.eq(target.name.clone())))
+                .set(photos::location.eq(value.clone()))
                 .execute(conn)
                 .await?;
+            target.location = value.clone();
+        }
+
+        // Acquire sync lock after all awaits
+        let mut place_counts = PLACE_COUNTS.lock().unwrap();
+
+        let count = targets.len();
+        if existing_place.is_some() {
+            let existing_place = existing_place.unwrap();
+            if place_counts.contains_key(&existing_place) {
+                *place_counts.get_mut(&existing_place).unwrap() -= count;
+            }
+        }
+        if value.is_some() {
+            let value = value.as_ref().unwrap();
+            if place_counts.contains_key(value) {
+                *place_counts.get_mut(value).unwrap() += count;
+            } else {
+                place_counts.insert(value.clone(), count);
+            }
         }
 
         Ok(())
     }
 
-    pub async fn set_photo_date(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photo_date(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
@@ -204,30 +256,37 @@ impl Photo {
                 .execute(conn)
                 .await?;
         }
+        self.date = value.clone();
 
         Ok(())
     }
 
-    pub async fn set_photo_group(&self, photo: &String, value: &String) -> Result<()> {
+    pub async fn set_photo_group(&self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let targets = get_photo_targets(&photo).await?;
-        if value.len() == 0 {
+        if value.is_none() {
             let mut conn = DB.lock().await;
             let conn = conn.as_mut().unwrap();
-            for target in &targets {
+            let mut targets = get_photo_targets(&photo).await?;
+            for target in &mut targets {
                 update(photos::table.filter(photos::name.eq(target.name.clone())))
                     .set(photos::photo_group.eq::<Option<String>>(None))
                     .execute(conn)
                     .await?;
+                target.photo_group = None;
             }
         } else {
+            let value = value.as_ref().unwrap();
+            let mut targets = get_photo_targets(&photo).await?;
+            let existing_people = targets[0].people();
+            let existing_tags = targets[0].tags();
+            let existing_place = targets[0].location.clone();
             let mut collected_tags = HashSet::<String>::new();
             let mut collected_location: Option<String> = None;
             let mut collected_people = HashSet::<String>::new();
             let mut collected_photographer: Option<String> = None;
             let mut collected_date: Option<String> = None;
-            for row in &targets {
-                for tag in row_to_vec(&row.tags) {
+            for row in targets.as_mut_slice() {
+                for tag in row.tags() {
                     collected_tags.insert(tag.clone());
                 }
                 if collected_location.clone().is_none()
@@ -235,7 +294,7 @@ impl Photo {
                 {
                     collected_location = row.location.clone();
                 }
-                for person in row_to_vec(&row.people) {
+                for person in row.people() {
                     collected_people.insert(person.clone());
                 }
                 if collected_photographer.clone().is_none()
@@ -252,37 +311,87 @@ impl Photo {
 
             let tags_vec = collected_tags.into_iter().collect::<Vec<String>>();
             let people_vec = collected_people.into_iter().collect::<Vec<String>>();
+            let tags_str = vec_to_row(&tags_vec);
+            let people_str = vec_to_row(&people_vec);
 
             let mut conn = DB.lock().await;
             let conn = conn.as_mut().unwrap();
-            for row in &targets {
+            for row in targets.as_mut_slice() {
                 update(photos::table.filter(photos::name.eq(row.name.clone())))
                     .into_boxed()
                     .set(GroupFields {
                         photo_group: value.clone(),
-                        tags: if tags_vec.is_empty() {
-                            None
-                        } else {
-                            Some(tags_vec.join(","))
-                        },
+                        tags: tags_str.clone(),
                         location: collected_location.clone(),
-                        people: if people_vec.is_empty() {
-                            None
-                        } else {
-                            Some(people_vec.join(","))
-                        },
+                        people: people_str.clone(),
                         photographer: collected_photographer.clone(),
                         date: collected_date.clone(),
                     })
                     .execute(conn)
                     .await?;
+                row.photo_group = Some(value.clone());
+                row.tags = tags_str.clone();
+                row.location = collected_location.clone();
+                row.people = people_str.clone();
+                row.photographer = collected_photographer.clone();
+                row.date = collected_date.clone();
+            }
+
+            let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
+            let mut place_counts = PLACE_COUNTS.lock().unwrap();
+            let mut tag_counts = TAG_COUNTS.lock().unwrap();
+
+            let count = targets.len();
+            for person in &existing_people {
+                if !value.contains(person) {
+                    if people_counts.contains_key(person) {
+                        *people_counts.get_mut(person).unwrap() -= count;
+                    }
+                }
+            }
+            for person in &people_vec {
+                if !existing_people.contains(person) {
+                    if people_counts.contains_key(person) {
+                        *people_counts.get_mut(person).unwrap() += count;
+                    } else {
+                        people_counts.insert(person.clone(), count);
+                    }
+                }
+            }
+            if existing_place.is_some() {
+                let existing_place = existing_place.as_ref().unwrap();
+                if place_counts.contains_key(existing_place) {
+                    *place_counts.get_mut(existing_place).unwrap() -= count;
+                }
+            }
+            if collected_location.is_some() {
+                let collected_location = collected_location.unwrap();
+                if place_counts.contains_key(&collected_location) {
+                    *place_counts.get_mut(&collected_location).unwrap() += count;
+                } else {
+                    place_counts.insert(collected_location.clone(), count);
+                }
+            }
+            for tag in &existing_tags {
+                if !tags_vec.contains(tag) {
+                    *tag_counts.get_mut(tag).unwrap() -= count;
+                }
+            }
+            for tag in &tags_vec {
+                if !existing_tags.contains(tag) {
+                    if tag_counts.contains_key(tag) {
+                        *tag_counts.get_mut(tag).unwrap() += 1;
+                    } else {
+                        tag_counts.insert(tag.clone(), count);
+                    }
+                }
             }
         }
 
         Ok(())
     }
 
-    pub async fn set_photo_rating(&self, photo: &String, rating: i32) -> Result<()> {
+    pub async fn set_photo_rating(&mut self, photo: &String, rating: Option<i32>) -> Result<()> {
         ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -290,11 +399,12 @@ impl Photo {
             .set(photos::rating.eq(rating))
             .execute(conn)
             .await?;
+        self.rating = rating;
 
         Ok(())
     }
 
-    pub async fn set_photo_is_duplicate(&self, photo: &String, value: bool) -> Result<()> {
+    pub async fn set_photo_is_duplicate(&mut self, photo: &String, value: bool) -> Result<()> {
         ensure_db().await?;
         let int_val = if value { 1 } else { 0 };
         let mut conn = DB.lock().await;
@@ -303,11 +413,12 @@ impl Photo {
             .set(photos::is_duplicate.eq(int_val))
             .execute(conn)
             .await?;
+        self.is_duplicate = Some(int_val);
 
         Ok(())
     }
 
-    pub async fn set_photo_hide_thumbnail(&self, photo: &String, value: bool) -> Result<()> {
+    pub async fn set_photo_hide_thumbnail(&mut self, photo: &String, value: bool) -> Result<()> {
         ensure_db().await?;
         let int_val = if value { 1 } else { 0 };
         let mut conn = DB.lock().await;
@@ -316,6 +427,7 @@ impl Photo {
             .set(photos::hide_thumbnail.eq(int_val))
             .execute(conn)
             .await?;
+        self.hide_thumbnail = Some(int_val);
 
         Ok(())
     }
@@ -327,15 +439,17 @@ impl Photo {
     ) -> Result<ValidationResult> {
         ensure_db().await?;
         let validation = validate_tags(&value).await?;
-        let targets = get_photo_targets(&photo).await?;
+        let mut targets = get_photo_targets(&photo).await?;
         let existing_tags = targets[0].tags();
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
-        for target in &targets {
+        let joined = vec_to_row(value);
+        for target in &mut targets {
             update(photos::table.filter(photos::name.eq(target.name.clone())))
-                .set(photos::tags.eq(value.join(",")))
+                .set(photos::tags.eq(joined.clone()))
                 .execute(conn)
                 .await?;
+            target.tags = joined.clone();
         }
 
         // Update validation cache after DB operations
@@ -352,16 +466,18 @@ impl Photo {
 
         let mut tag_counts = TAG_COUNTS.lock().unwrap();
         let count = targets.len();
-        for tag in existing_tags {
-            if let Some(c) = tag_counts.get_mut(&tag) {
-                *c -= count;
+        for tag in &existing_tags {
+            if !value.contains(tag) {
+                *tag_counts.get_mut(tag).unwrap() -= count;
             }
         }
         for tag in value {
-            if let Some(c) = tag_counts.get_mut(tag) {
-                *c += count;
-            } else {
-                tag_counts.insert(tag.clone(), count);
+            if !existing_tags.contains(tag) {
+                if tag_counts.contains_key(tag) {
+                    *tag_counts.get_mut(tag).unwrap() += 1;
+                } else {
+                    tag_counts.insert(tag.clone(), count);
+                }
             }
         }
 

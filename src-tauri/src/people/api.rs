@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Context;
 use log::debug;
 
@@ -38,8 +40,8 @@ pub async fn create_person_category(
 pub async fn set_person_name(person: String, value: String) -> Result<(), ApiError> {
     debug!("Setting person {person} name to {value}");
 
-    let people = PEOPLE.lock().await;
-    let target = people.get(&person);
+    let mut people = PEOPLE.lock().await;
+    let target = people.get_mut(&person);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Person {person} not found!")));
     }
@@ -57,8 +59,8 @@ pub async fn set_person_name(person: String, value: String) -> Result<(), ApiErr
 pub async fn set_person_category(person: String, value: String) -> Result<(), ApiError> {
     debug!("Setting person {person} category to {value}");
 
-    let people = PEOPLE.lock().await;
-    let target = people.get(&person);
+    let mut people = PEOPLE.lock().await;
+    let target = people.get_mut(&person);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Person {person} not found!")));
     }
@@ -73,11 +75,14 @@ pub async fn set_person_category(person: String, value: String) -> Result<(), Ap
 }
 
 #[tauri::command]
-pub async fn set_person_photo(person: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting person {person} photo to {value}");
+pub async fn set_person_photo(person: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting person {person} photo to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let people = PEOPLE.lock().await;
-    let target = people.get(&person);
+    let mut people = PEOPLE.lock().await;
+    let target = people.get_mut(&person);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Person {person} not found!")));
     }
@@ -86,13 +91,18 @@ pub async fn set_person_photo(person: String, value: String) -> Result<(), ApiEr
         .unwrap()
         .set_person_photo(&person, &value)
         .await
-        .with_context(|| format!("Could not set person {person} photo to {value}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set person {person} photo to {}",
+                value.unwrap_or("NULL".to_string())
+            )
+        })?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_people() -> Result<Vec<Person>, ApiError> {
+pub async fn get_people() -> Result<HashMap<String, Person>, ApiError> {
     Ok(_get_people()
         .await
         .with_context(|| "Could not get people".to_string())?)

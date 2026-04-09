@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Context;
 use log::debug;
 
@@ -11,11 +13,14 @@ use crate::{
 };
 
 #[tauri::command]
-pub async fn set_tag_color(tag: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting tag {tag} color to {value}");
+pub async fn set_tag_color(tag: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting tag {tag} color to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let tags = TAGS.lock().await;
-    let target = tags.get(&tag);
+    let mut tags = TAGS.lock().await;
+    let target = tags.get_mut(&tag);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Tag {tag} not found")));
     }
@@ -24,7 +29,12 @@ pub async fn set_tag_color(tag: String, value: String) -> Result<(), ApiError> {
         .unwrap()
         .set_tag_color(&tag, &value)
         .await
-        .with_context(|| format!("Could not set tag {tag} color to {value}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set tag {tag} color to {}",
+                value.unwrap_or("NULL".to_string())
+            )
+        })?;
 
     Ok(())
 }
@@ -33,8 +43,8 @@ pub async fn set_tag_color(tag: String, value: String) -> Result<(), ApiError> {
 pub async fn set_tag_prereqs(tag: String, value: Vec<String>) -> Result<(), ApiError> {
     debug!("Setting tag {tag} prereqs to {}", value.join(","));
 
-    let tags = TAGS.lock().await;
-    let target = tags.get(&tag);
+    let mut tags = TAGS.lock().await;
+    let target = tags.get_mut(&tag);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Tag {tag} not found")));
     }
@@ -52,8 +62,8 @@ pub async fn set_tag_prereqs(tag: String, value: Vec<String>) -> Result<(), ApiE
 pub async fn set_tag_coreqs(tag: String, value: Vec<String>) -> Result<(), ApiError> {
     debug!("Setting tag {tag} coreqs to {}", value.join(","));
 
-    let tags = TAGS.lock().await;
-    let target = tags.get(&tag);
+    let mut tags = TAGS.lock().await;
+    let target = tags.get_mut(&tag);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Tag {tag} not found")));
     }
@@ -71,8 +81,8 @@ pub async fn set_tag_coreqs(tag: String, value: Vec<String>) -> Result<(), ApiEr
 pub async fn set_tag_incompatible(tag: String, value: Vec<String>) -> Result<(), ApiError> {
     debug!("Setting tag {tag} incompatible to {}", value.join(","));
 
-    let tags = TAGS.lock().await;
-    let target = tags.get(&tag);
+    let mut tags = TAGS.lock().await;
+    let target = tags.get_mut(&tag);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Tag {tag} not found")));
     }
@@ -92,7 +102,7 @@ pub async fn set_tag_incompatible(tag: String, value: Vec<String>) -> Result<(),
 }
 
 #[tauri::command]
-pub async fn get_tags() -> Result<Vec<Tag>, ApiError> {
+pub async fn get_tags() -> Result<HashMap<String, Tag>, ApiError> {
     Ok(_get_tags()
         .await
         .with_context(|| "Failed to get tags".to_string())?)

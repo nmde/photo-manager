@@ -11,7 +11,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{DB, ensure_db},
+    app::{ensure_db, DB},
     models::{Person, PersonCategory},
     schema::{people, people_categories},
 };
@@ -26,15 +26,18 @@ lazy_static! {
 
 pub async fn create_person(id: &String, name: &String, category: &String) -> Result<()> {
     ensure_db().await?;
+
+    let new_person = Person {
+        id: id.clone(),
+        name: name.clone(),
+        photo: None,
+        category: category.clone(),
+    };
     insert_into(people::table)
-        .values(Person {
-            id: id.clone(),
-            name: name.clone(),
-            photo: None,
-            category: category.clone(),
-        })
+        .values(new_person.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
+    PEOPLE.lock().await.insert(id.clone(), new_person);
 
     Ok(())
 }
@@ -53,11 +56,8 @@ pub async fn create_person_category(id: &String, name: &String, color: &String) 
     Ok(())
 }
 
-pub async fn get_people() -> Result<Vec<Person>> {
-    ensure_db().await?;
-    Ok(people::table
-        .load::<Person>(DB.lock().await.as_mut().unwrap())
-        .await?)
+pub async fn get_people() -> Result<HashMap<String, Person>> {
+    Ok(PEOPLE.lock().await.to_owned())
 }
 
 pub async fn get_people_categories() -> Result<Vec<PersonCategory>> {
@@ -68,32 +68,35 @@ pub async fn get_people_categories() -> Result<Vec<PersonCategory>> {
 }
 
 impl Person {
-    pub async fn set_person_name(&self, person: &String, value: &String) -> Result<()> {
+    pub async fn set_person_name(&mut self, person: &String, value: &String) -> Result<()> {
         ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::name.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.name = value.clone();
 
         Ok(())
     }
 
-    pub async fn set_person_category(&self, person: &String, value: &String) -> Result<()> {
+    pub async fn set_person_category(&mut self, person: &String, value: &String) -> Result<()> {
         ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::category.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.category = value.clone();
 
         Ok(())
     }
 
-    pub async fn set_person_photo(&self, person: &String, value: &String) -> Result<()> {
+    pub async fn set_person_photo(&mut self, person: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::photo.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.photo = value.clone();
 
         Ok(())
     }

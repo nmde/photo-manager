@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { get_tags } from '@/api/tags';
   import { Tag } from '@/classes/Tag';
+  import { useFileStore } from '@/stores/fileStore';
 
   const props = defineProps<{
     id?: string;
@@ -18,13 +19,15 @@
     (e: 'focused', value: boolean): void;
   }>();
 
+  const { reportError } = useFileStore();
+
   const tags = ref<Record<string, Tag>>({});
   const localValue = ref<string[]>([]);
 
   const tagColors = computed(() => {
     const colorMap: Record<string, { color: string }> = {};
     for (const tag of Object.values(tags.value)) {
-      colorMap[tag.name] = { color: tag.color };
+      colorMap[tag.name] = { color: tag.color ?? '' };
     }
     return colorMap;
   });
@@ -48,7 +51,10 @@
 
   async function initialize() {
     localValue.value = props.value;
-    tags.value = await get_tags();
+    await get_tags()
+      .ok(t => (tags.value = t))
+      .err(message => reportError(message))
+      .send();
   }
 
   onMounted(initialize);

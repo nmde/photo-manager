@@ -4,7 +4,13 @@
   const route = useRoute();
 
   const store = useFileStore();
-  const { darkMode } = storeToRefs(store);
+  const { darkMode, globalError } = storeToRefs(store);
+
+  const errorSnack = ref(false);
+
+  watch(globalError, () => {
+    errorSnack.value = true;
+  });
 </script>
 
 <template>
@@ -30,6 +36,9 @@
         <RouterView />
       </v-main>
     </v-layout>
+    <v-snackbar v-model="errorSnack" color="error">
+      {{ globalError }}
+    </v-snackbar>
   </v-app>
 </template>
 

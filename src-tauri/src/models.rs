@@ -75,7 +75,7 @@ pub struct Setting {
     pub value: i32,
 }
 
-#[derive(Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
 #[diesel(table_name = shapes)]
 pub struct Shape {
     pub id: String,
@@ -85,11 +85,11 @@ pub struct Shape {
     pub name: String,
 }
 
-#[derive(Clone, Queryable, Selectable)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = tags)]
 pub struct Tag {
     pub name: String,
-    pub color: String,
+    pub color: Option<String>,
     pub prereqs: Option<String>,
     pub coreqs: Option<String>,
     pub incompatible: Option<String>,

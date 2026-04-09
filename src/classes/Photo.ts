@@ -1,4 +1,3 @@
-import type { ValidationResult } from '@/api/tags';
 import {
   set_photo_date,
   set_photo_desc,
@@ -12,53 +11,54 @@ import {
   set_photo_title,
   set_photographer,
 } from '@/api/photos';
+import { validate_photo, type ValidationResult } from '@/api/tags';
 
 export type PhotoData = {
   name: string;
   asset_path: string;
-  title?: string;
-  description?: string;
+  title: string | null;
+  description: string | null;
   tags: string[];
   is_duplicate: boolean;
-  rating?: number;
+  rating: number | null;
   is_video: boolean;
-  location?: string;
-  thumbnail?: string;
-  photo_group?: string;
-  date?: string;
+  location: string | null;
+  thumbnail: string | null;
+  photo_group: string | null;
+  date: string | null;
   is_raw: boolean;
   people: string[];
   hide_thumbnail: boolean;
-  photographer?: string;
+  photographer: string | null;
   valid_tags: boolean;
   validation_msg: string;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
 export class Photo {
-  public _date?: Date;
+  public _date: Date | null = null;
 
   public constructor(
     public readonly name: string,
     public readonly asset_path: string,
-    public _title: string | undefined,
-    public _description: string | undefined,
-    public _location: string | undefined,
+    public _title: string | null,
+    public _description: string | null,
+    public _location: string | null,
     public _tags: string[],
     public _isDuplicate: boolean,
-    public readonly thumbnail: string | undefined,
-    public _rating: number | undefined,
+    public readonly thumbnail: string | null,
+    public _rating: number | null,
     public readonly is_video: boolean,
-    public _photoGroup: string | undefined,
-    date: string | undefined,
+    public _photoGroup: string | null,
+    date: string | null,
     public readonly is_raw: boolean,
     public _people: string[],
     public _hideThumbnail: boolean,
-    private _photographer: string | undefined,
+    private _photographer: string | null,
     public valid: boolean,
     public validationMsg: string,
   ) {
-    if (date !== undefined && date.length > 0) {
+    if (date !== null && date.length > 0) {
       const split = date.split('-').map(part => Number.parseInt(part)) as [number, number, number];
       this._date = new Date(split[0], split[1] - 1, split[2]);
     }
@@ -156,42 +156,48 @@ export class Photo {
     new Photo(
       '',
       '',
-      undefined,
-      undefined,
-      undefined,
+      null,
+      null,
+      null,
       [],
       false,
-      undefined,
-      undefined,
+      null,
+      null,
       false,
-      undefined,
-      undefined,
+      null,
+      null,
       false,
       [],
       false,
-      undefined,
+      null,
       true,
       '',
     );
 
-  public async setTitle(value: string) {
+  public async setTitle(value: string | null) {
     this._title = value;
     await set_photo_title(this.name, value);
   }
 
-  public async setDescription(value: string) {
+  public async setDescription(value: string | null) {
     this._description = value;
     await set_photo_desc(this.name, value);
   }
 
-  public async setLocation(value: string) {
+  public async setLocation(value: string | null) {
     this._location = value;
     await set_photo_location(this.name, value);
   }
 
   public async setTags(value: string[]) {
     this._tags = value;
-    return await set_photo_tags(this.name, value);
+    await set_photo_tags(this.name, value);
+    await validate_photo(this.name)
+      .ok(async validation => {
+        this.setValidation(validation);
+      })
+      .err(msg => reportError(msg))
+      .send();
   }
 
   public async setDuplicate(value: boolean) {
@@ -199,12 +205,12 @@ export class Photo {
     await set_photo_is_duplicate(this.name, value);
   }
 
-  public async setRating(rating: number) {
+  public async setRating(rating: number | null) {
     this._rating = rating;
     await set_photo_rating(this.name, rating);
   }
 
-  public async setDate(value?: Date) {
+  public async setDate(value: Date | null) {
     this._date = value;
     await set_photo_date(this.name, value ? value.toISOString().slice(0, 10) : '');
   }
@@ -219,12 +225,12 @@ export class Photo {
     await set_photo_hide_thumbnail(this.name, value);
   }
 
-  public async setPhotographer(value: string) {
+  public async setPhotographer(value: string | null) {
     this._photographer = value;
     await set_photographer(this.name, value);
   }
 
-  public async setGroup(value: string) {
+  public async setGroup(value: string | null) {
     this._photoGroup = value;
     await set_photo_group(this.name, value);
   }

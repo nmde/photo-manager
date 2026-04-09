@@ -2,7 +2,7 @@ import { set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs } 
 
 export type TagData = {
   name: string;
-  color: string;
+  color: string | null;
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
@@ -15,7 +15,7 @@ export type TagData = {
 export class Tag {
   public constructor(
     public readonly name: string,
-    public _color: string,
+    public _color: string | null,
     public _prereqs: string[],
     public _coreqs: string[],
     public _incompatible: string[],
@@ -42,9 +42,9 @@ export class Tag {
     return this._incompatible;
   }
 
-  public static createTags = (data: TagData[]) => {
+  public static createTags = (data: Record<string, TagData>) => {
     const tags: Record<string, Tag> = {};
-    for (const tag of data) {
+    for (const tag of Object.values(data)) {
       tags[tag.name] = new Tag(
         tag.name,
         tag.color,
@@ -59,7 +59,7 @@ export class Tag {
 
   public static default = (name?: string) => new Tag(name ?? '', '', [], [], [], 0);
 
-  public async setColor(color: string) {
+  public async setColor(color: string | null) {
     this._color = color;
     await set_tag_color(this.name, color);
   }

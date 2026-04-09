@@ -2,9 +2,11 @@
   import type { Tag } from '@/classes/Tag';
   import stringSimilarity from 'string-similarity-js';
   import { get_tags } from '@/api/tags';
+  import { useFileStore } from '@/stores/fileStore';
 
   const route = useRoute();
   const router = useRouter();
+  const { reportError } = useFileStore();
 
   const selected = ref<string[]>([]);
   const tags = ref<Record<string, Tag>>({});
@@ -29,7 +31,10 @@
   const selectedTag = computed(() => tags.value[selected.value[0] ?? '']);
 
   onMounted(async () => {
-    tags.value = await get_tags();
+    await get_tags()
+      .ok(t => (tags.value = t))
+      .err(message => reportError(message))
+      .send();
     if (typeof route.query.tag === 'string') {
       selected.value[0] = route.query.tag;
     }
@@ -55,7 +60,7 @@
               <v-list-item
                 v-bind="iprops"
                 :active="selected[0] === iprops.title"
-                :base-color="tags[iprops.title]?.color"
+                :base-color="tags[iprops.title]?.color ?? undefined"
                 :title="`${iprops.title} (${tags[iprops.title]?.count})`"
                 @click="selected[0] = iprops.title"
               />
@@ -65,7 +70,7 @@
       </v-col>
       <v-col cols="9">
         <div class="tag-details">
-          <h2 :style="{ color: selectedTag?.color }">
+          <h2 :style="{ color: selectedTag?.color ?? 'inherit' }">
             {{ selectedTag?.name ?? 'Select a tag' }}
           </h2>
           <v-btn
@@ -75,11 +80,11 @@
           >
             View Photos ({{ selectedTag.count ?? 0 }})
           </v-btn>
-          <br>
-          <br>
+          <br />
+          <br />
           Set Tag Color:
           <color-options @select="async color => await selectedTag?.setColor(color)" />
-          <br>
+          <br />
           <tag-input
             :disabled="selectedTag === undefined"
             label="Prerequisite Tags"

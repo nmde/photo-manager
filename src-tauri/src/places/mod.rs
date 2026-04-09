@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 use crate::{
     app::{ensure_db, DB},
     models::{Layer, Photo, Place, Shape},
+    photos::PHOTOS,
     schema::{layers, photos, places, shapes},
 };
 
@@ -37,37 +38,31 @@ struct PositionUpdate {
     lng: f32,
 }
 
-pub async fn get_layers() -> Result<Vec<Layer>> {
-    ensure_db().await?;
-    Ok(layers::table
-        .load(DB.lock().await.as_mut().unwrap())
-        .await?)
+pub async fn get_layers() -> Result<HashMap<String, Layer>> {
+    Ok(LAYERS.lock().await.to_owned())
 }
 
-pub async fn get_shapes() -> Result<Vec<Shape>> {
-    ensure_db().await?;
-    Ok(shapes::table
-        .load(DB.lock().await.as_mut().unwrap())
-        .await?)
+pub async fn get_shapes() -> Result<HashMap<String, Shape>> {
+    Ok(SHAPES.lock().await.to_owned())
 }
 
-pub async fn get_places() -> Result<Vec<Place>> {
-    ensure_db().await?;
-    Ok(places::table
-        .load(DB.lock().await.as_mut().unwrap())
-        .await?)
+pub async fn get_places() -> Result<HashMap<String, Place>> {
+    Ok(PLACES.lock().await.to_owned())
 }
 
 pub async fn create_layer(id: &String, name: &String, color: &String) -> Result<()> {
     ensure_db().await?;
+    let new_layer = Layer {
+        id: id.clone(),
+        name: name.clone(),
+        color: color.clone(),
+    };
     insert_into(layers::table)
-        .values(Layer {
-            id: id.clone(),
-            name: name.clone(),
-            color: color.clone(),
-        })
+        .values(new_layer.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
+    LAYERS.lock().await.insert(id.clone(), new_layer);
+    LAYER_COUNTS.lock().unwrap().insert(id.clone(), 0);
 
     Ok(())
 }
@@ -80,11 +75,14 @@ pub async fn delete_layer(
     ensure_db().await?;
     let mut conn = DB.lock().await;
     let conn = conn.as_mut().unwrap();
+
     if recursive {
         delete(shapes::table.filter(shapes::layer.eq(layer.clone())))
             .execute(conn)
             .await?;
+        SHAPES.lock().await.retain(|_, shape| shape.layer != *layer);
 
+        let mut photos = PHOTOS.lock().await;
         for place in places::table
             .filter(places::layer.eq(layer.clone()))
             .load::<Place>(conn)
@@ -99,12 +97,14 @@ pub async fn delete_layer(
                     .set(photos::location.eq::<Option<String>>(None))
                     .execute(conn)
                     .await?;
+                photos.get_mut(&photo.name).unwrap().location = None;
             }
         }
 
         delete(places::table.filter(places::layer.eq(layer.clone())))
             .execute(conn)
             .await?;
+        PLACES.lock().await.retain(|_, place| place.layer != *layer);
     } else if new_layer.is_some() {
         let new_layer = new_layer.as_ref().unwrap();
         update(shapes::table.filter(shapes::layer.eq(layer.clone())))
@@ -115,11 +115,25 @@ pub async fn delete_layer(
             .set(places::layer.eq(new_layer))
             .execute(conn)
             .await?;
+        let mut shapes = SHAPES.lock().await;
+        for (_, shape) in shapes.iter_mut() {
+            if shape.layer == *layer {
+                shape.layer = new_layer.clone();
+            }
+        }
+        let mut places = PLACES.lock().await;
+        for (_, place) in places.iter_mut() {
+            if place.layer == *layer {
+                place.layer = new_layer.clone();
+            }
+        }
     }
 
     delete(layers::table.filter(layers::id.eq(layer)))
         .execute(conn)
         .await?;
+    LAYERS.lock().await.remove(layer);
+    LAYER_COUNTS.lock().unwrap().remove(layer);
 
     Ok(())
 }
@@ -133,18 +147,21 @@ pub async fn create_place(
     category: &String,
 ) -> Result<()> {
     ensure_db().await?;
+
+    let new_place = Place {
+        id: id.clone(),
+        name: name.clone(),
+        lat,
+        lng,
+        layer: layer.clone(),
+        category: category.clone(),
+        shape: None,
+    };
     insert_into(places::table)
-        .values(Place {
-            id: id.clone(),
-            name: name.clone(),
-            lat,
-            lng,
-            layer: layer.clone(),
-            category: category.clone(),
-            shape: None,
-        })
+        .values(new_place.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
+    PLACES.lock().await.insert(id.clone(), new_place);
 
     Ok(())
 }
@@ -163,10 +180,17 @@ pub async fn delete_place(place: &String) -> Result<()> {
             .execute(conn)
             .await?;
     }
+    let mut photos = PHOTOS.lock().await;
+    for (_, photo) in photos.iter_mut() {
+        if photo.location.as_ref().unwrap_or(&String::new()) == place {
+            photo.location = None;
+        }
+    }
 
     delete(places::table.filter(places::id.eq(place)))
         .execute(conn)
         .await?;
+    PLACES.lock().await.remove(place);
 
     Ok(())
 }
@@ -179,16 +203,19 @@ pub async fn create_shape(
     name: &String,
 ) -> Result<()> {
     ensure_db().await?;
+
+    let new_shape = Shape {
+        id: id.clone(),
+        shape_type: shape_type.clone(),
+        points: points.clone(),
+        layer: layer.clone(),
+        name: name.clone(),
+    };
     insert_into(shapes::table)
-        .values(Shape {
-            id: id.clone(),
-            shape_type: shape_type.clone(),
-            points: points.clone(),
-            layer: layer.clone(),
-            name: name.clone(),
-        })
+        .values(new_shape.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
+    SHAPES.lock().await.insert(id.clone(), new_shape);
 
     Ok(())
 }
@@ -207,31 +234,40 @@ pub async fn delete_shape(shape: &String) -> Result<()> {
             .execute(conn)
             .await?;
     }
+    let mut places = PLACES.lock().await;
+    for (_, place) in places.iter_mut() {
+        if place.shape.as_ref().unwrap_or(&String::new()) == shape {
+            place.shape = None;
+        }
+    }
 
     delete(shapes::table.filter(shapes::id.eq(shape)))
         .execute(conn)
         .await?;
+    SHAPES.lock().await.remove(shape);
 
     Ok(())
 }
 
 impl Layer {
-    pub async fn set_layer_color(&self, id: &String, color: &String) -> Result<()> {
+    pub async fn set_layer_color(&mut self, id: &String, color: &String) -> Result<()> {
         ensure_db().await?;
         update(layers::table.filter(layers::id.eq(id)))
             .set(layers::color.eq(color))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.color = color.clone();
 
         Ok(())
     }
 
-    pub async fn set_layer_name(&self, id: &String, name: &String) -> Result<()> {
+    pub async fn set_layer_name(&mut self, id: &String, name: &String) -> Result<()> {
         ensure_db().await?;
         update(layers::table.filter(layers::id.eq(id)))
             .set(layers::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.name = name.clone();
 
         Ok(())
     }
@@ -253,52 +289,58 @@ impl Serialize for Layer {
 }
 
 impl Place {
-    pub async fn set_place_name(&self, id: &String, name: &String) -> Result<()> {
+    pub async fn set_place_name(&mut self, id: &String, name: &String) -> Result<()> {
         ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(places::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.name = name.clone();
 
         Ok(())
     }
 
-    pub async fn set_place_category(&self, id: &String, category: &String) -> Result<()> {
+    pub async fn set_place_category(&mut self, id: &String, category: &String) -> Result<()> {
         ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(places::category.eq(category))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.category = category.clone();
 
         Ok(())
     }
 
-    pub async fn set_place_shape(&self, id: &String, shape: &String) -> Result<()> {
+    pub async fn set_place_shape(&mut self, id: &String, shape: &Option<String>) -> Result<()> {
         ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
-            .set(places::shape.eq::<Option<String>>(Some(shape.to_string())))
+            .set(places::shape.eq(shape))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.shape = shape.clone();
 
         Ok(())
     }
 
-    pub async fn set_place_layer(&self, place: &String, layer: &String) -> Result<()> {
+    pub async fn set_place_layer(&mut self, place: &String, layer: &String) -> Result<()> {
         ensure_db().await?;
         update(places::table.filter(places::id.eq(place)))
             .set(places::layer.eq(layer))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.layer = layer.clone();
 
         Ok(())
     }
 
-    pub async fn set_place_position(&self, id: &String, lat: f32, lng: f32) -> Result<()> {
+    pub async fn set_place_position(&mut self, id: &String, lat: f32, lng: f32) -> Result<()> {
         ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(PositionUpdate { lat, lng })
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.lat = lat;
+        self.lng = lng;
 
         Ok(())
     }
@@ -324,32 +366,35 @@ impl Serialize for Place {
 }
 
 impl Shape {
-    pub async fn set_shape_points(&self, shape: &String, points: &String) -> Result<()> {
+    pub async fn set_shape_points(&mut self, shape: &String, points: &String) -> Result<()> {
         ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::points.eq(points))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.points = points.clone();
 
         Ok(())
     }
 
-    pub async fn set_shape_layer(&self, shape: &String, layer: &String) -> Result<()> {
+    pub async fn set_shape_layer(&mut self, shape: &String, layer: &String) -> Result<()> {
         ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::layer.eq(layer))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.layer = layer.clone();
 
         Ok(())
     }
 
-    pub async fn set_shape_name(&self, shape: &String, name: &String) -> Result<()> {
+    pub async fn set_shape_name(&mut self, shape: &String, name: &String) -> Result<()> {
         ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
             .await?;
+        self.name = name.clone();
 
         Ok(())
     }

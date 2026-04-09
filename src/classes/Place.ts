@@ -14,7 +14,7 @@ export type PlaceData = {
   lng: number;
   layer: string;
   category: PlaceType;
-  shape?: string;
+  shape: string | null;
   count: number;
 };
 
@@ -26,7 +26,7 @@ export class Place {
     public _lng: number,
     public _layer: string,
     public _category: PlaceType,
-    public _shape: string | undefined,
+    public _shape: string | null,
     public count: number,
   ) {}
 
@@ -54,9 +54,9 @@ export class Place {
     return this._category;
   }
 
-  public static createPlaces(data: PlaceData[]) {
+  public static createPlaces(data: Record<string, PlaceData>) {
     const places: Record<string, Place> = {};
-    for (const place of data.map(
+    for (const place of Object.values(data).map(
       ({ id, name, lat, lng, layer, category, shape, count }) =>
         new Place(id, name, lat, lng, layer, category, shape, count),
     )) {
@@ -81,7 +81,7 @@ export class Place {
     await set_place_category(this.id, category);
   }
 
-  public async setShape(shape: string) {
+  public async setShape(shape: string | null) {
     this._shape = shape;
     await set_place_shape(this.id, shape);
   }

@@ -62,8 +62,14 @@
   }
 
   onMounted(async () => {
-    localCategories.value = await get_people_categories();
-    localPeople.value = await get_people();
+    await get_people_categories()
+      .ok(c => (localCategories.value = c))
+      .err(msg => reportError(msg))
+      .send();
+    await get_people()
+      .ok(p => (localPeople.value = p))
+      .err(msg => reportError(msg))
+      .send();
   });
 </script>
 
@@ -92,7 +98,7 @@
           <template #default="{ item }">
             <div class="people-grid">
               <v-card v-for="person in item" :key="person.id">
-                <template v-if="person.photo.length > 0" #prepend>
+                <template v-if="person.photo !== null" #prepend>
                   <v-avatar size="128">
                     <v-img :src="person.photo" />
                   </v-avatar>
@@ -130,7 +136,7 @@
                 </v-card-title>
                 <v-card-text>
                   Photo count: {{ person.count }}
-                  <br>
+                  <br />
                   Photos taken: {{ person.photographerCount }}
                 </v-card-text>
               </v-card>
@@ -145,7 +151,7 @@
       <v-card-title>Add Category</v-card-title>
       <v-card-text>
         <v-text-field v-model="addCategoryName" label="Name" />
-        <color-options @select="color => (addCategoryColor = color)" />
+        <color-options @select="color => (addCategoryColor = color ?? '')" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="addCategoryDialog = false">Cancel</v-btn>

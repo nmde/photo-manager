@@ -38,7 +38,7 @@
       if (tag.prereqs.length > 0) {
         nodes[name] = {
           label: name,
-          color: tag.color,
+          color: tag.color ?? '',
         };
         for (const p of tag.prereqs) {
           hasDependents.add(p);

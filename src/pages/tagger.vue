@@ -6,6 +6,7 @@
   const route = useRoute();
 
   const store = useFileStore();
+  const { reportError } = store;
   const { query, sortBy, itemsPerRow, currentDir } = storeToRefs(store);
 
   const selected = ref<Photo[]>([]);
@@ -20,7 +21,10 @@
 
   async function searchGrid() {
     searching.value = true;
-    photos.value = await photo_grid(query.value, sortBy.value);
+    await photo_grid(query.value, sortBy.value)
+      .ok(p => (photos.value = p))
+      .err(msg => reportError(msg))
+      .send();
     searching.value = false;
   }
 

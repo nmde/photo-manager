@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { APIResult } from '@/classes/APIResult';
 import { Tag, type TagData } from '@/classes/Tag';
 
 export type ValidationResult = {
@@ -6,26 +7,29 @@ export type ValidationResult = {
   message: string;
 };
 
-export async function set_tag_color(tag: string, value: string) {
-  return await invoke('set_tag_color', { tag, value });
+export async function set_tag_color(tag: string, value: string | null) {
+  await invoke('set_tag_color', { tag, value });
 }
 
 export async function set_tag_prereqs(tag: string, value: string[]) {
-  return await invoke('set_tag_prereqs', { tag, value });
+  await invoke('set_tag_prereqs', { tag, value });
 }
 
 export async function set_tag_coreqs(tag: string, value: string[]) {
-  return await invoke('set_tag_coreqs', { tag, value });
+  await invoke('set_tag_coreqs', { tag, value });
 }
 
 export async function set_tag_incompatible(tag: string, value: string[]) {
-  return await invoke('set_tag_incompatible', { tag, value });
+  await invoke('set_tag_incompatible', { tag, value });
 }
 
-export async function get_tags() {
-  return Tag.createTags(await invoke<TagData[]>('get_tags'));
+export function get_tags() {
+  return new APIResult<Record<string, TagData>, Record<string, Tag>>(
+    async () => await invoke('get_tags'),
+    tags => Tag.createTags(tags),
+  );
 }
 
-export async function validate_photo(photo: string) {
-  return await invoke<ValidationResult>('validate_photo', { photo });
+export function validate_photo(photo: string) {
+  return new APIResult<ValidationResult>(async () => await invoke('validate_photo', { photo }));
 }

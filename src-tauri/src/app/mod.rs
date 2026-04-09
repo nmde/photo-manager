@@ -15,7 +15,7 @@ use diesel::{
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use lazy_static::lazy_static;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use rusty_pool::ThreadPool;
 use serde::{Serialize, Serializer};
 use strum::EnumString;
@@ -24,9 +24,12 @@ use tokio::{fs, sync::Mutex};
 use walkdir::WalkDir;
 
 use crate::{
-    models::{Person, Photo},
-    photos::{PHOTOS, RAW, VIDEO},
-    schema::{people, photos},
+    models::{Layer, Person, Photo, Place, Tag},
+    people::{PEOPLE, PEOPLE_COUNTS},
+    photos::{PHOTOS, RAW, VALIDATION_CACHE, VIDEO},
+    places::{LAYERS, LAYER_COUNTS, PLACES, PLACE_COUNTS},
+    schema::{layers, people, photos, places, tags},
+    tags::{validate_tags, TAGS, TAG_COUNTS},
     MIGRATIONS,
 };
 
@@ -39,11 +42,18 @@ pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
         return Vec::new();
     }
     let row_text = row_text.as_ref().unwrap();
-    let mut re = Vec::<String>::new();
+    let mut re = vec![];
     if row_text.len() > 0 {
         re = row_text.split(",").map(str::to_string).collect();
     }
     re
+}
+
+pub fn vec_to_row(row_vec: &Vec<String>) -> Option<String> {
+    if row_vec.is_empty() {
+        return None;
+    }
+    return Some(row_vec.join(","));
 }
 
 #[derive(Debug, Error)]
@@ -215,7 +225,6 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
     while let Some(entry) = dir.next_entry().await? {
         file_queue.push_back(entry.path());
     }
-    debug!("Loading {} files from {path}", file_queue.len());
     let pool = ThreadPool::new(4, 4, Duration::from_millis(50));
     let mut threads = vec![];
     for file in WalkDir::new(path) {
@@ -227,12 +236,12 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
+                debug!("New file: {filename}");
                 let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
                 if RAW.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
-                        // Convert to jpg
                         threads.push(pool.complete(async move {
-                            debug!("Generating thumbnail for {filename}");
+                            debug!("Generating thumbnail for raw {filename}");
                             let output = Command::new("magick")
                                 .args([&filename, thumbnail_path.to_str().unwrap()])
                                 .output();
@@ -251,7 +260,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
                 } else if VIDEO.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
                         threads.push(pool.complete(async move {
-                            debug!("Generating thumbnail for {filename}");
+                            debug!("Generating thumbnail for video {filename}");
                             let output = Command::new("ffmpeg")
                                 .args([
                                     "-i",
@@ -296,6 +305,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
 
     for thread in threads {
         let result = thread.await_complete();
+        debug!("Thread complete");
         if insert_into(photos::table)
             .values(result.clone())
             .execute(conn)
@@ -307,6 +317,21 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
         photos.insert(result.name.clone(), result);
     }
 
+    debug!("Validating photos");
+    let mut validations = Vec::new();
+    for photo in photos.values() {
+        let validation = validate_tags(&photo.tags()).await?;
+        validations.push((photo.name.clone(), validation));
+    }
+
+    {
+        let mut validation_cache = VALIDATION_CACHE.lock().unwrap();
+        for (photo_name, validation) in validations {
+            validation_cache.insert(photo_name, validation);
+        }
+    }
+
+    info!("Loaded {} photos", photos.len());
     *PHOTOS.lock().await = photos;
 
     Ok(LoadedPhotos {
@@ -317,9 +342,10 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
 /// Sets the working folder path & initializes the SQLite database connection.
 /// Returns initial information from the database.
 pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>> {
-    // Establish a sync connection to apply migrations
+    // Establish a sync connection just to apply migrations
     let db_path = Path::new(path).join("photos.db");
     let db_path = db_path.to_str().unwrap();
+
     let conn = SqliteConnection::establish(db_path);
     if conn.is_err() {
         return Err(anyhow!(
@@ -335,7 +361,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
             migrations.err().unwrap()
         ));
     }
-    debug!("Loaded sync database connection from {db_path}");
+    debug!("Applied migrations to {db_path}");
 
     let conn = SyncConnectionWrapper::<SqliteConnection>::establish(db_path).await;
     if conn.is_err() {
@@ -344,8 +370,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
             conn.err().unwrap()
         ));
     }
-    *DB.lock().await = Some(conn.unwrap());
-    ensure_db().await?;
+    let mut conn = conn.unwrap();
     debug!("Loaded async database connection from {db_path}");
 
     let thumbnail_dir = app_dir.join("thumbnails");
@@ -358,7 +383,85 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
         }
     }
 
+    let layers_data = layers::table.load::<Layer>(&mut conn).await?;
+    let places_data = places::table.load::<Place>(&mut conn).await?;
+    let tags_data = tags::table.load::<Tag>(&mut conn).await?;
+    let people_data = people::table.load::<Person>(&mut conn).await?;
+
+    *DB.lock().await = Some(conn);
+
     let photo_load = load_photos(&path, &thumbnail_dir).await?;
+
+    let mut layers = LAYERS.lock().await;
+    let mut places = PLACES.lock().await;
+    let mut tags = TAGS.lock().await;
+    let mut people = PEOPLE.lock().await;
+    let loaded_photos = PHOTOS.lock().await;
+    let mut layer_counts = LAYER_COUNTS.lock().unwrap();
+    let mut place_counts = PLACE_COUNTS.lock().unwrap();
+    let mut tag_counts = TAG_COUNTS.lock().unwrap();
+    let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
+
+    for layer in layers_data {
+        layer_counts.insert(layer.id.clone(), 0);
+        layers.insert(layer.id.clone(), layer);
+    }
+
+    for place in places_data {
+        place_counts.insert(place.id.clone(), 0);
+        places.insert(place.id.clone(), place);
+    }
+
+    for tag in tags_data {
+        tag_counts.insert(tag.name.clone(), 0);
+        tags.insert(tag.name.clone(), tag);
+    }
+
+    for person in people_data {
+        people_counts.insert(person.id.clone(), 0);
+        people.insert(person.id.clone(), person);
+    }
+
+    for photo in loaded_photos.values() {
+        for tag in photo.tags() {
+            if !tags.contains_key(&tag) {
+                tags.insert(tag.clone(), Tag::new(&tag));
+            }
+            if tag_counts.contains_key(&tag) {
+                *tag_counts.get_mut(&tag).unwrap() += 1;
+            } else {
+                tag_counts.insert(tag.clone(), 1);
+            }
+        }
+        for person in photo.people() {
+            if people_counts.contains_key(&person) {
+                *people_counts.get_mut(&person).unwrap() += 1;
+            } else {
+                people_counts.insert(person.clone(), 1);
+            }
+        }
+        if photo.location.is_some() {
+            let location = photo.location.as_ref().unwrap();
+            if places.contains_key(location) {
+                let place = places.get(location).unwrap();
+                if place_counts.contains_key(location) {
+                    *place_counts.get_mut(location).unwrap() += 1;
+                } else {
+                    place_counts.insert(location.clone(), 1);
+                }
+                if layer_counts.contains_key(&place.layer) {
+                    *layer_counts.get_mut(&place.layer).unwrap() += 1;
+                } else {
+                    layer_counts.insert(place.layer.clone(), 1);
+                }
+            } else {
+                warn!(
+                    "Place referenced by photo {0} not found: {1}",
+                    photo.name, location
+                );
+            }
+        }
+    }
 
     Ok(photo_load.removed)
 }

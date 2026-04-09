@@ -83,7 +83,7 @@ diesel::table! {
 diesel::table! {
     tags (name) {
         name -> Text,
-        color -> Text,
+        color -> Nullable<Text>,
         prereqs -> Nullable<Text>,
         coreqs -> Nullable<Text>,
         incompatible -> Nullable<Text>,

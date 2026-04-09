@@ -115,7 +115,7 @@
     <template #item="{ item, props: lprops }">
       <v-list-item
         v-bind="lprops"
-        :prepend-avatar="items[item ?? '']?.photo"
+        :prepend-avatar="items[item ?? '']?.photo ?? ''"
         :style="{
           color:
             colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
@@ -128,7 +128,7 @@
         v-if="chips"
         v-bind="cprops"
         :color="colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color"
-        :prepend-avatar="items[item ?? '']?.photo"
+        :prepend-avatar="items[item ?? '']?.photo ?? ''"
         :size="typeof itemSize === 'string' ? itemSize : 'default'"
       >
         {{ items[item ?? ''] ? items[item ?? '']?.name : item }}

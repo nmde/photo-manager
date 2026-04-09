@@ -8,6 +8,7 @@ export const useFileStore = defineStore('files', () => {
   const calendarViewDate = ref(new Date());
   const itemsPerRow = ref(4);
   const lastSetDate = ref(new Date());
+  const globalError = ref<string>();
 
   function toggleTheme() {
     darkMode.value = !darkMode.value;
@@ -40,6 +41,10 @@ export const useFileStore = defineStore('files', () => {
     lastSetDate.value = date;
   }
 
+  function reportError(message: string) {
+    globalError.value = message;
+  }
+
   return {
     darkMode,
     currentDir,
@@ -48,6 +53,7 @@ export const useFileStore = defineStore('files', () => {
     calendarViewDate,
     itemsPerRow,
     lastSetDate,
+    globalError,
     toggleTheme,
     setTheme,
     setCurrentDir,
@@ -55,5 +61,6 @@ export const useFileStore = defineStore('files', () => {
     setCalendarViewDate,
     setItemsPerRow,
     setLastDate,
+    reportError,
   };
 });

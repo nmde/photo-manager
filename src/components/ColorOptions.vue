@@ -1,6 +1,6 @@
 <script setup lang="ts">
   const emit = defineEmits<{
-    (e: 'select', color: string): void;
+    (e: 'select', color: string | null): void;
   }>();
 
   defineProps<{
@@ -29,7 +29,7 @@
 
 <template>
   <div class="color-opts">
-    <div class="color-opt clear-opt" @click="emit('select', '')">
+    <div class="color-opt clear-opt" @click="emit('select', null)">
       <v-icon>mdi-close-circle-outline</v-icon>
     </div>
     <div

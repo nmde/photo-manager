@@ -3,6 +3,6 @@ export class SortableItem {
     public id: string,
     public count: number,
     public name: string,
-    public photo?: string,
+    public photo?: string | null,
   ) {}
 }

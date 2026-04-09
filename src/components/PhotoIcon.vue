@@ -17,7 +17,7 @@
     props.photo.hideThumbnail
       ? hiddenPng
       : props.photo.is_video || props.photo.is_raw
-        ? props.photo.thumbnail
+        ? props.photo.thumbnail as string
         : props.photo.asset_path,
   );
 

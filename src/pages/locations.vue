@@ -13,7 +13,10 @@
   import { icons, locToString, Map, type PlaceType, type Position } from '@/classes/Map';
   import { Place } from '@/classes/Place';
   import { Shape, type ShapeType } from '@/classes/Shape';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const store = useFileStore();
+  const { reportError } = store;
   const router = useRouter();
 
   const createDialog = ref(false);
@@ -83,7 +86,7 @@
     map.removeMarker(place.id);
     map.createMarker(place.pos, place.id, place.category, color, place.name, place.count);
     // update color of linked polygons
-    if (place.shape !== undefined) {
+    if (place.shape !== null) {
       const s = shapes.value[place.shape];
       if (place.shape.length > 0 && s) {
         setShapeColor(s, color);
@@ -128,7 +131,7 @@
 
   async function deletePlace(place: Place) {
     await delete_place(place.id);
-    if (place.shape !== undefined) {
+    if (place.shape !== null) {
       deleteShapeFunc(place.layer, place.shape);
     }
     placeMap.value[place.layer]?.splice(
@@ -139,7 +142,7 @@
   }
 
   function editPlaceShape(place: Place) {
-    if (place.shape !== undefined) {
+    if (place.shape !== null) {
       const shape = shapes.value[place.shape];
       map.removeShape(place.shape);
       targetLayer.value = place.layer;
@@ -249,9 +252,18 @@
 
   let prevShape = 0;
   onMounted(async () => {
-    layers.value = await get_layers();
-    places.value = await get_places();
-    shapes.value = await get_shapes();
+    await get_layers()
+      .ok(l => (layers.value = l))
+      .err(msg => reportError(msg))
+      .send();
+    await get_places()
+      .ok(p => (places.value = p))
+      .err(msg => reportError(msg))
+      .send();
+    await get_shapes()
+      .ok(s => (shapes.value = s))
+      .err(msg => reportError(msg))
+      .send();
     placeMap.value = {};
     shapeMap.value = {};
     for (const id in layers.value) {
@@ -268,7 +280,7 @@
           placeMap.value[place.layer] = [];
         }
         placeMap.value[place.layer]?.push(place);
-        if (place.shape !== undefined) {
+        if (place.shape !== null) {
           linkedShapes.push(place.shape);
         }
         map.createMarker(
@@ -408,7 +420,7 @@
                     >
                       Draw Polygon
                     </v-btn>
-                    <div v-if="place.shape !== undefined">
+                    <div v-if="place.shape !== null">
                       <v-btn @click="editPlaceShape(place)">Edit Polygon</v-btn>
                       Area: {{ shapes[place.shape]?.area }}
                     </div>
@@ -624,7 +636,7 @@
         <div class="map-container">
           <div ref="newPlaceMapEl" class="map" />
         </div>
-        Selected position: {{ position }}<br>
+        Selected position: {{ position }}<br />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="createDialog = false">Cancel</v-btn>

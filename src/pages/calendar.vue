@@ -16,7 +16,8 @@
   const places = ref<Record<string, Place>>({});
   const layers = ref<Record<string, Layer>>({});
 
-  const { calendarViewDate, setCalendarViewDate } = store;
+  const { reportError, setCalendarViewDate } = store;
+  const { calendarViewDate } = storeToRefs(store);
 
   type Event = {
     start: Date;
@@ -39,7 +40,7 @@
     if (date.value) {
       const year = date.value.getFullYear();
       const month = date.value.getMonth() + 1;
-      for (const photo of await photo_grid(
+      await photo_grid(
         [
           'has:date',
           `date>=${year}-${month.toString().padStart(2, '0')}-01`,
@@ -50,15 +51,20 @@
           ).getDate()}`,
         ],
         'ratingdesc',
-      )) {
-        const k = photo.date?.toISOString();
-        if (k) {
-          if (!eventMap[k]) {
-            eventMap[k] = { date: photo.date as Date, photos: [] };
+      )
+        .ok(photos => {
+          for (const photo of photos) {
+            const k = photo.date?.toISOString();
+            if (k) {
+              if (!eventMap[k]) {
+                eventMap[k] = { date: photo.date as Date, photos: [] };
+              }
+              eventMap[k].photos.push(photo);
+            }
           }
-          eventMap[k].photos.push(photo);
-        }
-      }
+        })
+        .err(msg => reportError(msg))
+        .send();
       for (let i = 1; i <= new Date(year, month, 0).getDate(); i += 1) {
         const d = new Date(year, month, i);
         const k = d.toISOString();
@@ -83,7 +89,7 @@
     const photos = eventMap[date.toISOString()]?.photos;
     if (photos) {
       for (const photo of photos) {
-        if (photo.location !== undefined) {
+        if (photo.location !== null) {
           const place = places.value[photo.location];
           if (place && !locations.some(p => p.id === place.id)) {
             locations.push(place);
@@ -110,10 +116,16 @@
   }
 
   onMounted(async () => {
-    date.value = calendarViewDate;
+    date.value = calendarViewDate.value;
     await buildEventMap();
-    places.value = await get_places();
-    layers.value = await get_layers();
+    await get_places()
+      .ok(p => (places.value = p))
+      .err(message => reportError(message))
+      .send();
+    await get_layers()
+      .ok(l => (layers.value = l))
+      .err(message => reportError(message))
+      .send();
   });
 </script>
 
@@ -188,9 +200,9 @@
               </v-col>
               <v-col cols="6">
                 <div v-if="(eventMap[dialogDate.toISOString()]?.photos.length ?? 0) > 0">
-                  <br>
+                  <br />
                   Total photos: {{ eventMap[dialogDate.toISOString()]?.photos.length }}
-                  <br>
+                  <br />
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
                 <v-chip

@@ -3,7 +3,7 @@ import { set_person_category, set_person_name, set_person_photo } from '@/api/pe
 export type PersonData = {
   id: string;
   name: string;
-  photo: string;
+  photo: string | null;
   category: string;
   photographer_count: number;
   photo_count: number;
@@ -13,7 +13,7 @@ export class Person {
   public constructor(
     public readonly id: string,
     private _name: string,
-    private _photo: string,
+    private _photo: string | null,
     private _category: string,
     public photographerCount: number,
     public count: number,
@@ -31,9 +31,9 @@ export class Person {
     return this._category;
   }
 
-  public static createPeople(people: PersonData[]) {
+  public static createPeople(people: Record<string, PersonData>) {
     const mapped: Record<string, Person> = {};
-    for (const person of people) {
+    for (const person of Object.values(people)) {
       mapped[person.id] = new Person(
         person.id,
         person.name,
@@ -56,7 +56,7 @@ export class Person {
     await set_person_category(this.id, category);
   }
 
-  public async setPhoto(photo: string) {
+  public async setPhoto(photo: string | null) {
     this._photo = photo;
     await set_person_photo(this.id, photo);
   }

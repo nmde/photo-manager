@@ -4,11 +4,14 @@ use log::debug;
 use crate::{app::ApiError, photos::PHOTOS, tags::ValidationResult};
 
 #[tauri::command]
-pub async fn set_photo_title(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} title to {value}");
+pub async fn set_photo_title(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} title to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -23,11 +26,14 @@ pub async fn set_photo_title(photo: String, value: String) -> Result<(), ApiErro
 }
 
 #[tauri::command]
-pub async fn set_photo_desc(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} description to {value}");
+pub async fn set_photo_desc(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} description to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -42,11 +48,14 @@ pub async fn set_photo_desc(photo: String, value: String) -> Result<(), ApiError
 }
 
 #[tauri::command]
-pub async fn set_photographer(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} photographer to {value}");
+pub async fn set_photographer(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} photographer to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -64,8 +73,8 @@ pub async fn set_photographer(photo: String, value: String) -> Result<(), ApiErr
 pub async fn set_photo_people(photo: String, value: Vec<String>) -> Result<(), ApiError> {
     debug!("Setting photo {photo} people to {}", value.join(","));
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -80,11 +89,14 @@ pub async fn set_photo_people(photo: String, value: Vec<String>) -> Result<(), A
 }
 
 #[tauri::command]
-pub async fn set_photo_location(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} location to {value}");
+pub async fn set_photo_location(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} location to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -93,17 +105,25 @@ pub async fn set_photo_location(photo: String, value: String) -> Result<(), ApiE
         .unwrap()
         .set_photo_location(&photo, &value)
         .await
-        .with_context(|| format!("Could not set photo {photo} location to {value}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set photo {photo} location to {}",
+                value.unwrap_or("NULL".to_string())
+            )
+        })?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn set_photo_date(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} date to {value}");
+pub async fn set_photo_date(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} date to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -112,17 +132,25 @@ pub async fn set_photo_date(photo: String, value: String) -> Result<(), ApiError
         .unwrap()
         .set_photo_date(&photo, &value)
         .await
-        .with_context(|| format!("Could not set photo {photo} date to {value}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set photo {photo} date to {}",
+                value.unwrap_or("NULL".to_string())
+            )
+        })?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn set_photo_group(photo: String, value: String) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} group to {value}");
+pub async fn set_photo_group(photo: String, value: Option<String>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} group to {}",
+        value.as_ref().unwrap_or(&"NULL".to_string())
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -131,17 +159,25 @@ pub async fn set_photo_group(photo: String, value: String) -> Result<(), ApiErro
         .unwrap()
         .set_photo_group(&photo, &value)
         .await
-        .with_context(|| format!("Could not set photo {photo} group to {value}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set photo {photo} group to {}",
+                value.unwrap_or("NULL".to_string())
+            )
+        })?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn set_photo_rating(photo: String, rating: i32) -> Result<(), ApiError> {
-    debug!("Setting photo {photo} rating to {rating}");
+pub async fn set_photo_rating(photo: String, rating: Option<i32>) -> Result<(), ApiError> {
+    debug!(
+        "Setting photo {photo} rating to {}",
+        rating.as_ref().unwrap_or(&-1)
+    );
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -150,7 +186,12 @@ pub async fn set_photo_rating(photo: String, rating: i32) -> Result<(), ApiError
         .unwrap()
         .set_photo_rating(&photo, rating)
         .await
-        .with_context(|| format!("Could not set photo {photo} rating to {rating}"))?;
+        .with_context(|| {
+            format!(
+                "Could not set photo {photo} rating to {}",
+                rating.unwrap_or(-1)
+            )
+        })?;
 
     Ok(())
 }
@@ -159,8 +200,8 @@ pub async fn set_photo_rating(photo: String, rating: i32) -> Result<(), ApiError
 pub async fn set_photo_is_duplicate(photo: String, value: bool) -> Result<(), ApiError> {
     debug!("Setting photo {photo} duplicate to {value}");
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -178,8 +219,8 @@ pub async fn set_photo_is_duplicate(photo: String, value: bool) -> Result<(), Ap
 pub async fn set_photo_hide_thumbnail(photo: String, value: bool) -> Result<(), ApiError> {
     debug!("Setting photo {photo} hide thumbnail to {value}");
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }
@@ -200,8 +241,8 @@ pub async fn set_photo_tags(
 ) -> Result<ValidationResult, ApiError> {
     debug!("Setting photo {photo} tags to {}", value.join(","));
 
-    let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
+    let mut photos = PHOTOS.lock().await;
+    let target = photos.get_mut(&photo);
     if target.is_none() {
         return Err(ApiError::NotFound(format!("Photo {photo} not found")));
     }

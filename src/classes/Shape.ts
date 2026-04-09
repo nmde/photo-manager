@@ -36,9 +36,9 @@ export class Shape {
     return 0;
   }
 
-  public static createShapes(data: ShapeData[]) {
+  public static createShapes(data: Record<string, ShapeData>) {
     const shapes: Record<string, Shape> = {};
-    for (const shape of data.map(
+    for (const shape of Object.values(data).map(
       ({ id, shape_type, points, layer, name }) => new Shape(id, shape_type, points, layer, name),
     )) {
       shapes[shape.id] = shape;

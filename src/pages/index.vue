@@ -12,6 +12,8 @@
   const deleted = ref<string[]>([]);
   const initializing = ref(false);
   const deleting = ref(false);
+  const initError = ref(false);
+  const initErrorMessage = ref('');
 
   /**
    * Prompts the user to select the folder to manage.
@@ -24,12 +26,21 @@
     });
     if (typeof selected === 'string') {
       initializing.value = true;
-      deleted.value = await initialize(selected);
+      await initialize(selected)
+        .ok(d => (deleted.value = d))
+        .err(msg => {
+          initError.value = true;
+          initErrorMessage.value = msg;
+        })
+        .send();
       store.setCurrentDir(selected);
-      const saved_theme = await get_setting('theme');
-      if (saved_theme !== null) {
-        store.setTheme(Boolean(saved_theme.value));
-      }
+      await get_setting('theme')
+        .ok(saved_theme => {
+          if (saved_theme !== null) {
+            store.setTheme(Boolean(saved_theme.value));
+          }
+        })
+        .send();
       if (deleted.value.length > 0) {
         deletedDialog.value = true;
       } else {
@@ -85,6 +96,13 @@
     <v-card title="Initializing">
       <v-card-text>
         <v-progress-linear color="primary" indeterminate />
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+  <v-dialog v-model="initError">
+    <v-card color="error" title="Could Not Open Folder">
+      <v-card-text>
+        An error occurred opening the selected folder: {{ initErrorMessage }}
       </v-card-text>
     </v-card>
   </v-dialog>
