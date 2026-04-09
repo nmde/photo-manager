@@ -11,8 +11,12 @@ export async function create_layer(id: string, name: string, color: string) {
   return await invoke('create_layer', { id, name, color });
 }
 
-export async function set_layer_str(layer: string, property: string, value: string) {
-  return await invoke('set_layer_str', { layer, property, value });
+export async function set_layer_name(layer: string, value: string) {
+  return await invoke('set_layer_name', { layer, value });
+}
+
+export async function set_layer_color(layer: string, value: string) {
+  return await invoke('set_layer_color', { layer, value });
 }
 
 export async function delete_layer(layer: string, recursive: boolean, newLayer?: string) {

@@ -1,4 +1,4 @@
-import { set_layer_str } from '@/api/places';
+import { set_layer_color, set_layer_name } from '@/api/places';
 
 export type LayerData = {
   id: string;
@@ -33,11 +33,11 @@ export class Layer {
 
   public async setColor(color: string) {
     this._color = color;
-    await set_layer_str(this.id, 'color', color);
+    await set_layer_color(this.id, color);
   }
 
   public async setName(name: string) {
     this._name = name;
-    await set_layer_str(this.id, 'name', name);
+    await set_layer_name(this.id, name);
   }
 }
