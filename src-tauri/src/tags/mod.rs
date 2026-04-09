@@ -8,7 +8,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{row_to_vec, DB},
+    app::{ensure_db, row_to_vec, DB},
     models::{Photo, Tag},
     schema::{photos, tags},
 };
@@ -47,6 +47,7 @@ impl Tag {
     }
 
     pub async fn set_tag_color(&self, tag: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         update(tags::table.filter(tags::name.eq(tag)))
             .set(tags::color.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -61,6 +62,7 @@ impl Tag {
         tag: &String,
         value: &Vec<String>,
     ) -> Result<()> {
+        ensure_db().await?;
         let joined = value.join(",");
         match category {
             TagRelationship::Prereqs => {
@@ -168,6 +170,7 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
 }
 
 async fn get_tag(tag: &String) -> Result<Tag> {
+    ensure_db().await?;
     Ok(tags::table
         .filter(tags::name.eq(tag))
         .first(DB.lock().await.as_mut().unwrap())
@@ -175,10 +178,12 @@ async fn get_tag(tag: &String) -> Result<Tag> {
 }
 
 pub async fn get_tags() -> Result<Vec<Tag>> {
+    ensure_db().await?;
     Ok(tags::table.load(DB.lock().await.as_mut().unwrap()).await?)
 }
 
 pub async fn validate_photo(photo: &String) -> Result<ValidationResult> {
+    ensure_db().await?;
     let target = photos::table
         .filter(photos::name.eq(photo))
         .first::<Photo>(DB.lock().await.as_mut().unwrap())

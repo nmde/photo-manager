@@ -11,7 +11,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::DB,
+    app::{DB, ensure_db},
     models::{Person, PersonCategory},
     schema::{people, people_categories},
 };
@@ -25,6 +25,7 @@ lazy_static! {
 }
 
 pub async fn create_person(id: &String, name: &String, category: &String) -> Result<()> {
+    ensure_db().await?;
     insert_into(people::table)
         .values(Person {
             id: id.clone(),
@@ -39,6 +40,7 @@ pub async fn create_person(id: &String, name: &String, category: &String) -> Res
 }
 
 pub async fn create_person_category(id: &String, name: &String, color: &String) -> Result<()> {
+    ensure_db().await?;
     insert_into(people_categories::table)
         .values(PersonCategory {
             id: id.clone(),
@@ -52,12 +54,14 @@ pub async fn create_person_category(id: &String, name: &String, color: &String) 
 }
 
 pub async fn get_people() -> Result<Vec<Person>> {
+    ensure_db().await?;
     Ok(people::table
         .load::<Person>(DB.lock().await.as_mut().unwrap())
         .await?)
 }
 
 pub async fn get_people_categories() -> Result<Vec<PersonCategory>> {
+    ensure_db().await?;
     Ok(people_categories::table
         .load::<PersonCategory>(DB.lock().await.as_mut().unwrap())
         .await?)
@@ -65,6 +69,7 @@ pub async fn get_people_categories() -> Result<Vec<PersonCategory>> {
 
 impl Person {
     pub async fn set_person_name(&self, person: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::name.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -74,6 +79,7 @@ impl Person {
     }
 
     pub async fn set_person_category(&self, person: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::category.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -83,6 +89,7 @@ impl Person {
     }
 
     pub async fn set_person_photo(&self, person: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         update(people::table.filter(people::id.eq(person)))
             .set(people::photo.eq(value))
             .execute(DB.lock().await.as_mut().unwrap())

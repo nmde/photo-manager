@@ -13,7 +13,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{get_photo_targets, row_to_vec, DATE_FORMAT, DB},
+    app::{ensure_db, get_photo_targets, row_to_vec, DATE_FORMAT, DB},
     models::Photo,
     schema::photos,
     tags::{validate_tags, ValidationResult, TAG_COUNTS},
@@ -125,6 +125,7 @@ impl Photo {
     }
 
     pub async fn set_photo_title(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
         update(photos::table.filter(photos::name.eq(photo)))
@@ -136,6 +137,7 @@ impl Photo {
     }
 
     pub async fn set_photo_desc(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
         update(photos::table.filter(photos::name.eq(photo)))
@@ -147,6 +149,7 @@ impl Photo {
     }
 
     pub async fn set_photographer(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -161,6 +164,7 @@ impl Photo {
     }
 
     pub async fn set_photo_people(&self, photo: &String, value: &Vec<String>) -> Result<()> {
+        ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -175,6 +179,7 @@ impl Photo {
     }
 
     pub async fn set_photo_location(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -189,6 +194,7 @@ impl Photo {
     }
 
     pub async fn set_photo_date(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -203,6 +209,7 @@ impl Photo {
     }
 
     pub async fn set_photo_group(&self, photo: &String, value: &String) -> Result<()> {
+        ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
         if value.len() == 0 {
             let mut conn = DB.lock().await;
@@ -276,6 +283,7 @@ impl Photo {
     }
 
     pub async fn set_photo_rating(&self, photo: &String, rating: i32) -> Result<()> {
+        ensure_db().await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
         update(photos::table.filter(photos::name.eq(photo)))
@@ -287,6 +295,7 @@ impl Photo {
     }
 
     pub async fn set_photo_is_duplicate(&self, photo: &String, value: bool) -> Result<()> {
+        ensure_db().await?;
         let int_val = if value { 1 } else { 0 };
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -299,6 +308,7 @@ impl Photo {
     }
 
     pub async fn set_photo_hide_thumbnail(&self, photo: &String, value: bool) -> Result<()> {
+        ensure_db().await?;
         let int_val = if value { 1 } else { 0 };
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -315,8 +325,8 @@ impl Photo {
         photo: &String,
         value: &Vec<String>,
     ) -> Result<ValidationResult> {
+        ensure_db().await?;
         let validation = validate_tags(&value).await?;
-
         let targets = get_photo_targets(&photo).await?;
         let existing_tags = targets[0].tags();
         let mut conn = DB.lock().await;

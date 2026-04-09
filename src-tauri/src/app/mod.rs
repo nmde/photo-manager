@@ -146,7 +146,16 @@ impl Display for Sort {
     }
 }
 
+pub async fn ensure_db() -> Result<()> {
+    let db_lock = DB.lock().await;
+    if db_lock.is_none() {
+        return Err(anyhow!("No database connection established!"));
+    }
+    Ok(())
+}
+
 pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
+    ensure_db().await?;
     let mut targets = Vec::<Photo>::new();
     targets.push(
         photos::table
@@ -173,6 +182,7 @@ pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
 
 async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPhotos> {
     info!("Loading photos from {path}");
+    ensure_db().await?;
     let mut conn = DB.lock().await;
     let conn = conn.as_mut().unwrap();
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
@@ -188,6 +198,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
     for photo in photo_load.unwrap() {
         existing.insert(photo.name.clone(), photo);
     }
+    debug!("Found {} existing photos", existing.len());
 
     // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
     let mut photos = HashMap::new();
@@ -205,6 +216,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
     while let Some(entry) = dir.next_entry().await? {
         file_queue.push_back(entry.path());
     }
+    debug!("Loading {} files from {path}", file_queue.len());
     let pool = ThreadPool::new(4, 4, Duration::from_millis(50));
     let mut threads = vec![];
     for file in WalkDir::new(path) {
@@ -324,6 +336,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
             migrations.err().unwrap()
         ));
     }
+    debug!("Loaded sync database connection from {db_path}");
 
     let conn = SyncConnectionWrapper::<SqliteConnection>::establish(db_path).await;
     if conn.is_err() {
@@ -332,6 +345,9 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
             conn.err().unwrap()
         ));
     }
+    *DB.lock().await = Some(conn.unwrap());
+    ensure_db().await?;
+    debug!("Loaded async database connection from {db_path}");
 
     let thumbnail_dir = app_dir.join("thumbnails");
     if !thumbnail_dir.exists() {
@@ -483,6 +499,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
 
     let mut results = Vec::<Photo>::new();
     let mut photo_records = Vec::<Photo>::new();
+    ensure_db().await?;
     let mut conn = DB.lock().await;
     let conn = conn.as_mut().unwrap();
     for row in statement.load::<Photo>(conn).await? {
@@ -631,6 +648,7 @@ pub async fn remove_deleted(deleted: &Vec<String>) -> Result<()> {
         "Removing {} moved or deleted photos from the database",
         deleted.len()
     );
+    ensure_db().await?;
 
     for name in deleted {
         delete(photos::table.filter(photos::name.eq(name)))

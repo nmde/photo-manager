@@ -13,7 +13,7 @@ use serde::{ser::SerializeStruct, Serialize, Serializer};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::DB,
+    app::{ensure_db, DB},
     models::{Layer, Photo, Place, Shape},
     schema::{layers, photos, places, shapes},
 };
@@ -38,24 +38,28 @@ struct PositionUpdate {
 }
 
 pub async fn get_layers() -> Result<Vec<Layer>> {
+    ensure_db().await?;
     Ok(layers::table
         .load(DB.lock().await.as_mut().unwrap())
         .await?)
 }
 
 pub async fn get_shapes() -> Result<Vec<Shape>> {
+    ensure_db().await?;
     Ok(shapes::table
         .load(DB.lock().await.as_mut().unwrap())
         .await?)
 }
 
 pub async fn get_places() -> Result<Vec<Place>> {
+    ensure_db().await?;
     Ok(places::table
         .load(DB.lock().await.as_mut().unwrap())
         .await?)
 }
 
 pub async fn create_layer(id: &String, name: &String, color: &String) -> Result<()> {
+    ensure_db().await?;
     insert_into(layers::table)
         .values(Layer {
             id: id.clone(),
@@ -73,6 +77,7 @@ pub async fn delete_layer(
     recursive: bool,
     new_layer: &Option<String>,
 ) -> Result<()> {
+    ensure_db().await?;
     if recursive {
         delete(shapes::table.filter(shapes::layer.eq(layer.clone())))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -125,6 +130,7 @@ pub async fn create_place(
     layer: &String,
     category: &String,
 ) -> Result<()> {
+    ensure_db().await?;
     insert_into(places::table)
         .values(Place {
             id: id.clone(),
@@ -142,6 +148,7 @@ pub async fn create_place(
 }
 
 pub async fn delete_place(place: &String) -> Result<()> {
+    ensure_db().await?;
     for photo in photos::table
         .filter(photos::location.eq(place.clone()))
         .load::<Photo>(DB.lock().await.as_mut().unwrap())
@@ -167,6 +174,7 @@ pub async fn create_shape(
     layer: &String,
     name: &String,
 ) -> Result<()> {
+    ensure_db().await?;
     insert_into(shapes::table)
         .values(Shape {
             id: id.clone(),
@@ -182,6 +190,7 @@ pub async fn create_shape(
 }
 
 pub async fn delete_shape(shape: &String) -> Result<()> {
+    ensure_db().await?;
     for place in places::table
         .filter(places::shape.eq::<Option<String>>(Some(shape.clone())))
         .load::<Place>(DB.lock().await.as_mut().unwrap())
@@ -202,6 +211,7 @@ pub async fn delete_shape(shape: &String) -> Result<()> {
 
 impl Layer {
     pub async fn set_layer_color(&self, id: &String, color: &String) -> Result<()> {
+        ensure_db().await?;
         update(layers::table.filter(layers::id.eq(id)))
             .set(layers::color.eq(color))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -211,6 +221,7 @@ impl Layer {
     }
 
     pub async fn set_layer_name(&self, id: &String, name: &String) -> Result<()> {
+        ensure_db().await?;
         update(layers::table.filter(layers::id.eq(id)))
             .set(layers::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -237,6 +248,7 @@ impl Serialize for Layer {
 
 impl Place {
     pub async fn set_place_name(&self, id: &String, name: &String) -> Result<()> {
+        ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(places::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -246,6 +258,7 @@ impl Place {
     }
 
     pub async fn set_place_category(&self, id: &String, category: &String) -> Result<()> {
+        ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(places::category.eq(category))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -255,6 +268,7 @@ impl Place {
     }
 
     pub async fn set_place_shape(&self, id: &String, shape: &String) -> Result<()> {
+        ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(places::shape.eq::<Option<String>>(Some(shape.to_string())))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -264,6 +278,7 @@ impl Place {
     }
 
     pub async fn set_place_layer(&self, place: &String, layer: &String) -> Result<()> {
+        ensure_db().await?;
         update(places::table.filter(places::id.eq(place)))
             .set(places::layer.eq(layer))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -273,6 +288,7 @@ impl Place {
     }
 
     pub async fn set_place_position(&self, id: &String, lat: f32, lng: f32) -> Result<()> {
+        ensure_db().await?;
         update(places::table.filter(places::id.eq(id)))
             .set(PositionUpdate { lat, lng })
             .execute(DB.lock().await.as_mut().unwrap())
@@ -303,6 +319,7 @@ impl Serialize for Place {
 
 impl Shape {
     pub async fn set_shape_points(&self, shape: &String, points: &String) -> Result<()> {
+        ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::points.eq(points))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -312,6 +329,7 @@ impl Shape {
     }
 
     pub async fn set_shape_layer(&self, shape: &String, layer: &String) -> Result<()> {
+        ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::layer.eq(layer))
             .execute(DB.lock().await.as_mut().unwrap())
@@ -321,6 +339,7 @@ impl Shape {
     }
 
     pub async fn set_shape_name(&self, shape: &String, name: &String) -> Result<()> {
+        ensure_db().await?;
         update(shapes::table.filter(shapes::id.eq(shape)))
             .set(shapes::name.eq(name))
             .execute(DB.lock().await.as_mut().unwrap())
