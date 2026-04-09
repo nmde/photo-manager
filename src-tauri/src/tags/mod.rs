@@ -64,23 +64,25 @@ impl Tag {
     ) -> Result<()> {
         ensure_db().await?;
         let joined = value.join(",");
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
         match category {
             TagRelationship::Prereqs => {
                 update(tags::table.filter(tags::name.eq(tag)))
                     .set(tags::prereqs.eq(joined))
-                    .execute(DB.lock().await.as_mut().unwrap())
+                    .execute(conn)
                     .await?
             }
             TagRelationship::Coreqs => {
                 update(tags::table.filter(tags::name.eq(tag)))
                     .set(tags::coreqs.eq(joined))
-                    .execute(DB.lock().await.as_mut().unwrap())
+                    .execute(conn)
                     .await?
             }
             TagRelationship::Incompatible => {
                 update(tags::table.filter(tags::name.eq(tag)))
                     .set(tags::incompatible.eq(joined))
-                    .execute(DB.lock().await.as_mut().unwrap())
+                    .execute(conn)
                     .await?
             }
         };

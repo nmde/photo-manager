@@ -9,8 +9,8 @@ use std::{
 use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
 use diesel::{
-    delete, insert_into, BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl,
-    SqliteConnection, TextExpressionMethods,
+    debug_query, delete, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
+    QueryDsl, SqliteConnection, TextExpressionMethods,
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
@@ -25,9 +25,8 @@ use walkdir::WalkDir;
 
 use crate::{
     models::{Person, Photo},
-    people::get_people,
     photos::{PHOTOS, RAW, VIDEO},
-    schema::photos,
+    schema::{people, photos},
     MIGRATIONS,
 };
 
@@ -280,7 +279,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
                     let photo = Photo::new(filename);
                     if insert_into(photos::table)
                         .values(&photo)
-                        .execute(DB.lock().await.as_mut().unwrap())
+                        .execute(conn)
                         .await
                         .is_err()
                     {
@@ -299,7 +298,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
         let result = thread.await_complete();
         if insert_into(photos::table)
             .values(result.clone())
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await
             .is_err()
         {
@@ -496,25 +495,29 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
             statement = statement.filter(photos::date.is_not_null());
         }
     }
+    debug!(
+        "Constructed SQL query for search: {}",
+        debug_query(&statement)
+    );
 
     let mut results = Vec::<Photo>::new();
-    let mut photo_records = Vec::<Photo>::new();
     ensure_db().await?;
     let mut conn = DB.lock().await;
     let conn = conn.as_mut().unwrap();
-    for row in statement.load::<Photo>(conn).await? {
-        photo_records.push(row);
-    }
+    let photo_records = statement.load::<Photo>(conn).await?;
+    debug!("Query returned {} photos", photo_records.len());
 
     // I *want* to use SQL ORDER BY to sort the results, but it seems the results lose their order somewhere in the above statement
     // TODO test again with sql ordering
 
     // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
-    let people = get_people()
+    let people = people::table
+        .load::<Person>(conn)
         .await?
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect::<HashMap<String, Person>>();
+    debug!("{} unmet terms need to be evaluted", unmet_terms.len());
     if unmet_terms.len() > 0 {
         for photo in photo_records {
             let mut meets_terms = true;
@@ -640,6 +643,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         results.reverse();
     }
 
+    debug!("Search returned {} photos", results.len());
     Ok(results)
 }
 

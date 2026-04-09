@@ -78,45 +78,47 @@ pub async fn delete_layer(
     new_layer: &Option<String>,
 ) -> Result<()> {
     ensure_db().await?;
+    let mut conn = DB.lock().await;
+    let conn = conn.as_mut().unwrap();
     if recursive {
         delete(shapes::table.filter(shapes::layer.eq(layer.clone())))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
 
         for place in places::table
             .filter(places::layer.eq(layer.clone()))
-            .load::<Place>(DB.lock().await.as_mut().unwrap())
+            .load::<Place>(conn)
             .await?
         {
             for photo in photos::table
                 .filter(photos::location.eq(place.id))
-                .load::<Photo>(DB.lock().await.as_mut().unwrap())
+                .load::<Photo>(conn)
                 .await?
             {
                 update(photos::table.filter(photos::name.eq(photo.name.clone())))
                     .set(photos::location.eq::<Option<String>>(None))
-                    .execute(DB.lock().await.as_mut().unwrap())
+                    .execute(conn)
                     .await?;
             }
         }
 
         delete(places::table.filter(places::layer.eq(layer.clone())))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
     } else if new_layer.is_some() {
         let new_layer = new_layer.as_ref().unwrap();
         update(shapes::table.filter(shapes::layer.eq(layer.clone())))
             .set(shapes::layer.eq(new_layer.clone()))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
         update(places::table.filter(places::layer.eq(layer.clone())))
             .set(places::layer.eq(new_layer))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
     }
 
     delete(layers::table.filter(layers::id.eq(layer)))
-        .execute(DB.lock().await.as_mut().unwrap())
+        .execute(conn)
         .await?;
 
     Ok(())
@@ -149,19 +151,21 @@ pub async fn create_place(
 
 pub async fn delete_place(place: &String) -> Result<()> {
     ensure_db().await?;
+    let mut conn = DB.lock().await;
+    let conn = conn.as_mut().unwrap();
     for photo in photos::table
         .filter(photos::location.eq(place.clone()))
-        .load::<Photo>(DB.lock().await.as_mut().unwrap())
+        .load::<Photo>(conn)
         .await?
     {
         update(photos::table.filter(photos::name.eq(photo.name)))
             .set(photos::location.eq::<Option<String>>(None))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
     }
 
     delete(places::table.filter(places::id.eq(place)))
-        .execute(DB.lock().await.as_mut().unwrap())
+        .execute(conn)
         .await?;
 
     Ok(())
@@ -191,19 +195,21 @@ pub async fn create_shape(
 
 pub async fn delete_shape(shape: &String) -> Result<()> {
     ensure_db().await?;
+    let mut conn = DB.lock().await;
+    let conn = conn.as_mut().unwrap();
     for place in places::table
         .filter(places::shape.eq::<Option<String>>(Some(shape.clone())))
-        .load::<Place>(DB.lock().await.as_mut().unwrap())
+        .load::<Place>(conn)
         .await?
     {
         update(places::table.filter(places::id.eq(place.id)))
             .set(places::shape.eq::<Option<String>>(None))
-            .execute(DB.lock().await.as_mut().unwrap())
+            .execute(conn)
             .await?;
     }
 
     delete(shapes::table.filter(shapes::id.eq(shape)))
-        .execute(DB.lock().await.as_mut().unwrap())
+        .execute(conn)
         .await?;
 
     Ok(())
