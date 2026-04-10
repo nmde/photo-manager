@@ -5,16 +5,17 @@
     photos: Photo[];
     itemsPerRow: number;
     selected: Photo[];
-    width: number;
+    halfWidth: boolean;
   }>();
 
   const emit = defineEmits<{
     (e: 'select', photo: Photo, index: number): void;
   }>();
 
-  const scrollerHeight = computed(() => window.innerHeight - 64);
-
-  const size = computed(() => props.width / props.itemsPerRow - 8);
+  const scrollerHeight = ref(0);
+  const scrollerWidth = ref(0);
+  const adjustedWidth = computed(() => scrollerWidth.value / (props.halfWidth ? 2 : 1));
+  const size = computed(() => adjustedWidth.value / props.itemsPerRow - 8);
 
   const photoRows = computed(() => {
     const rows: Photo[][] = [];
@@ -29,11 +30,28 @@
     }
     return rows;
   });
+
+  function resize() {
+    scrollerHeight.value = window.innerHeight - 64;
+    scrollerWidth.value = window.innerWidth - (props.halfWidth ? 22 : 40);
+  }
+
+  onMounted(() => {
+    resize();
+    window.addEventListener('resize', () => {
+      resize();
+    });
+  });
 </script>
 
 <template>
   <div ref="photoScroller">
-    <v-virtual-scroll :height="scrollerHeight" :item-height="size" :items="photoRows">
+    <v-virtual-scroll
+      :height="scrollerHeight"
+      :item-height="size"
+      :items="photoRows"
+      :width="adjustedWidth"
+    >
       <template #default="{ item, index }">
         <div class="photo-row">
           <photo-icon

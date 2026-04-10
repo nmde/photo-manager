@@ -17,13 +17,13 @@
     props.photo.hideThumbnail
       ? hiddenPng
       : props.photo.is_video || props.photo.is_raw
-        ? props.photo.thumbnail as string
+        ? (props.photo.thumbnail as string)
         : props.photo.asset_path,
   );
 
   const displayName = computed(() =>
-    props.photo.group === undefined
-      ? props.photo.title === undefined
+    props.photo.group === null
+      ? props.photo.title === null
         ? props.photo.name
         : props.photo.title
       : props.photo.group,
@@ -53,7 +53,7 @@
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>
           <v-icon v-if="props.selected">mdi-check</v-icon>
-          <v-icon v-if="!props.photo.valid" color="error">mdi-alert-octagram</v-icon>
+          <v-icon v-if="!props.photo.valid_tags.is_valid" color="error">mdi-alert-octagram</v-icon>
           <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
           <v-icon v-if="props.photo.date">mdi-calendar</v-icon>
           <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>

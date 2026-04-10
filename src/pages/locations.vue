@@ -405,7 +405,7 @@
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-btn
-                      v-if="place.shape === undefined"
+                      v-if="place.shape === null"
                       color="primary"
                       @click="
                         () => {

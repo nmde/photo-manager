@@ -227,11 +227,6 @@
         shiftPressed.value = false;
       }
     });
-    window.addEventListener('resize', () => {
-      if (gridSection.value) {
-        photoGridWidth.value = gridSection.value.getBoundingClientRect()?.width;
-      }
-    });
     await searchGrid();
   });
 </script>
@@ -304,10 +299,10 @@
         </template>
       </v-toolbar>
       <photo-grid
+        :half-width="showDetail"
         :items-per-row="itemsPerRow"
         :photos="photos as Photo[]"
         :selected="selected as Photo[]"
-        :width="showDetail ? photoGridWidth / 2 : photoGridWidth"
         @select="
           (photo, index) => {
             selectPhoto(photo, index);

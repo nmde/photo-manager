@@ -4,7 +4,7 @@ import { Tag, type TagData } from '@/classes/Tag';
 
 export type ValidationResult = {
   is_valid: boolean;
-  message: string;
+  message: string | null;
 };
 
 export async function set_tag_color(tag: string, value: string | null) {
@@ -24,7 +24,7 @@ export async function set_tag_incompatible(tag: string, value: string[]) {
 }
 
 export function get_tags() {
-  return new APIResult<Record<string, TagData>, Record<string, Tag>>(
+  return new APIResult<TagData[], Record<string, Tag>>(
     async () => await invoke('get_tags'),
     tags => Tag.createTags(tags),
   );

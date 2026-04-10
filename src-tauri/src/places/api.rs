@@ -1,38 +1,43 @@
-use std::collections::HashMap;
-
 use anyhow::Context;
 use log::debug;
 
 use crate::{
     app::ApiError,
-    models::{Layer, Place, Shape},
+    models::Shape,
     places::{
         create_layer as _create_layer, create_place as _create_place,
         create_shape as _create_shape, delete_layer as _delete_layer,
         delete_place as _delete_place, delete_shape as _delete_shape, get_layers as _get_layers,
-        get_places as _get_places, get_shapes as _get_shapes, LAYERS, PLACES, SHAPES,
+        get_places as _get_places, get_shapes as _get_shapes, LayerDto, PlaceDto, LAYERS, PLACES,
+        SHAPES,
     },
 };
 
 #[tauri::command]
-pub async fn get_layers() -> Result<HashMap<String, Layer>, ApiError> {
+pub async fn get_layers() -> Result<Vec<LayerDto>, ApiError> {
     Ok(_get_layers()
         .await
-        .with_context(|| "Could not get layers".to_string())?)
+        .with_context(|| "Could not get layers".to_string())?
+        .iter()
+        .map(|x| LayerDto::from(x))
+        .collect::<Vec<LayerDto>>())
 }
 
 #[tauri::command]
-pub async fn get_shapes() -> Result<HashMap<String, Shape>, ApiError> {
+pub async fn get_shapes() -> Result<Vec<Shape>, ApiError> {
     Ok(_get_shapes()
         .await
         .with_context(|| "Could not get shapes".to_string())?)
 }
 
 #[tauri::command]
-pub async fn get_places() -> Result<HashMap<String, Place>, ApiError> {
+pub async fn get_places() -> Result<Vec<PlaceDto>, ApiError> {
     Ok(_get_places()
         .await
-        .with_context(|| "Could not get places".to_string())?)
+        .with_context(|| "Could not get places".to_string())?
+        .iter()
+        .map(|x| PlaceDto::from(x))
+        .collect::<Vec<PlaceDto>>())
 }
 
 #[tauri::command]

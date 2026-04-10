@@ -54,9 +54,9 @@ export class Place {
     return this._category;
   }
 
-  public static createPlaces(data: Record<string, PlaceData>) {
+  public static createPlaces(data: PlaceData[]) {
     const places: Record<string, Place> = {};
-    for (const place of Object.values(data).map(
+    for (const place of data.map(
       ({ id, name, lat, lng, layer, category, shape, count }) =>
         new Place(id, name, lat, lng, layer, category, shape, count),
     )) {

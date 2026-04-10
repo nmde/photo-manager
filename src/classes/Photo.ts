@@ -30,8 +30,7 @@ export type PhotoData = {
   people: string[];
   hide_thumbnail: boolean;
   photographer: string | null;
-  valid_tags: boolean;
-  validation_msg: string;
+  valid_tags: ValidationResult;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
@@ -55,8 +54,7 @@ export class Photo {
     public _people: string[],
     public _hideThumbnail: boolean,
     private _photographer: string | null,
-    public valid: boolean,
-    public validationMsg: string,
+    public valid_tags: ValidationResult,
   ) {
     if (date !== null && date.length > 0) {
       const split = date.split('-').map(part => Number.parseInt(part)) as [number, number, number];
@@ -128,7 +126,6 @@ export class Photo {
         hide_thumbnail,
         photographer,
         valid_tags,
-        validation_msg,
       }) =>
         new Photo(
           name,
@@ -148,7 +145,6 @@ export class Photo {
           hide_thumbnail,
           photographer,
           valid_tags,
-          validation_msg,
         ),
     );
 
@@ -170,8 +166,7 @@ export class Photo {
       [],
       false,
       null,
-      true,
-      '',
+      { is_valid: true, message: null },
     );
 
   public async setTitle(value: string | null) {
@@ -245,7 +240,6 @@ export class Photo {
   }
 
   public setValidation(validation: ValidationResult) {
-    this.valid = validation.is_valid;
-    this.validationMsg = validation.message;
+    this.valid_tags = validation;
   }
 }

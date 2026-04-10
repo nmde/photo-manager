@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-
 use anyhow::Context;
 use log::debug;
 
 use crate::{
     app::ApiError,
-    models::{Person, PersonCategory},
+    models::PersonCategory,
     people::{
         create_person as _create_person, create_person_category as _create_person_category,
-        get_people as _get_people, get_people_categories as _get_people_categories, PEOPLE,
+        get_people as _get_people, get_people_categories as _get_people_categories, PersonDto,
+        PEOPLE,
     },
 };
 
@@ -102,10 +101,13 @@ pub async fn set_person_photo(person: String, value: Option<String>) -> Result<(
 }
 
 #[tauri::command]
-pub async fn get_people() -> Result<HashMap<String, Person>, ApiError> {
+pub async fn get_people() -> Result<Vec<PersonDto>, ApiError> {
     Ok(_get_people()
         .await
-        .with_context(|| "Could not get people".to_string())?)
+        .with_context(|| "Could not get people".to_string())?
+        .iter()
+        .map(|x| PersonDto::from(x))
+        .collect::<Vec<PersonDto>>())
 }
 
 #[tauri::command]

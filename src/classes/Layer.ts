@@ -23,9 +23,9 @@ export class Layer {
     return this._color;
   }
 
-  public static createLayers = (data: Record<string, LayerData>) => {
+  public static createLayers = (data: LayerData[]) => {
     const layers: Record<string, Layer> = {};
-    for (const layer of Object.values(data)) {
+    for (const layer of data) {
       layers[layer.id] = new Layer(layer.id, layer.name, layer.color, layer.count);
     }
     return layers;

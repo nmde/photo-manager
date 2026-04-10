@@ -1,4 +1,4 @@
-use std::{collections::HashMap, result, sync};
+use std::{collections::HashMap, sync};
 
 use anyhow::{anyhow, Result};
 use diesel::{
@@ -7,7 +7,7 @@ use diesel::{
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, RunQueryDsl};
 use lazy_static::lazy_static;
-use serde::{ser::SerializeStruct, Serialize, Serializer};
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -29,6 +29,15 @@ lazy_static! {
 pub struct ValidationResult {
     pub is_valid: bool,
     pub message: Option<String>,
+}
+
+impl Default for ValidationResult {
+    fn default() -> Self {
+        Self {
+            is_valid: true,
+            message: None,
+        }
+    }
 }
 
 pub enum TagRelationship {
@@ -120,8 +129,14 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
     }
 }
 
-pub async fn get_tags() -> Result<HashMap<String, Tag>> {
-    Ok(TAGS.lock().await.clone())
+pub async fn get_tags() -> Result<Vec<Tag>> {
+    Ok(TAGS
+        .lock()
+        .await
+        .clone()
+        .values()
+        .map(|x| x.clone())
+        .collect::<Vec<Tag>>())
 }
 
 pub async fn validate_photo(photo: &String) -> Result<ValidationResult> {
@@ -209,19 +224,26 @@ impl Tag {
     }
 }
 
-impl Serialize for Tag {
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+#[derive(Serialize)]
+pub struct TagDto {
+    pub name: String,
+    pub color: Option<String>,
+    pub prereqs: Vec<String>,
+    pub coreqs: Vec<String>,
+    pub incompatible: Vec<String>,
+    pub count: usize,
+}
+
+impl From<&Tag> for TagDto {
+    fn from(value: &Tag) -> Self {
         let counts_cache = TAG_COUNTS.lock().unwrap();
-        let mut state = serializer.serialize_struct("TagDto", 6)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("color", &self.color)?;
-        state.serialize_field("prereqs", &self.prereqs())?;
-        state.serialize_field("coreqs", &self.coreqs())?;
-        state.serialize_field("incompatible", &self.incompatible())?;
-        state.serialize_field("count", &counts_cache.get(&self.name).unwrap_or(&0))?;
-        state.end()
+        Self {
+            name: value.name.clone(),
+            color: value.color.clone(),
+            prereqs: value.prereqs(),
+            coreqs: value.coreqs(),
+            incompatible: value.incompatible(),
+            count: counts_cache.get(&value.name).unwrap_or(&0).clone(),
+        }
     }
 }

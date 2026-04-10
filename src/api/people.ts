@@ -24,7 +24,7 @@ export async function set_person_photo(person: string, value: string | null) {
 }
 
 export function get_people() {
-  return new APIResult<Record<string, PersonData>, Record<string, Person>>(
+  return new APIResult<PersonData[], Record<string, Person>>(
     async () => await invoke('get_people'),
     people => Person.createPeople(people),
   );

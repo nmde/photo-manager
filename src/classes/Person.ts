@@ -31,9 +31,9 @@ export class Person {
     return this._category;
   }
 
-  public static createPeople(people: Record<string, PersonData>) {
+  public static createPeople(people: PersonData[]) {
     const mapped: Record<string, Person> = {};
-    for (const person of Object.values(people)) {
+    for (const person of people) {
       mapped[person.id] = new Person(
         person.id,
         person.name,

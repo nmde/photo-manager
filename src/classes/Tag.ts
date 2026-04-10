@@ -42,9 +42,9 @@ export class Tag {
     return this._incompatible;
   }
 
-  public static createTags = (data: Record<string, TagData>) => {
+  public static createTags = (data: TagData[]) => {
     const tags: Record<string, Tag> = {};
-    for (const tag of Object.values(data)) {
+    for (const tag of data) {
       tags[tag.name] = new Tag(
         tag.name,
         tag.color,

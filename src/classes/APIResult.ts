@@ -21,6 +21,7 @@ export class APIResult<T, U = T> {
     try {
       this.ok_fn(this.transformer(await this.fn()));
     } catch (error) {
+      console.error(error);
       this.err_fn((error as Error).message);
     }
   }

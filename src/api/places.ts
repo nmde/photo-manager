@@ -5,9 +5,23 @@ import { Place, type PlaceData } from '@/classes/Place';
 import { Shape, type ShapeData, type ShapeType } from '@/classes/Shape';
 
 export function get_layers() {
-  return new APIResult<Record<string, LayerData>, Record<string, Layer>>(
+  return new APIResult<LayerData[], Record<string, Layer>>(
     async () => await invoke('get_layers'),
     l => Layer.createLayers(l),
+  );
+}
+
+export function get_places() {
+  return new APIResult<PlaceData[], Record<string, Place>>(
+    async () => await invoke('get_places'),
+    places => Place.createPlaces(places),
+  );
+}
+
+export function get_shapes() {
+  return new APIResult<ShapeData[], Record<string, Shape>>(
+    async () => await invoke('get_shapes'),
+    shapes => Shape.createShapes(shapes),
   );
 }
 
@@ -38,13 +52,6 @@ export async function create_place(
   await invoke('create_place', { id, name, lat, lng, layer, category });
 }
 
-export function get_places() {
-  return new APIResult<Record<string, PlaceData>, Record<string, Place>>(
-    async () => await invoke('get_places'),
-    places => Place.createPlaces(places),
-  );
-}
-
 export async function set_place_name(place: string, value: string) {
   await invoke('set_place_name', { place, value });
 }
@@ -67,13 +74,6 @@ export async function set_place_position(place: string, lat: number, lng: number
 
 export async function delete_place(place: string) {
   await invoke('delete_place', { place });
-}
-
-export function get_shapes() {
-  return new APIResult<Record<string, ShapeData>, Record<string, Shape>>(
-    async () => await invoke('get_shapes'),
-    shapes => Shape.createShapes(shapes),
-  );
 }
 
 export async function create_shape(

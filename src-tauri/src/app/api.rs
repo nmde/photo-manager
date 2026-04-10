@@ -9,7 +9,7 @@ use crate::{
         initialize as _initialize, refresh as _refresh, remove_deleted as _remove_deleted,
         search_photos, ApiError, Sort,
     },
-    models::Photo,
+    photos::PhotoDto,
 };
 
 #[tauri::command]
@@ -25,8 +25,12 @@ pub async fn initialize<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn photo_grid(query: Vec<String>, sort: String) -> Result<Vec<Photo>, ApiError> {
-    Ok(search_photos(&query, Sort::from_str(&sort)?).await?)
+pub async fn photo_grid(query: Vec<String>, sort: String) -> Result<Vec<PhotoDto>, ApiError> {
+    Ok(search_photos(&query, Sort::from_str(&sort)?)
+        .await?
+        .iter()
+        .map(|x| PhotoDto::from(x))
+        .collect::<Vec<PhotoDto>>())
 }
 
 #[tauri::command]

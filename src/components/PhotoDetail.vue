@@ -26,7 +26,9 @@
   const photo = computed(() => props.photos[props.index] as Photo);
 
   const photoPath = computed(() =>
-    photo.value.thumbnail === undefined ? photo.value?.asset_path : photo.value.thumbnail as string,
+    photo.value.thumbnail === null
+      ? photo.value.asset_path
+      : (photo.value.thumbnail as string),
   );
 
   const rating = ref<number>();
@@ -63,7 +65,9 @@
       hideThumbnail.value = photo.value.hideThumbnail;
       photoPeople.value = photo.value.people;
       photographer.value = photo.value.photographer === null ? [] : [photo.value.photographer];
-      validTags.value = photo.value.valid ? undefined : photo.value.validationMsg;
+      validTags.value = photo.value.valid_tags.is_valid
+        ? undefined
+        : (photo.value.valid_tags.message ?? undefined);
     }
     await get_people_categories()
       .ok(c => (peopleCategories.value = c))
@@ -118,7 +122,9 @@
     for (const photo of props.photos) {
       await photo.setTags(new_tags);
     }
-    validTags.value = props.photos[0]?.valid ? undefined : props.photos[0]?.validationMsg;
+    validTags.value = props.photos[0]?.valid_tags.is_valid
+      ? undefined
+      : (props.photos[0]?.valid_tags.message ?? undefined);
     savingTags.value = false;
   }
 

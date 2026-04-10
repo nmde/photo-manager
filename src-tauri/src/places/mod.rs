@@ -1,4 +1,4 @@
-use std::{collections::HashMap, result, sync};
+use std::{collections::HashMap, sync};
 
 use anyhow::Result;
 use diesel::{
@@ -9,7 +9,7 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use lazy_static::lazy_static;
-use serde::{ser::SerializeStruct, Serialize, Serializer};
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -38,16 +38,34 @@ struct PositionUpdate {
     lng: f32,
 }
 
-pub async fn get_layers() -> Result<HashMap<String, Layer>> {
-    Ok(LAYERS.lock().await.to_owned())
+pub async fn get_layers() -> Result<Vec<Layer>> {
+    Ok(LAYERS
+        .lock()
+        .await
+        .to_owned()
+        .values()
+        .map(|x| x.clone())
+        .collect::<Vec<Layer>>())
 }
 
-pub async fn get_shapes() -> Result<HashMap<String, Shape>> {
-    Ok(SHAPES.lock().await.to_owned())
+pub async fn get_shapes() -> Result<Vec<Shape>> {
+    Ok(SHAPES
+        .lock()
+        .await
+        .to_owned()
+        .values()
+        .map(|x| x.clone())
+        .collect::<Vec<Shape>>())
 }
 
-pub async fn get_places() -> Result<HashMap<String, Place>> {
-    Ok(PLACES.lock().await.to_owned())
+pub async fn get_places() -> Result<Vec<Place>> {
+    Ok(PLACES
+        .lock()
+        .await
+        .to_owned()
+        .values()
+        .map(|x| x.clone())
+        .collect::<Vec<Place>>())
 }
 
 pub async fn create_layer(id: &String, name: &String, color: &String) -> Result<()> {
@@ -273,18 +291,23 @@ impl Layer {
     }
 }
 
-impl Serialize for Layer {
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+#[derive(Serialize)]
+pub struct LayerDto {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub count: usize,
+}
+
+impl From<&Layer> for LayerDto {
+    fn from(value: &Layer) -> Self {
         let counts_cache = LAYER_COUNTS.lock().unwrap();
-        let mut state = serializer.serialize_struct("LayerDto", 4)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("color", &self.color)?;
-        state.serialize_field("count", &counts_cache.get(&self.id).unwrap_or(&0))?;
-        state.end()
+        Self {
+            id: value.id.clone(),
+            name: value.name.clone(),
+            color: value.color.clone(),
+            count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
+        }
     }
 }
 
@@ -346,22 +369,31 @@ impl Place {
     }
 }
 
-impl Serialize for Place {
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+#[derive(Serialize)]
+pub struct PlaceDto {
+    pub id: String,
+    pub name: String,
+    pub lat: f32,
+    pub lng: f32,
+    pub layer: String,
+    pub category: String,
+    pub shape: Option<String>,
+    pub count: usize,
+}
+
+impl From<&Place> for PlaceDto {
+    fn from(value: &Place) -> Self {
         let counts_cache = PLACE_COUNTS.lock().unwrap();
-        let mut state = serializer.serialize_struct("PlaceDto", 8)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("lat", &self.lat)?;
-        state.serialize_field("lng", &self.lng)?;
-        state.serialize_field("layer", &self.layer)?;
-        state.serialize_field("category", &self.category)?;
-        state.serialize_field("shape", &self.shape)?;
-        state.serialize_field("count", &counts_cache.get(&self.id).unwrap_or(&0))?;
-        state.end()
+        Self {
+            id: value.id.clone(),
+            name: value.name.clone(),
+            lat: value.lat,
+            lng: value.lng,
+            layer: value.layer.clone(),
+            category: value.category.clone(),
+            shape: value.shape.clone(),
+            count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
+        }
     }
 }
 

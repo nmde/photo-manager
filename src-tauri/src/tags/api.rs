@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
 use anyhow::Context;
 use log::debug;
 
 use crate::{
     app::ApiError,
-    models::Tag,
     tags::{
-        get_tags as _get_tags, validate_photo as _validate_photo, TagRelationship,
+        get_tags as _get_tags, validate_photo as _validate_photo, TagDto, TagRelationship,
         ValidationResult, TAGS,
     },
 };
@@ -102,10 +99,13 @@ pub async fn set_tag_incompatible(tag: String, value: Vec<String>) -> Result<(),
 }
 
 #[tauri::command]
-pub async fn get_tags() -> Result<HashMap<String, Tag>, ApiError> {
+pub async fn get_tags() -> Result<Vec<TagDto>, ApiError> {
     Ok(_get_tags()
         .await
-        .with_context(|| "Failed to get tags".to_string())?)
+        .with_context(|| "Failed to get tags".to_string())?
+        .iter()
+        .map(|x| TagDto::from(x))
+        .collect::<Vec<TagDto>>())
 }
 
 #[tauri::command]

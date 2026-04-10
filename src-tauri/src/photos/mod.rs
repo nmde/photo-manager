@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    result, sync,
+    sync,
 };
 
 use anyhow::Result;
@@ -9,7 +9,7 @@ use diesel::{dsl::update, query_builder::AsChangeset, ExpressionMethods, QueryDs
 use diesel_async::RunQueryDsl;
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde::{ser::SerializeStruct, Serialize, Serializer};
+use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -43,41 +43,6 @@ struct GroupFields {
     people: Option<String>,
     photographer: Option<String>,
     date: Option<String>,
-}
-
-impl Serialize for Photo {
-    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let validation_cache = VALIDATION_CACHE.lock().unwrap();
-        let validation = validation_cache
-            .get(&self.name)
-            .unwrap_or(&ValidationResult {
-                is_valid: true,
-                message: None,
-            });
-        let mut state = serializer.serialize_struct("PhotoDto", 18)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("asset_path", &self.asset_path)?;
-        state.serialize_field("title", &self.title)?;
-        state.serialize_field("description", &self.description)?;
-        state.serialize_field("tags", &self.tags())?;
-        state.serialize_field("is_duplicate", &(self.is_duplicate.unwrap_or(0) == 1))?;
-        state.serialize_field("rating", &self.rating)?;
-        state.serialize_field("location", &self.location)?;
-        state.serialize_field("thumbnail", &self.thumbnail)?;
-        state.serialize_field("photo_group", &self.photo_group)?;
-        state.serialize_field("date", &self.date())?;
-        state.serialize_field("people", &self.people())?;
-        state.serialize_field("hide_thumbnail", &(self.hide_thumbnail.unwrap_or(0) == 1))?;
-        state.serialize_field("photographer", &self.photographer)?;
-        state.serialize_field("is_video", &self.is_video())?;
-        state.serialize_field("is_raw", &self.is_raw())?;
-        state.serialize_field("valid_tags", &validation.is_valid)?;
-        state.serialize_field("validation_msg", &validation.message)?;
-        state.end()
-    }
 }
 
 impl Photo {
@@ -482,5 +447,54 @@ impl Photo {
         }
 
         Ok(validation)
+    }
+}
+
+#[derive(Serialize)]
+pub struct PhotoDto {
+    pub name: String,
+    pub asset_path: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub is_duplicate: bool,
+    pub rating: Option<i32>,
+    pub location: Option<String>,
+    pub thumbnail: Option<String>,
+    pub photo_group: Option<String>,
+    pub date: Option<NaiveDate>,
+    pub people: Vec<String>,
+    pub hide_thumbnail: bool,
+    pub photographer: Option<String>,
+    pub is_video: bool,
+    pub is_raw: bool,
+    pub valid_tags: ValidationResult,
+}
+
+impl From<&Photo> for PhotoDto {
+    fn from(value: &Photo) -> Self {
+        let validation_cache = VALIDATION_CACHE.lock().unwrap();
+        Self {
+            name: value.name.clone(),
+            asset_path: value.asset_path.clone(),
+            title: value.title.clone(),
+            description: value.description.clone(),
+            tags: value.tags(),
+            is_duplicate: value.is_duplicate.unwrap_or(0) == 1,
+            rating: value.rating,
+            location: value.location.clone(),
+            thumbnail: value.thumbnail.clone(),
+            photo_group: value.photo_group.clone(),
+            date: value.date(),
+            people: value.people(),
+            hide_thumbnail: value.hide_thumbnail.unwrap_or(0) == 1,
+            photographer: value.photographer.clone(),
+            is_video: value.is_video(),
+            is_raw: value.is_raw(),
+            valid_tags: validation_cache
+                .get(&value.name)
+                .unwrap_or(&ValidationResult::default())
+                .clone(),
+        }
     }
 }

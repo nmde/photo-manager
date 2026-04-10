@@ -52,7 +52,9 @@
   async function initialize() {
     localValue.value = props.value;
     await get_tags()
-      .ok(t => (tags.value = t))
+      .ok(t => {
+        tags.value = t;
+      })
       .err(message => reportError(message))
       .send();
   }
