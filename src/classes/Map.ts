@@ -1,7 +1,9 @@
 import type { ShapeType } from './Shape';
-import { Loader } from '@googlemaps/js-api-loader';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import { color } from 'd3';
 import { EventEmitter } from 'ee-ts';
+
+setOptions({ key: import.meta.env.VITE_GOOGLE_MAPS_KEY as string });
 
 export type Position = {
   lat: number;
@@ -310,23 +312,12 @@ export class Map extends EventEmitter<{
    */
   public async initialize(container: HTMLElement, style = Map.DefaultMap) {
     this.container = container;
-    const loader = new Loader({
-      apiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY as string,
-      version: 'weekly',
-    });
-    this.mapsLibrary = await loader.importLibrary('maps');
-    this.markerLibrary = await loader.importLibrary('marker');
+    this.mapsLibrary = await importLibrary('maps');
+    this.markerLibrary = await importLibrary('marker');
 
     this.map = new this.mapsLibrary.Map(container, {
       zoom: 6,
       mapId: style,
-    });
-    this.map.setCenter({ lat: 0, lng: 0 });
-    navigator.geolocation.getCurrentPosition(position => {
-      this.map.setCenter({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      });
     });
 
     this.map.addListener('dblclick', (e: google.maps.MapMouseEvent) => {
@@ -382,10 +373,11 @@ export class Map extends EventEmitter<{
     }
   }
 
-  public setCenter(lat: number, lng: number) {
+  public setCenter(lat: number, lng: number, zoom = 18) {
     this.map.setCenter({
       lat,
       lng,
     });
+    this.map.setZoom(zoom);
   }
 }

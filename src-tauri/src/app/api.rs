@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use crate::{
     app::{
         initialize as _initialize, refresh as _refresh, remove_deleted as _remove_deleted,
-        search_photos, ApiError, LoadedPhotos, Sort, OPEN_FOLDER,
+        search_photos, ApiError, LoadedPhotos, Sort,
     },
     photos::PhotoDto,
 };

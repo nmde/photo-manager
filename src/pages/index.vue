@@ -73,11 +73,12 @@
         <v-container>
           <v-row>
             <v-col v-if="deleted.length > 0">
-              <h2>Missing Files</h2>
+              <h2>{{deleted.length}} Missing Files</h2>
               The following files could not be found:
               <ul>
                 <li v-for="file in deleted" :key="file">{{ file }}</li>
               </ul>
+              <v-btn>Relocate</v-btn>
               <v-btn
                 color="primary"
                 :loading="deleting"
@@ -96,8 +97,8 @@
               </v-btn>
             </v-col>
             <v-col v-if="newPhotos.length > 0">
-              <h2>New Files</h2>
-              <v-btn color="primary">Show New Photos</v-btn>
+              <h2>{{newPhotos.length}} New Files</h2>
+              <v-btn color="primary" @click="router.push('/tagger')">Show New Photos</v-btn>
             </v-col>
           </v-row>
         </v-container>

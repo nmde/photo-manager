@@ -18,6 +18,7 @@
   const store = useFileStore();
   const { reportError } = store;
   const router = useRouter();
+  const route = useRoute();
 
   const createDialog = ref(false);
   const position = ref<Position>({ lat: 0, lng: 0 });
@@ -44,6 +45,7 @@
   const changeShapeLayerDialog = ref(false);
   const places = ref<PlaceRec>({});
   const shapes = ref<ShapeRec>({});
+  const fromPhotoLoc = ref(false);
 
   const categories = computed(() => Object.keys(icons));
 
@@ -55,8 +57,8 @@
   const newPlaceMap = new Map();
   let lastChangedIndex = -1;
 
-  function openCreateDialog(layer: string) {
-    targetLayer.value = layer;
+  function openCreateDialog(layer?: string) {
+    targetLayer.value = layer ?? '';
     createDialog.value = true;
     if (mapInitialized.value) {
       newPlaceMap.clearMarkers();
@@ -302,6 +304,17 @@
         map.createShape(shape.type, shape.shape, layers.value[shape.layer]?.color ?? '', shape.id);
       }
     }
+
+    if (typeof route.query.center === 'string') {
+      const split = route.query.center.split(',').map(Number);
+      map.setCenter(split[0] ?? 0, split[1] ?? 0);
+      fromPhotoLoc.value = true;
+    } else {
+      navigator.geolocation.getCurrentPosition(position => {
+        map.setCenter(position.coords.latitude, position.coords.longitude);
+      });
+    }
+
     map.on('click', pos => {
       if (drawMode.value) {
         tmpShape.value.push(pos);
@@ -557,6 +570,12 @@
         </v-expansion-panels>
       </v-col>
       <v-col cols="8">
+        <v-alert v-if="fromPhotoLoc" type="info">
+          Viewing {{ route.query.center }}
+          <v-btn color="primary" density="comfortable" @click="openCreateDialog()">
+            Create Place Here
+          </v-btn>
+        </v-alert>
         <div class="map-container">
           <div ref="mapEl" class="map" />
         </div>
@@ -629,10 +648,16 @@
     </v-row>
   </v-container>
   <v-dialog v-model="createDialog">
-    <v-card :title="`Add a Location to ${layers[targetLayer]?.name}`">
+    <v-card :title="`Add a Location to ${layers[targetLayer]?.name ?? '...'}`">
       <v-card-text>
-        <v-text-field v-model="placeName" label="Name" />
-        Category: <v-select v-model="placeCategory" :items="categories" />
+        <v-select
+          v-model="targetLayer"
+          color="primary"
+          :items="Object.values(layers)"
+          label="Layer"
+        />
+        <v-text-field v-model="placeName" color="primary" label="Name" />
+        Category: <v-select v-model="placeCategory" color="primary" :items="categories" />
         <div class="map-container">
           <div ref="newPlaceMapEl" class="map" />
         </div>

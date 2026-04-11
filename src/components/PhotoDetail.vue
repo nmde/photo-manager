@@ -10,6 +10,7 @@
   import { useFileStore } from '@/stores/fileStore';
   import 'video.js/dist/video-js.css';
 
+  const router = useRouter();
   const store = useFileStore();
   const { reportError, setLastDate } = store;
   const { lastSetDate } = storeToRefs(store);
@@ -186,6 +187,35 @@
       @focused="val => emit('input-focused', val)"
       @update="location => saveLocation(location)"
     />
+    <v-alert
+      v-if="photo.metadata_location !== null"
+      :type="photo.location === null ? 'info' : undefined"
+    >
+      File location: {{ photo.metadata_location.join(', ') }}
+      <v-btn
+        color="primary"
+        density="comfortable"
+        @click="
+          () => {
+            if (photo.metaDate !== null) {
+              date = photo.metaDate;
+              saveDate(photo.metaDate);
+            }
+          }
+        "
+      >
+        Set As Location
+      </v-btn>
+      <v-btn
+        color="secondary"
+        density="comfortable"
+        @click="
+          router.push(`/locations?center=${encodeURIComponent(photo.metadata_location.join(','))}`)
+        "
+      >
+        Show On Map
+      </v-btn>
+    </v-alert>
     <sorted-combo
       :id="photo.name"
       avatars

@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use diesel::{
     debug_query, delete, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
     QueryDsl, SqliteConnection, TextExpressionMethods,
@@ -19,6 +19,7 @@ use diesel_migrations::MigrationHarness;
 use exif::In;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
+use regex::Regex;
 use rusty_pool::ThreadPool;
 use serde::{Serialize, Serializer};
 use strum::EnumString;
@@ -196,6 +197,22 @@ pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
     Ok(targets)
 }
 
+fn degrees_to_dec(input: &String) -> Result<f32> {
+    let mut extracted = vec![];
+    for digit in Regex::new(r"([0-9\.]+)").unwrap().find_iter(input) {
+        extracted.push(digit.as_str());
+    }
+    let digits = extracted
+        .into_iter()
+        .map(|c| c.parse::<f32>().unwrap())
+        .collect::<Vec<f32>>();
+    if digits.len() != 3 {
+        return Err(anyhow!("Invalid format for GPS degrees"));
+    }
+
+    Ok(digits[0] + (digits[1] / 60.0) + (digits[2] / 3600.0))
+}
+
 async fn create_photo(
     _photo: &Photo,
     conn: &mut SyncConnectionWrapper<SqliteConnection>,
@@ -206,7 +223,7 @@ async fn create_photo(
     let mut file_open = File::open(filename)?;
     let mut file_reader = BufReader::new(&mut file_open);
     let exif = exif::Reader::new().read_from_container(&mut file_reader);
-    let mut file_date: Option<NaiveDate> = None;
+    let mut file_date: Option<NaiveDateTime> = None;
     let mut file_location: Option<(f32, f32)> = None;
     if exif.is_err() {
         warn!(
@@ -232,7 +249,7 @@ async fn create_photo(
             }
         }
         if min_meta_time.is_some() {
-            file_date = Some(min_meta_time.unwrap().date_naive());
+            file_date = Some(min_meta_time.unwrap().naive_utc());
         } else {
             warn!(
                 "Failed to read file metadata dates for {0}: {1}",
@@ -241,26 +258,75 @@ async fn create_photo(
             );
         }
     } else {
-        debug!("Reading exif data for {filename}");
         let exif = exif.unwrap();
-
         let time_taken = exif.get_field(exif::Tag::DateTime, In::PRIMARY);
         if time_taken.is_some() {
             let value = &time_taken.unwrap().value;
-            debug!(
-                "Time taken display for {filename}: {0}",
-                value.display_as(exif::Tag::DateTime)
+            let parsed = NaiveDateTime::parse_from_str(
+                &value.display_as(exif::Tag::DateTime).to_string(),
+                "%F %T",
             );
-        } else {
-            warn!("No time taken in exif for {filename}");
+            if parsed.is_ok() {
+                file_date = Some(parsed.unwrap());
+            } else {
+                warn!(
+                    "Exif date exists but failed to parse for {filename}: {}",
+                    parsed.err().unwrap()
+                );
+            }
         }
 
         let lat = exif.get_field(exif::Tag::GPSLatitude, In::PRIMARY);
         let lng = exif.get_field(exif::Tag::GPSLongitude, In::PRIMARY);
         if lat.is_some() && lng.is_some() {
-            let lat_val = &lat.unwrap().value.display_as(exif::Tag::GPSLatitude);
-            let lng_val = &lng.unwrap().value.display_as(exif::Tag::GPSLongitude);
-            debug!("Exif location for {filename}: {lat_val},{lng_val}");
+            // degress, min, sec format
+            let lat_val = degrees_to_dec(
+                &lat.unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLatitude)
+                    .to_string(),
+            );
+            let lng_val = degrees_to_dec(
+                &lng.unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLongitude)
+                    .to_string(),
+            );
+            if lat_val.is_err() {
+                error!(
+                    "Could not parse exif lat for {filename}: {}",
+                    lat_val.err().unwrap()
+                );
+            } else if lng_val.is_err() {
+                error!(
+                    "Could not parse exif lng for {filename}: {}",
+                    lng_val.err().unwrap()
+                );
+            } else {
+                let mut lat_val = lat_val.unwrap();
+                let mut lng_val = lng_val.unwrap();
+                if exif
+                    .get_field(exif::Tag::GPSLatitudeRef, In::PRIMARY)
+                    .unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLatitudeRef)
+                    .to_string()
+                    == "S"
+                {
+                    lat_val = -lat_val;
+                }
+                if exif
+                    .get_field(exif::Tag::GPSLongitudeRef, In::PRIMARY)
+                    .unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLongitudeRef)
+                    .to_string()
+                    == "W"
+                {
+                    lng_val = -lng_val;
+                }
+                file_location = Some((lat_val, lng_val));
+            }
         } else {
             warn!("No GPS data in exif for {filename}");
         }
@@ -269,16 +335,13 @@ async fn create_photo(
     if file_date.is_some() {
         let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
         info!("Resolved photo date from file data: {date_str}",);
-        photo.metadata_date = Some(date_str);
-    } else {
-        warn!("Failed to resolve photo date from file data for {filename}");
+        photo.metadata_date = Some(date_str.clone());
+        photo.date = Some(date_str);
     }
 
     if file_location.is_some() {
         let file_location = file_location.unwrap();
         photo.metadata_location = Some(format!("{0},{1}", file_location.0, file_location.1));
-    } else {
-        warn!("Failed to resolve photo location from file data for {filename}");
     }
 
     if insert_into(photos::table)
@@ -359,7 +422,6 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
-                debug!("New file: {filename}");
                 let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
                 if RAW.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
