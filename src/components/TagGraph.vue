@@ -1,6 +1,6 @@
 <!-- eslint-disable @typescript-eslint/no-invalid-this -->
 <script setup lang="ts">
-  import type { Tag } from '@/classes/Tag';
+  import type { TagRec } from '@/classes/Tag';
   import {
     type BaseType,
     drag,
@@ -21,7 +21,7 @@
   type Link = { source: Node; target: Node };
 
   const props = defineProps<{
-    data: Record<string, Tag>;
+    data: TagRec;
     width: number;
     height: number;
     changed: number;

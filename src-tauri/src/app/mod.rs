@@ -40,6 +40,12 @@ pub mod api;
 
 pub const DATE_FORMAT: &str = "%F";
 
+lazy_static! {
+    pub static ref DB: Mutex<Option<SyncConnectionWrapper<SqliteConnection>>> = Mutex::new(None);
+    pub static ref OPEN_FOLDER: Mutex<Option<PathBuf>> = Mutex::new(None);
+    pub static ref THUMBNAIL_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+}
+
 pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
     if row_text.is_none() {
         return Vec::new();
@@ -87,10 +93,6 @@ impl Serialize for ApiError {
     {
         serializer.serialize_str(&self.to_string())
     }
-}
-
-lazy_static! {
-    pub static ref DB: Mutex<Option<SyncConnectionWrapper<SqliteConnection>>> = Mutex::new(None);
 }
 
 #[derive(Serialize)]
@@ -294,8 +296,18 @@ async fn create_photo(
     Ok(filename.to_string())
 }
 
-async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPhotos> {
-    info!("Loading photos from {path}");
+async fn load_photos() -> Result<LoadedPhotos> {
+    let path = OPEN_FOLDER.lock().await;
+    if path.is_none() {
+        return Err(anyhow!("No open folder found"));
+    }
+    let path = path.as_ref().unwrap();
+    let thumbnail_dir = THUMBNAIL_DIR.lock().await;
+    if thumbnail_dir.is_none() {
+        return Err(anyhow!("No thumbnail dir found"));
+    }
+    let thumbnail_dir = thumbnail_dir.as_ref().unwrap();
+    info!("Loading photos from {}", path.display());
     ensure_db().await?;
     let mut conn = DB.lock().await;
     let conn = conn.as_mut().unwrap();
@@ -435,7 +447,8 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
 /// Returns initial information from the database.
 pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos> {
     // Establish a sync connection just to apply migrations
-    let db_path = Path::new(path).join("photos.db");
+    let path = Path::new(path);
+    let db_path = path.join("photos.db");
     let db_path = db_path.to_str().unwrap();
 
     let conn = SqliteConnection::establish(db_path);
@@ -481,8 +494,10 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     let people_data = people::table.load::<Person>(&mut conn).await?;
 
     *DB.lock().await = Some(conn);
+    *OPEN_FOLDER.lock().await = Some(path.to_path_buf());
+    *THUMBNAIL_DIR.lock().await = Some(thumbnail_dir);
 
-    let photo_load = load_photos(&path, &thumbnail_dir).await?;
+    let photo_load = load_photos().await?;
 
     let mut layers = LAYERS.lock().await;
     let mut places = PLACES.lock().await;
@@ -847,10 +862,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
 }
 
 pub async fn remove_deleted(deleted: &Vec<String>) -> Result<()> {
-    debug!(
-        "Removing {} moved or deleted photos from the database",
-        deleted.len()
-    );
     ensure_db().await?;
 
     for name in deleted {
@@ -861,8 +872,7 @@ pub async fn remove_deleted(deleted: &Vec<String>) -> Result<()> {
     Ok(())
 }
 
-pub async fn refresh(path: &String, thumbnail_dir: &PathBuf) -> Result<Vec<String>> {
-    debug!("Refreshing photos from {path}");
-    let photo_load = load_photos(&path, thumbnail_dir).await?;
+pub async fn refresh() -> Result<Vec<String>> {
+    let photo_load = load_photos().await?;
     Ok(photo_load.removed)
 }

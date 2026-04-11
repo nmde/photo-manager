@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import type { Layer } from '@/classes/Layer';
+  import type { Layer, LayerRec } from '@/classes/Layer';
   import { v4 as uuid } from 'uuid';
   import {
     create_place,
@@ -11,8 +11,8 @@
     get_shapes,
   } from '@/api/places';
   import { icons, locToString, Map, type PlaceType, type Position } from '@/classes/Map';
-  import { Place } from '@/classes/Place';
-  import { Shape, type ShapeType } from '@/classes/Shape';
+  import { Place, type PlaceRec } from '@/classes/Place';
+  import { Shape, type ShapeRec, type ShapeType } from '@/classes/Shape';
   import { useFileStore } from '@/stores/fileStore';
 
   const store = useFileStore();
@@ -26,7 +26,7 @@
   const placeName = ref('');
   const placeCategory = ref<keyof typeof icons>('hospital');
   const mapInitialized = ref(false);
-  const layers = ref<Record<string, Layer>>({});
+  const layers = ref<LayerRec>({});
   const targetLayer = ref('');
   const drawMode = ref(false);
   const tmpShape = ref<Position[]>([]);
@@ -42,8 +42,8 @@
   const hideLabels = ref(false);
   const changeLayerDialog = ref(false);
   const changeShapeLayerDialog = ref(false);
-  const places = ref<Record<string, Place>>({});
-  const shapes = ref<Record<string, Shape>>({});
+  const places = ref<PlaceRec>({});
+  const shapes = ref<ShapeRec>({});
 
   const categories = computed(() => Object.keys(icons));
 
@@ -79,7 +79,7 @@
 
   function setShapeColor(shape: Shape, color: string) {
     map.removeShape(shape.id);
-    map.createShape(shape.type, shape.points, color, shape.id, false);
+    map.createShape(shape.type, shape.shape, color, shape.id, false);
   }
 
   function setPlaceColor(place: Place, color: string) {
@@ -147,13 +147,13 @@
       map.removeShape(place.shape);
       targetLayer.value = place.layer;
       if (shape) {
-        tmpShape.value = shape.points;
+        tmpShape.value = shape.shape;
         editingShape.value = true;
         targetShape.value = shape.id;
         tmpShapeType.value = shape.type;
         map.createShape(
           shape.type,
-          shape.points,
+          shape.shape,
           layers.value[shape.layer]?.color ?? '',
           shape.id,
           true,
@@ -299,7 +299,7 @@
           }
           shapeMap.value[shape.layer]?.push(shape);
         }
-        map.createShape(shape.type, shape.points, layers.value[shape.layer]?.color ?? '', shape.id);
+        map.createShape(shape.type, shape.shape, layers.value[shape.layer]?.color ?? '', shape.id);
       }
     }
     map.on('click', pos => {
@@ -513,13 +513,13 @@
                         () => {
                           map.removeShape(shape.id);
                           targetLayer = layer.id;
-                          tmpShape = shape.points;
+                          tmpShape = shape.shape;
                           editingShape = true;
                           targetShape = shape.id;
                           tmpShapeType = shape.type;
                           map.createShape(
                             shape.type,
-                            shape.points,
+                            shape.shape,
                             layers[shape.layer]?.color ?? '',
                             shape.id,
                             true,

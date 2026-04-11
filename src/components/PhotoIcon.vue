@@ -49,18 +49,18 @@
       >
         <v-card-title class="photo-name">{{ displayName }}</v-card-title>
         <div v-if="props.hideIcons !== true" class="icons">
-          <div v-if="props.photo.rating !== undefined">
+          <div v-if="props.photo.rating !== null">
             <v-icon v-for="i in props.photo.rating" :key="i">mdi-star</v-icon>
           </div>
           <v-icon v-if="props.selected">mdi-check</v-icon>
           <v-icon v-if="!props.photo.valid_tags.is_valid" color="error">mdi-alert-octagram</v-icon>
-          <v-icon v-if="props.photo.location !== undefined">mdi-map-marker</v-icon>
+          <v-icon v-if="props.photo.location !== null">mdi-map-marker</v-icon>
           <v-icon v-if="props.photo.date">mdi-calendar</v-icon>
           <v-icon v-if="props.photo.tags.length > 0">mdi-tag-outline</v-icon>
           <v-icon v-if="props.photo.isDuplicate">mdi-content-duplicate</v-icon>
           <v-icon v-if="props.photo.is_video">mdi-video-outline</v-icon>
-          <v-icon v-if="props.photo.group !== undefined">mdi-group</v-icon>
-          <v-icon v-if="props.photo.photographer !== undefined">mdi-photo</v-icon>
+          <v-icon v-if="props.photo.group !== null">mdi-group</v-icon>
+          <v-icon v-if="props.photo.photographer !== null">mdi-photo</v-icon>
         </div>
       </v-img>
     </v-card>

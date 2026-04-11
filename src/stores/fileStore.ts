@@ -1,8 +1,7 @@
-import type { Sort } from '@/api/photos';
+import type { Sort } from '@/api/app';
 
 export const useFileStore = defineStore('files', () => {
   const darkMode = ref(true);
-  const currentDir = ref('');
   const query = ref<string[]>([]);
   const sortBy = ref<Sort>('name');
   const calendarViewDate = ref(new Date());
@@ -16,10 +15,6 @@ export const useFileStore = defineStore('files', () => {
 
   function setTheme(theme: boolean) {
     darkMode.value = theme;
-  }
-
-  function setCurrentDir(value: string) {
-    currentDir.value = value;
   }
 
   function setQuery(q: string[], s: Sort) {
@@ -47,7 +42,6 @@ export const useFileStore = defineStore('files', () => {
 
   return {
     darkMode,
-    currentDir,
     query,
     sortBy,
     calendarViewDate,
@@ -56,7 +50,6 @@ export const useFileStore = defineStore('files', () => {
     globalError,
     toggleTheme,
     setTheme,
-    setCurrentDir,
     setQuery,
     setCalendarViewDate,
     setItemsPerRow,

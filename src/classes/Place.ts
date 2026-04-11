@@ -1,3 +1,6 @@
+import type { LayerData } from './Layer';
+import type { ShapeData } from './Shape';
+import type { Nullable } from '@/types';
 import {
   set_place_category,
   set_place_layer,
@@ -6,32 +9,41 @@ import {
   set_place_shape,
 } from '@/api/places';
 import { locToString, type PlaceType, type Position } from './Map';
+import { SortableItem } from './SortableItem';
 
 export type PlaceData = {
   id: string;
   name: string;
   lat: number;
   lng: number;
-  layer: string;
+  layer: LayerData['id'];
   category: PlaceType;
-  shape: string | null;
+  shape: Nullable<ShapeData['id']>;
   count: number;
 };
 
-export class Place {
-  public constructor(
-    public readonly id: string,
-    public _name: string,
-    public _lat: number,
-    public _lng: number,
-    public _layer: string,
-    public _category: PlaceType,
-    public _shape: string | null,
-    public count: number,
-  ) {}
+export type PlaceRec = Record<PlaceData['id'], Place>;
 
-  public get name() {
-    return this._name;
+export class Place extends SortableItem implements PlaceData {
+  public constructor(
+    public readonly id: PlaceData['id'],
+    public _name: PlaceData['name'],
+    public _lat: PlaceData['lat'],
+    public _lng: PlaceData['lng'],
+    public _layer: PlaceData['layer'],
+    public _category: PlaceData['category'],
+    public _shape: PlaceData['shape'],
+    public count: PlaceData['count'],
+  ) {
+    super(id, count, _name, null);
+  }
+
+  public get lat() {
+    return this._lat;
+  }
+
+  public get lng() {
+    return this._lng;
   }
 
   public get posObj() {
@@ -55,7 +67,7 @@ export class Place {
   }
 
   public static createPlaces(data: PlaceData[]) {
-    const places: Record<string, Place> = {};
+    const places: PlaceRec = {};
     for (const place of data.map(
       ({ id, name, lat, lng, layer, category, shape, count }) =>
         new Place(id, name, lat, lng, layer, category, shape, count),
@@ -65,7 +77,7 @@ export class Place {
     return places;
   }
 
-  public async setName(name: string) {
+  public async setName(name: PlaceData['name']) {
     this._name = name;
     await set_place_name(this.id, name);
   }
@@ -76,17 +88,17 @@ export class Place {
     await set_place_position(this.id, position.lat, position.lng);
   }
 
-  public async setCategory(category: PlaceType) {
+  public async setCategory(category: PlaceData['category']) {
     this._category = category;
     await set_place_category(this.id, category);
   }
 
-  public async setShape(shape: string | null) {
+  public async setShape(shape: PlaceData['shape']) {
     this._shape = shape;
     await set_place_shape(this.id, shape);
   }
 
-  public async setLayer(layer: string) {
+  public async setLayer(layer: PlaceData['layer']) {
     this._layer = layer;
     await set_place_layer(this.id, layer);
   }

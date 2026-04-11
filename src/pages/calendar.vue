@@ -1,8 +1,8 @@
 <script setup lang="ts">
-  import type { Layer } from '@/classes/Layer';
+  import type { LayerRec } from '@/classes/Layer';
   import type { Photo } from '@/classes/Photo';
-  import type { Place } from '@/classes/Place';
-  import { photo_grid } from '@/api/photos';
+  import type { Place, PlaceRec } from '@/classes/Place';
+  import { photo_grid } from '@/api/app';
   import { get_layers, get_places } from '@/api/places';
   import { useFileStore } from '@/stores/fileStore';
 
@@ -13,8 +13,8 @@
   const date = ref(new Date());
   const dayDialog = ref(false);
   const dialogDate = ref<Date>(new Date());
-  const places = ref<Record<string, Place>>({});
-  const layers = ref<Record<string, Layer>>({});
+  const places = ref<PlaceRec>({});
+  const layers = ref<LayerRec>({});
 
   const { reportError, setCalendarViewDate } = store;
   const { calendarViewDate } = storeToRefs(store);

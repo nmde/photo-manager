@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import type { Tag } from '@/classes/Tag';
+  import type { TagRec } from '@/classes/Tag';
   import stringSimilarity from 'string-similarity-js';
   import { get_tags } from '@/api/tags';
   import { useFileStore } from '@/stores/fileStore';
@@ -9,7 +9,7 @@
   const { reportError } = useFileStore();
 
   const selected = ref<string[]>([]);
-  const tags = ref<Record<string, Tag>>({});
+  const tags = ref<TagRec>({});
   const query = ref('');
   const graphContainer = ref<HTMLDivElement | null>();
   const graphWidth = ref(0);

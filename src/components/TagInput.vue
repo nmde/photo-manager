@@ -1,12 +1,12 @@
 <script setup lang="ts">
   import { get_tags } from '@/api/tags';
-  import { Tag } from '@/classes/Tag';
+  import { Tag, type TagData, type TagRec } from '@/classes/Tag';
   import { useFileStore } from '@/stores/fileStore';
 
   const props = defineProps<{
     id?: string;
     label: string;
-    value: string[];
+    value: TagData['name'][];
     loading?: boolean;
     single?: boolean;
     validation?: string;
@@ -15,14 +15,14 @@
   }>();
 
   const emit = defineEmits<{
-    (e: 'change', tags: string[]): void;
+    (e: 'change', tags: TagData['name'][]): void;
     (e: 'focused', value: boolean): void;
   }>();
 
   const { reportError } = useFileStore();
 
-  const tags = ref<Record<string, Tag>>({});
-  const localValue = ref<string[]>([]);
+  const tags = ref<TagRec>({});
+  const localValue = ref<TagData['name'][]>([]);
 
   const tagColors = computed(() => {
     const colorMap: Record<string, { color: string }> = {};
@@ -36,7 +36,7 @@
     if (!props.filtered) {
       return tags.value;
     }
-    const result: Record<string, Tag> = {};
+    const result: TagRec = {};
     for (const tag of Object.values(tags.value)) {
       let allPrereqsMet = true;
       for (const prereq of tag.prereqs) {
@@ -91,7 +91,7 @@
           }
         }
         localValue = newTags;
-        emit('change', newTags as string[]);
+        emit('change', newTags);
       }
     "
   />

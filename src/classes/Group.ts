@@ -3,10 +3,10 @@ export type GroupData = {
   name: string;
 };
 
-export class Group {
+export class Group implements GroupData {
   public constructor(
-    public readonly id: string,
-    private _name: string,
+    public readonly id: GroupData['id'],
+    private _name: GroupData['name'],
   ) {}
 
   public get name() {

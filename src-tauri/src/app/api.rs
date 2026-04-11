@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use crate::{
     app::{
         initialize as _initialize, refresh as _refresh, remove_deleted as _remove_deleted,
-        search_photos, ApiError, LoadedPhotos, Sort,
+        search_photos, ApiError, LoadedPhotos, Sort, OPEN_FOLDER,
     },
     photos::PhotoDto,
 };
@@ -45,10 +45,10 @@ pub async fn remove_deleted(deleted: Vec<String>) -> Result<(), ApiError> {
 }
 
 #[tauri::command]
-pub async fn refresh<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Vec<String>, ApiError> {
-    debug!("Refreshing photos from {path}");
+pub async fn refresh() -> Result<Vec<String>, ApiError> {
+    debug!("Refreshing photos");
 
-    Ok(_refresh(&path, &app.path().app_data_dir()?)
+    Ok(_refresh()
         .await
-        .with_context(|| format!("Failed to refresh photos from {path}"))?)
+        .with_context(|| format!("Failed to refresh photos"))?)
 }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-  import type { Layer } from '@/classes/Layer';
-  import type { Person } from '@/classes/Person';
-  import type { PersonCategory } from '@/classes/PersonCategory';
-  import type { Photo } from '@/classes/Photo';
-  import type { Place } from '@/classes/Place';
+  import type { LayerRec } from '@/classes/Layer';
+  import type { PersonRec } from '@/classes/Person';
+  import type { PersonCategoryRec } from '@/classes/PersonCategory';
+  import type { Photo, PhotoData } from '@/classes/Photo';
+  import type { PlaceRec } from '@/classes/Place';
   import { VideoPlayer } from '@videojs-player/vue';
   import { get_people, get_people_categories } from '@/api/people';
   import { get_layers, get_places } from '@/api/places';
@@ -30,24 +30,24 @@
   );
 
   const rating = ref<number>();
-  const isDuplicate = ref(false);
-  const photoTags = ref<string[]>([]);
-  const title = ref<string>();
-  const description = ref<string>();
+  const isDuplicate = ref<PhotoData['is_duplicate']>();
+  const photoTags = ref<PhotoData['tags']>([]);
+  const title = ref<PhotoData['title']>();
+  const description = ref<PhotoData['description']>();
   const date = ref<Date>();
   const closeUp = ref(false);
   const location = ref<string[]>([]);
-  const photoPeople = ref<string[]>([]);
+  const photoPeople = ref<PhotoData['people']>([]);
   const photographer = ref<string[]>([]);
-  const hideThumbnail = ref(false);
+  const hideThumbnail = ref<PhotoData['hide_thumbnail']>();
   const focusDate = ref(new Date());
   const setPhotoDialog = ref(false);
   const setPhotoTarget = ref<string[]>([]);
   const viewConfirmation = ref(false);
-  const placeList = ref<Record<string, Place>>({});
-  const layers = ref<Record<string, Layer>>({});
-  const people = ref<Record<string, Person>>({});
-  const peopleCategories = ref<Record<string, PersonCategory>>({});
+  const placeList = ref<PlaceRec>({});
+  const layers = ref<LayerRec>({});
+  const people = ref<PersonRec>({});
+  const peopleCategories = ref<PersonCategoryRec>({});
   const validTags = ref<string | undefined>();
 
   async function initialize() {
@@ -217,7 +217,7 @@
       :items="people"
       label="Taken By"
       :loading="savingPeople"
-      sort-key="photographerCount"
+      sort-key="photographer_count"
       :value="photographer"
       @focused="val => emit('input-focused', val)"
       @update="people => savePhotographer(people)"

@@ -1,13 +1,13 @@
 <script setup lang="ts">
   import type { Photo } from '@/classes/Photo';
-  import { photo_grid, refresh, type Sort } from '@/api/photos';
+  import { photo_grid, refresh, type Sort } from '@/api/app';
   import { useFileStore } from '@/stores/fileStore';
 
   const route = useRoute();
 
   const store = useFileStore();
   const { reportError } = store;
-  const { query, sortBy, itemsPerRow, currentDir } = storeToRefs(store);
+  const { query, sortBy, itemsPerRow } = storeToRefs(store);
 
   const selected = ref<Photo[]>([]);
   const photos = ref<Photo[]>([]);
@@ -128,8 +128,7 @@
 
   async function refreshGrid() {
     refreshing.value = true;
-    console.log(currentDir.value);
-    await refresh(currentDir.value);
+    await refresh();
     await searchGrid();
     refreshing.value = false;
   }

@@ -1,29 +1,31 @@
+import type { Nullable } from '@/types';
 import { set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs } from '@/api/tags';
+import { SortableItem } from './SortableItem';
 
 export type TagData = {
   name: string;
-  color: string | null;
+  color: Nullable<string>;
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
   count: number;
 };
 
+export type TagRec = Record<TagData['name'], Tag>;
+
 /**
  * Table to store information about tags.
  */
-export class Tag {
+export class Tag extends SortableItem implements TagData {
   public constructor(
-    public readonly name: string,
-    public _color: string | null,
-    public _prereqs: string[],
-    public _coreqs: string[],
-    public _incompatible: string[],
-    public count: number,
-  ) {}
-
-  public get id() {
-    return this.name;
+    public readonly _name: TagData['name'],
+    public _color: TagData['color'],
+    public _prereqs: TagData['prereqs'],
+    public _coreqs: TagData['coreqs'],
+    public _incompatible: TagData['incompatible'],
+    public count: TagData['count'],
+  ) {
+    super(_name, count, _name, null);
   }
 
   public get color() {
@@ -43,7 +45,7 @@ export class Tag {
   }
 
   public static createTags = (data: TagData[]) => {
-    const tags: Record<string, Tag> = {};
+    const tags: TagRec = {};
     for (const tag of data) {
       tags[tag.name] = new Tag(
         tag.name,
@@ -57,24 +59,24 @@ export class Tag {
     return tags;
   };
 
-  public static default = (name?: string) => new Tag(name ?? '', '', [], [], [], 0);
+  public static default = (name?: TagData['name']) => new Tag(name ?? '', '', [], [], [], 0);
 
-  public async setColor(color: string | null) {
+  public async setColor(color: TagData['color']) {
     this._color = color;
     await set_tag_color(this.name, color);
   }
 
-  public async setPrereqs(tags: string[]) {
+  public async setPrereqs(tags: TagData['prereqs']) {
     this._prereqs = tags;
     await set_tag_prereqs(this.name, tags);
   }
 
-  public async setCoreqs(tags: string[]) {
+  public async setCoreqs(tags: TagData['coreqs']) {
     this._coreqs = tags;
     await set_tag_coreqs(this.name, tags);
   }
 
-  public async setIncompatible(tags: string[]) {
+  public async setIncompatible(tags: TagData['incompatible']) {
     this._incompatible = tags;
     await set_tag_incompatible(this.name, tags);
   }

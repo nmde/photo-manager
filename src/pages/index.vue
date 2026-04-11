@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
-  import { initialize, remove_deleted } from '@/api/photos';
+  import { initialize, remove_deleted } from '@/api/app';
   import { get_setting } from '@/api/settings';
   import { useFileStore } from '@/stores/fileStore';
 
@@ -37,7 +37,6 @@
           initErrorMessage.value = msg;
         })
         .send();
-      store.setCurrentDir(selected);
       await get_setting('theme')
         .ok(saved_theme => {
           if (saved_theme !== null) {

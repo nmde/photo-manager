@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import type { Person } from '@/classes/Person';
+  import type { Person, PersonRec } from '@/classes/Person';
   import { v4 as uuid } from 'uuid';
   import {
     create_person,
@@ -7,7 +7,7 @@
     get_people,
     get_people_categories,
   } from '@/api/people';
-  import { PersonCategory } from '@/classes/PersonCategory';
+  import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
 
   const router = useRouter();
 
@@ -20,8 +20,8 @@
   const addCategoryName = ref('');
   const addCategoryColor = ref('');
   const saving = ref(false);
-  const localCategories = ref<Record<string, PersonCategory>>({});
-  const localPeople = ref<Record<string, Person>>({});
+  const localCategories = ref<PersonCategoryRec>({});
+  const localPeople = ref<PersonRec>({});
 
   const personCardWidth = 64;
   const personCardHeight = 212;
@@ -137,7 +137,7 @@
                 <v-card-text>
                   Photo count: {{ person.count }}
                   <br />
-                  Photos taken: {{ person.photographerCount }}
+                  Photos taken: {{ person.photographer_count }}
                 </v-card-text>
               </v-card>
             </div>

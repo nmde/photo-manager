@@ -1,6 +1,8 @@
 <script setup lang="ts">
+  import type { Nullable } from '@/types';
+
   const emit = defineEmits<{
-    (e: 'select', color: string | null): void;
+    (e: 'select', color: Nullable<string>): void;
   }>();
 
   defineProps<{

@@ -1,30 +1,29 @@
+import type { PersonCategoryData } from './PersonCategory';
+import type { Nullable } from '@/types';
 import { set_person_category, set_person_name, set_person_photo } from '@/api/people';
+import { SortableItem } from './SortableItem';
 
 export type PersonData = {
   id: string;
   name: string;
-  photo: string | null;
-  category: string;
+  photo: Nullable<string>;
+  category: PersonCategoryData['id'];
   photographer_count: number;
   photo_count: number;
 };
 
-export class Person {
+export type PersonRec = Record<PersonData['id'], Person>;
+
+export class Person extends SortableItem implements PersonData {
   public constructor(
-    public readonly id: string,
-    private _name: string,
-    private _photo: string | null,
-    private _category: string,
-    public photographerCount: number,
-    public count: number,
-  ) {}
-
-  public get name() {
-    return this._name;
-  }
-
-  public get photo() {
-    return this._photo;
+    public readonly id: PersonData['id'],
+    _name: PersonData['name'],
+    _photo: PersonData['photo'],
+    private _category: PersonData['category'],
+    public photographer_count: PersonData['photographer_count'],
+    public photo_count: PersonData['photo_count'],
+  ) {
+    super(id, photo_count, _name, _photo);
   }
 
   public get category() {
@@ -32,7 +31,7 @@ export class Person {
   }
 
   public static createPeople(people: PersonData[]) {
-    const mapped: Record<string, Person> = {};
+    const mapped: PersonRec = {};
     for (const person of people) {
       mapped[person.id] = new Person(
         person.id,
@@ -46,17 +45,17 @@ export class Person {
     return mapped;
   }
 
-  public async setName(name: string) {
+  public async setName(name: PersonData['name']) {
     this._name = name;
     await set_person_name(this.id, name);
   }
 
-  public async setCategory(category: string) {
+  public async setCategory(category: PersonData['category']) {
     this._category = category;
     await set_person_category(this.id, category);
   }
 
-  public async setPhoto(photo: string | null) {
+  public async setPhoto(photo: PersonData['photo']) {
     this._photo = photo;
     await set_person_photo(this.id, photo);
   }

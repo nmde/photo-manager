@@ -1,3 +1,8 @@
+import type { GroupData } from './Group';
+import type { PersonData } from './Person';
+import type { PlaceData } from './Place';
+import type { TagData } from './Tag';
+import type { Nullable } from '@/types';
 import {
   set_photo_date,
   set_photo_desc,
@@ -16,29 +21,29 @@ import { validate_photo, type ValidationResult } from '@/api/tags';
 export type PhotoData = {
   name: string;
   asset_path: string;
-  title: string | null;
-  description: string | null;
-  tags: string[];
+  title: Nullable<string>;
+  description: Nullable<string>;
+  tags: TagData['name'][];
   is_duplicate: boolean;
-  rating: number | null;
+  rating: Nullable<number>;
   is_video: boolean;
-  location: string | null;
-  thumbnail: string | null;
-  photo_group: string | null;
-  date: string | null;
+  location: Nullable<PlaceData['id']>;
+  thumbnail: Nullable<string>;
+  photo_group: Nullable<GroupData['id']>;
+  date: Nullable<string>;
   is_raw: boolean;
-  people: string[];
+  people: PersonData['id'][];
   hide_thumbnail: boolean;
-  photographer: string | null;
+  photographer: Nullable<PersonData['id']>;
   valid_tags: ValidationResult;
-  metadata_date: string | null;
-  metadata_location: [number, number] | null;
+  metadata_date: Nullable<string>;
+  metadata_location: Nullable<[number, number]>;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
-export class Photo {
-  public _date: Date | null = null;
-  public _metaDate: Date | null = null;
+export class Photo { // TODO should implement PhotoData but I don't feel like resolving the date type conflict
+  public _date: Nullable<Date> = null;
+  public _metaDate: Nullable<Date> = null;
 
   public constructor(
     public readonly name: PhotoData['name'],
@@ -186,22 +191,22 @@ export class Photo {
       null,
     );
 
-  public async setTitle(value: string | null) {
+  public async setTitle(value: PhotoData['title']) {
     this._title = value;
     await set_photo_title(this.name, value);
   }
 
-  public async setDescription(value: string | null) {
+  public async setDescription(value: PhotoData['description']) {
     this._description = value;
     await set_photo_desc(this.name, value);
   }
 
-  public async setLocation(value: string | null) {
+  public async setLocation(value: PhotoData['location']) {
     this._location = value;
     await set_photo_location(this.name, value);
   }
 
-  public async setTags(value: string[]) {
+  public async setTags(value: PhotoData['tags']) {
     this._tags = value;
     await set_photo_tags(this.name, value)
       .err(msg => reportError(msg))
@@ -214,37 +219,37 @@ export class Photo {
       .send();
   }
 
-  public async setDuplicate(value: boolean) {
+  public async setDuplicate(value: PhotoData['is_duplicate']) {
     this._isDuplicate = value;
     await set_photo_is_duplicate(this.name, value);
   }
 
-  public async setRating(rating: number | null) {
+  public async setRating(rating: PhotoData['rating']) {
     this._rating = rating;
     await set_photo_rating(this.name, rating);
   }
 
-  public async setDate(value: Date | null) {
+  public async setDate(value: Nullable<Date>) {
     this._date = value;
     await set_photo_date(this.name, value ? value.toISOString().slice(0, 10) : '');
   }
 
-  public async setPeople(people: string[]) {
+  public async setPeople(people: PhotoData['people']) {
     this._people = people;
     await set_photo_people(this.name, people);
   }
 
-  public async setHideThumbnail(value: boolean) {
+  public async setHideThumbnail(value: PhotoData['hide_thumbnail']) {
     this._hideThumbnail = value;
     await set_photo_hide_thumbnail(this.name, value);
   }
 
-  public async setPhotographer(value: string | null) {
+  public async setPhotographer(value: PhotoData['photographer']) {
     this._photographer = value;
     await set_photographer(this.name, value);
   }
 
-  public async setGroup(value: string | null) {
+  public async setGroup(value: PhotoData['photo_group']) {
     this._photoGroup = value;
     await set_photo_group(this.name, value);
   }
@@ -254,7 +259,7 @@ export class Photo {
    * @param tag - The tag to check for.
    * @returns If this photo has the specified tag.
    */
-  public hasTag(tag: string) {
+  public hasTag(tag: TagData['name']) {
     return this.tags.includes(tag);
   }
 
