@@ -31,34 +31,41 @@ export type PhotoData = {
   hide_thumbnail: boolean;
   photographer: string | null;
   valid_tags: ValidationResult;
+  metadata_date: string | null;
+  metadata_location: [number, number] | null;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
 export class Photo {
   public _date: Date | null = null;
+  public _metaDate: Date | null = null;
 
   public constructor(
-    public readonly name: string,
-    public readonly asset_path: string,
-    public _title: string | null,
-    public _description: string | null,
-    public _location: string | null,
-    public _tags: string[],
-    public _isDuplicate: boolean,
-    public readonly thumbnail: string | null,
-    public _rating: number | null,
-    public readonly is_video: boolean,
-    public _photoGroup: string | null,
-    date: string | null,
-    public readonly is_raw: boolean,
-    public _people: string[],
-    public _hideThumbnail: boolean,
-    private _photographer: string | null,
-    public valid_tags: ValidationResult,
+    public readonly name: PhotoData['name'],
+    public readonly asset_path: PhotoData['asset_path'],
+    public _title: PhotoData['title'],
+    public _description: PhotoData['description'],
+    public _location: PhotoData['location'],
+    public _tags: PhotoData['tags'],
+    public _isDuplicate: PhotoData['is_duplicate'],
+    public readonly thumbnail: PhotoData['thumbnail'],
+    public _rating: PhotoData['rating'],
+    public readonly is_video: PhotoData['is_video'],
+    public _photoGroup: PhotoData['photo_group'],
+    date: PhotoData['date'],
+    public readonly is_raw: PhotoData['is_raw'],
+    public _people: PhotoData['people'],
+    public _hideThumbnail: PhotoData['hide_thumbnail'],
+    private _photographer: PhotoData['photographer'],
+    public valid_tags: PhotoData['valid_tags'],
+    public readonly metadata_date: PhotoData['metadata_date'],
+    public readonly metadata_location: PhotoData['metadata_location'],
   ) {
     if (date !== null && date.length > 0) {
-      const split = date.split('-').map(part => Number.parseInt(part)) as [number, number, number];
-      this._date = new Date(split[0], split[1] - 1, split[2]);
+      this._date = this.parseDate(date);
+    }
+    if (metadata_date !== null && metadata_date.length > 0) {
+      this._metaDate = this.parseDate(metadata_date);
     }
   }
 
@@ -106,6 +113,10 @@ export class Photo {
     return this._photographer;
   }
 
+  public get metaDate() {
+    return this._metaDate;
+  }
+
   public static createPhotos = (data: PhotoData[]) =>
     data.map(
       ({
@@ -126,6 +137,8 @@ export class Photo {
         hide_thumbnail,
         photographer,
         valid_tags,
+        metadata_date,
+        metadata_location,
       }) =>
         new Photo(
           name,
@@ -145,6 +158,8 @@ export class Photo {
           hide_thumbnail,
           photographer,
           valid_tags,
+          metadata_date,
+          metadata_location,
         ),
     );
 
@@ -167,6 +182,8 @@ export class Photo {
       false,
       null,
       { is_valid: true, message: null },
+      null,
+      null,
     );
 
   public async setTitle(value: string | null) {
@@ -186,7 +203,9 @@ export class Photo {
 
   public async setTags(value: string[]) {
     this._tags = value;
-    await set_photo_tags(this.name, value);
+    await set_photo_tags(this.name, value)
+      .err(msg => reportError(msg))
+      .send();
     await validate_photo(this.name)
       .ok(async validation => {
         this.setValidation(validation);
@@ -241,5 +260,14 @@ export class Photo {
 
   public setValidation(validation: ValidationResult) {
     this.valid_tags = validation;
+  }
+
+  private parseDate(str: string) {
+    const split = str.split('-').map(part => Number.parseInt(part));
+    if (split.length !== 3) {
+      throw new Error('Malformed date string');
+    }
+    const split2 = split as [number, number, number];
+    return new Date(split2[0], split2[1] - 1, split[2]);
   }
 }

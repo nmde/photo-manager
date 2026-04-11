@@ -1,19 +1,22 @@
 use std::{
     collections::{HashMap, VecDeque},
     fmt::{self, Display, Formatter},
+    fs::File,
+    io::BufReader,
     path::{Path, PathBuf},
     process::Command,
     time::Duration,
 };
 
 use anyhow::{anyhow, Result};
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use diesel::{
     debug_query, delete, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
     QueryDsl, SqliteConnection, TextExpressionMethods,
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
+use exif::In;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use rusty_pool::ThreadPool;
@@ -90,8 +93,10 @@ lazy_static! {
     pub static ref DB: Mutex<Option<SyncConnectionWrapper<SqliteConnection>>> = Mutex::new(None);
 }
 
-struct LoadedPhotos {
+#[derive(Serialize)]
+pub struct LoadedPhotos {
     removed: Vec<String>,
+    new_photos: Vec<String>,
 }
 
 fn clean_thumbnail_path(path: &String) -> String {
@@ -189,6 +194,106 @@ pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
     Ok(targets)
 }
 
+async fn create_photo(
+    _photo: &Photo,
+    conn: &mut SyncConnectionWrapper<SqliteConnection>,
+    photo_state: &mut HashMap<String, Photo>,
+) -> Result<String> {
+    let mut photo = _photo.clone();
+    let filename = &photo.name;
+    let mut file_open = File::open(filename)?;
+    let mut file_reader = BufReader::new(&mut file_open);
+    let exif = exif::Reader::new().read_from_container(&mut file_reader);
+    let mut file_date: Option<NaiveDate> = None;
+    let mut file_location: Option<(f32, f32)> = None;
+    if exif.is_err() {
+        warn!(
+            "Failed to read exif for {0}: {1}",
+            filename,
+            exif.as_ref().err().unwrap()
+        );
+        // If exif read fails, fall back to file metadata
+        // Take the min between file created and file modified, often in my project the modified is more accurate than created
+        let mut min_meta_time: Option<DateTime<Utc>> = None;
+        let metadata = file_open.metadata()?;
+        let created = metadata.created();
+        if created.is_ok() {
+            min_meta_time = Some(DateTime::<Utc>::from(created.as_ref().unwrap().clone()));
+        }
+        let modified = metadata.modified();
+        if modified.is_ok() {
+            let modified = DateTime::<Utc>::from(created.as_ref().unwrap().clone());
+            if min_meta_time.is_none() {
+                min_meta_time = Some(modified);
+            } else if &modified < min_meta_time.as_ref().unwrap() {
+                min_meta_time = Some(modified);
+            }
+        }
+        if min_meta_time.is_some() {
+            file_date = Some(min_meta_time.unwrap().date_naive());
+        } else {
+            warn!(
+                "Failed to read file metadata dates for {0}: {1}",
+                filename,
+                created.as_ref().err().unwrap()
+            );
+        }
+    } else {
+        debug!("Reading exif data for {filename}");
+        let exif = exif.unwrap();
+
+        let time_taken = exif.get_field(exif::Tag::DateTime, In::PRIMARY);
+        if time_taken.is_some() {
+            let value = &time_taken.unwrap().value;
+            debug!(
+                "Time taken display for {filename}: {0}",
+                value.display_as(exif::Tag::DateTime)
+            );
+        } else {
+            warn!("No time taken in exif for {filename}");
+        }
+
+        let lat = exif.get_field(exif::Tag::GPSLatitude, In::PRIMARY);
+        let lng = exif.get_field(exif::Tag::GPSLongitude, In::PRIMARY);
+        if lat.is_some() && lng.is_some() {
+            let lat_val = &lat.unwrap().value.display_as(exif::Tag::GPSLatitude);
+            let lng_val = &lng.unwrap().value.display_as(exif::Tag::GPSLongitude);
+            debug!("Exif location for {filename}: {lat_val},{lng_val}");
+        } else {
+            warn!("No GPS data in exif for {filename}");
+        }
+    }
+
+    if file_date.is_some() {
+        let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
+        info!("Resolved photo date from file data: {date_str}",);
+        photo.metadata_date = Some(date_str);
+    } else {
+        warn!("Failed to resolve photo date from file data for {filename}");
+    }
+
+    if file_location.is_some() {
+        let file_location = file_location.unwrap();
+        photo.metadata_location = Some(format!("{0},{1}", file_location.0, file_location.1));
+    } else {
+        warn!("Failed to resolve photo location from file data for {filename}");
+    }
+
+    if insert_into(photos::table)
+        .values(photo.clone())
+        .execute(conn)
+        .await
+        .is_err()
+    {
+        error!(
+            "ERROR: Could not insert photo {} into database!",
+            &photo.name,
+        );
+    }
+    photo_state.insert(photo.name.clone(), photo.clone());
+    Ok(filename.to_string())
+}
+
 async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPhotos> {
     info!("Loading photos from {path}");
     ensure_db().await?;
@@ -196,6 +301,7 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
     let conn = conn.as_mut().unwrap();
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
     let mut existing = HashMap::new();
+    let mut new_photos = vec![];
 
     let photo_load = photos::table.load::<Photo>(conn).await;
     if photo_load.is_err() {
@@ -231,6 +337,11 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
         let file = file?;
         if file.metadata().unwrap().is_file() {
             let filename = file.path().display().to_string();
+            let extension = file.path().extension();
+            if extension.is_some() && extension.unwrap().to_str().unwrap() == "zip" {
+                warn!("Skipping zip file: {filename}");
+                continue;
+            }
             if existing.contains_key(&filename) {
                 let existing_photo = existing.get(&filename.to_string()).unwrap();
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
@@ -285,36 +396,16 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
                         }));
                     }
                 } else {
-                    let photo = Photo::new(filename);
-                    if insert_into(photos::table)
-                        .values(&photo)
-                        .execute(conn)
-                        .await
-                        .is_err()
-                    {
-                        error!(
-                            "ERROR: Could not insert photo {} into database!",
-                            &photo.name,
-                        );
-                    }
-                    photos.insert(photo.name.clone(), photo);
+                    new_photos.push(
+                        create_photo(&Photo::new(filename.clone()), conn, &mut photos).await?,
+                    );
                 }
             }
         }
     }
 
     for thread in threads {
-        let result = thread.await_complete();
-        debug!("Thread complete");
-        if insert_into(photos::table)
-            .values(result.clone())
-            .execute(conn)
-            .await
-            .is_err()
-        {
-            error!("ERROR: Could not create photo {}!", &result.name,);
-        }
-        photos.insert(result.name.clone(), result);
+        new_photos.push(create_photo(&thread.await_complete(), conn, &mut photos).await?);
     }
 
     debug!("Validating photos");
@@ -336,12 +427,13 @@ async fn load_photos(path: &String, thumbnail_dir: &PathBuf) -> Result<LoadedPho
 
     Ok(LoadedPhotos {
         removed: existing.keys().cloned().map(String::from).collect(),
+        new_photos,
     })
 }
 
 /// Sets the working folder path & initializes the SQLite database connection.
 /// Returns initial information from the database.
-pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>> {
+pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos> {
     // Establish a sync connection just to apply migrations
     let db_path = Path::new(path).join("photos.db");
     let db_path = db_path.to_str().unwrap();
@@ -463,7 +555,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<Vec<String>>
         }
     }
 
-    Ok(photo_load.removed)
+    Ok(photo_load)
 }
 
 /// Performs a search of the photos using the given query.
@@ -477,7 +569,11 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
 
     // Construct a SQL statement using terms that require no additional processing (is:..., at:..., only:..., by:..., has:...)
     let mut statement = photos::table
-        .filter(photos::is_duplicate.eq(0))
+        .filter(
+            photos::is_duplicate
+                .eq(0)
+                .or(photos::is_duplicate.is_null()),
+        )
         .into_boxed();
     let mut has_date = sort == Sort::Date || sort == Sort::DateDesc;
     let mut has_date_negated = false;

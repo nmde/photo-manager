@@ -54,6 +54,8 @@ pub struct Photo {
     pub people: Option<String>,
     pub hide_thumbnail: Option<i32>,
     pub photographer: Option<String>,
+    pub metadata_date: Option<String>,
+    pub metadata_location: Option<String>,
 }
 
 #[derive(Clone, Insertable, Queryable, Selectable)]

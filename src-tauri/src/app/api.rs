@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use crate::{
     app::{
         initialize as _initialize, refresh as _refresh, remove_deleted as _remove_deleted,
-        search_photos, ApiError, Sort,
+        search_photos, ApiError, LoadedPhotos, Sort,
     },
     photos::PhotoDto,
 };
@@ -16,7 +16,7 @@ use crate::{
 pub async fn initialize<R: Runtime>(
     app: AppHandle<R>,
     path: String,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<LoadedPhotos, ApiError> {
     debug!("Initializing with path {path}");
 
     Ok(_initialize(&path, &app.path().app_data_dir()?)

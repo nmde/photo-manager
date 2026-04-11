@@ -1058,6 +1058,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "exif"
+version = "0.6.1"
+source = "git+https://github.com/kamadak/exif-rs#7cb491cd22aa4a586f37c0c0c3ef5c9ae207d337"
+dependencies = [
+ "mutate_once",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2295,6 +2303,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutate_once"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13d2233c9842d08cfe13f9eac96e207ca6a2ea10b80259ebe8ad0268be27d2af"
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2847,6 +2861,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
+ "exif",
  "fern",
  "lazy_static",
  "libsqlite3-sys",

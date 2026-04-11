@@ -5,8 +5,13 @@ import { Photo, type PhotoData } from '@/classes/Photo';
 
 export type Sort = 'name' | 'namedesc' | 'date' | 'datedesc' | 'rating' | 'ratingdesc';
 
+type LoadedPhotos = {
+  removed: string[];
+  new_photos: string[];
+};
+
 export function initialize(path: string) {
-  return new APIResult<string[]>(async () => await invoke('initialize', { path }));
+  return new APIResult<LoadedPhotos>(async () => await invoke('initialize', { path }));
 }
 
 export function photo_grid(query: string[], sort: Sort) {

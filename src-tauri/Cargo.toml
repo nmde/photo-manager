@@ -30,6 +30,7 @@ lazy_static = "1.5.0"
 diesel_migrations = { version = "2.3.1", features = ["sqlite"] }
 anyhow = "1.0.102"
 strum = { version = "0.28.0", features = ["derive"] }
+exif = { git = "https://github.com/kamadak/exif-rs", version = "0.6.1" }
 
 [dependencies.libsqlite3-sys]
 version = "0.36.0"

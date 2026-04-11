@@ -48,6 +48,8 @@ diesel::table! {
         people -> Nullable<Text>,
         hide_thumbnail -> Nullable<Integer>,
         photographer -> Nullable<Text>,
+        metadata_date -> Nullable<Text>,
+        metadata_location -> Nullable<Text>,
     }
 }
 

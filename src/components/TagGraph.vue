@@ -161,7 +161,6 @@
             .call(
               drag<SVGTextElement, Node>()
                 .on('start', (event, d) => {
-                  console.log(event, d);
                   if (!event.active) {
                     simulation?.alphaTarget(0.3).restart();
                   }

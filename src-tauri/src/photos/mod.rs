@@ -8,6 +8,7 @@ use chrono::NaiveDate;
 use diesel::{dsl::update, query_builder::AsChangeset, ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 use lazy_static::lazy_static;
+use log::warn;
 use regex::Regex;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -65,6 +66,8 @@ impl Photo {
             people: None,
             hide_thumbnail: None,
             photographer: None,
+            metadata_date: None,
+            metadata_location: None,
         }
     }
 
@@ -89,6 +92,38 @@ impl Photo {
 
     pub fn is_video(&self) -> bool {
         VIDEO.is_match(&self.name.to_uppercase())
+    }
+
+    pub fn metadata_date(&self) -> Option<NaiveDate> {
+        if self.metadata_date.is_none() {
+            return None;
+        }
+        NaiveDate::parse_from_str(self.metadata_date.as_ref().unwrap(), DATE_FORMAT).ok()
+    }
+
+    pub fn metadata_location(&self) -> Option<(f32, f32)> {
+        if self.metadata_location.is_none() {
+            return None;
+        }
+        let split = self
+            .metadata_location
+            .as_ref()
+            .unwrap()
+            .split(",")
+            .filter_map(|x| {
+                let parsed = x.parse::<f32>();
+                if parsed.is_ok() {
+                    Some(parsed.unwrap())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<f32>>();
+        if split.len() != 2 {
+            warn!("Malformed photo metadata location for {}", self.name);
+            return None;
+        }
+        Some((split[0], split[1]))
     }
 
     pub async fn set_photo_title(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
@@ -469,6 +504,8 @@ pub struct PhotoDto {
     pub is_video: bool,
     pub is_raw: bool,
     pub valid_tags: ValidationResult,
+    pub metadata_date: Option<NaiveDate>,
+    pub metadata_location: Option<(f32, f32)>,
 }
 
 impl From<&Photo> for PhotoDto {
@@ -495,6 +532,8 @@ impl From<&Photo> for PhotoDto {
                 .get(&value.name)
                 .unwrap_or(&ValidationResult::default())
                 .clone(),
+            metadata_date: value.metadata_date(),
+            metadata_location: value.metadata_location(),
         }
     }
 }

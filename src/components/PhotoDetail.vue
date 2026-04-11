@@ -26,9 +26,7 @@
   const photo = computed(() => props.photos[props.index] as Photo);
 
   const photoPath = computed(() =>
-    photo.value.thumbnail === null
-      ? photo.value.asset_path
-      : (photo.value.thumbnail as string),
+    photo.value.thumbnail === null ? photo.value.asset_path : (photo.value.thumbnail as string),
   );
 
   const rating = ref<number>();
@@ -132,7 +130,6 @@
   async function saveDate(date: Date) {
     savingDate.value = true;
     for (const photo of props.photos) {
-      console.log(date);
       await photo.setDate(date);
     }
     if (date) {
@@ -250,6 +247,23 @@
       :year="focusDate.getFullYear()"
       @update:model-value="date => saveDate(date)"
     />
+    <v-alert v-if="photo.metaDate !== null" :type="photo.date === null ? 'info' : undefined">
+      File date: {{ photo.metaDate }}
+      <v-btn
+        color="primary"
+        density="comfortable"
+        @click="
+          () => {
+            if (photo.metaDate !== null) {
+              date = photo.metaDate;
+              saveDate(photo.metaDate);
+            }
+          }
+        "
+      >
+        Set As Date
+      </v-btn>
+    </v-alert>
     <v-checkbox
       v-model="isDuplicate"
       label="Duplicate"

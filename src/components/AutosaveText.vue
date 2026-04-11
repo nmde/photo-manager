@@ -21,9 +21,12 @@
     }, 500);
   }
 
-  watch(props, () => {
-    local.value = props.value;
-  });
+  watch(
+    () => props.value,
+    () => {
+      local.value = props.value;
+    },
+  );
 
   onMounted(() => {
     local.value = props.value;

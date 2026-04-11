@@ -1,6 +1,5 @@
 export class APIResult<T, U = T> {
   private ok_fn!: (value: U) => void;
-  private err_fn!: (message: string) => void;
 
   public constructor(
     private fn: () => Promise<T>,
@@ -25,4 +24,6 @@ export class APIResult<T, U = T> {
       this.err_fn((error as Error).message);
     }
   }
+
+  private err_fn: (message: string) => void = msg => console.error(msg);
 }

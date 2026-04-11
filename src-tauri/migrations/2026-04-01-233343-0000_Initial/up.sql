@@ -39,6 +39,8 @@ CREATE TABLE
         "people" TEXT,
         "hide_thumbnail" INTEGER,
         "photographer" TEXT,
+        "metadata_date"	TEXT,
+        "metadata_location" TEXT,
         PRIMARY KEY ("name")
     );
 

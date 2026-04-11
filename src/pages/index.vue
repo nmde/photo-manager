@@ -8,8 +8,9 @@
   const router = useRouter();
 
   const loading = ref(false);
-  const deletedDialog = ref(false);
+  const interruptDialog = ref(false);
   const deleted = ref<string[]>([]);
+  const newPhotos = ref<string[]>([]);
   const initializing = ref(false);
   const deleting = ref(false);
   const initError = ref(false);
@@ -27,7 +28,10 @@
     if (typeof selected === 'string') {
       initializing.value = true;
       await initialize(selected)
-        .ok(d => (deleted.value = d))
+        .ok(d => {
+          deleted.value = d.removed;
+          newPhotos.value = d.new_photos;
+        })
         .err(msg => {
           initError.value = true;
           initErrorMessage.value = msg;
@@ -41,8 +45,8 @@
           }
         })
         .send();
-      if (deleted.value.length > 0) {
-        deletedDialog.value = true;
+      if (deleted.value.length > 0 || newPhotos.value.length > 0) {
+        interruptDialog.value = true;
       } else {
         await router.push('/tagger');
       }
@@ -64,32 +68,41 @@
       <v-col cols="4" />
     </v-row>
   </v-container>
-  <v-dialog v-model="deletedDialog" persistent>
-    <v-card title="Missing Files">
+  <v-dialog v-model="interruptDialog" persistent>
+    <v-card>
       <v-card-text>
-        The following files could not be found:
-        <ul>
-          <li v-for="file in deleted" :key="file">{{ file }}</li>
-        </ul>
+        <v-container>
+          <v-row>
+            <v-col v-if="deleted.length > 0">
+              <h2>Missing Files</h2>
+              The following files could not be found:
+              <ul>
+                <li v-for="file in deleted" :key="file">{{ file }}</li>
+              </ul>
+              <v-btn
+                color="primary"
+                :loading="deleting"
+                @click="
+                  async () => {
+                    deleting = true;
+                    await remove_deleted(deleted);
+                    router.push('/tagger');
+                  }
+                "
+              >
+                Remove From Project
+              </v-btn>
+              <v-btn color="primary" :disabled="deleting" @click="router.push('/tagger')">
+                Continue Without Removing
+              </v-btn>
+            </v-col>
+            <v-col v-if="newPhotos.length > 0">
+              <h2>New Files</h2>
+              <v-btn color="primary">Show New Photos</v-btn>
+            </v-col>
+          </v-row>
+        </v-container>
       </v-card-text>
-      <v-card-actions>
-        <v-btn
-          color="primary"
-          :loading="deleting"
-          @click="
-            async () => {
-              deleting = true;
-              await remove_deleted(deleted);
-              router.push('/tagger');
-            }
-          "
-        >
-          Remove Records &amp; Continue
-        </v-btn>
-        <v-btn color="primary" :disabled="deleting" @click="router.push('/tagger')">
-          Continue Without Removing
-        </v-btn>
-      </v-card-actions>
     </v-card>
   </v-dialog>
   <v-dialog v-model="initializing" persistent>

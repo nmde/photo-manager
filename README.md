@@ -32,6 +32,18 @@ Organize photos and videos with an advanced tagging system and geolocation.
 - Tag who took a photo
 - View photos of or taken by a particular person
 
+# Search Syntax
+The following search terms are implemented. Any search term can be negated by prefixing it with "-".
+- at:[location] - At the specified location
+- only:[person] - Only the specified person (and no one else)
+- by:[person] - Taken by the specified person
+- has:(rating|photographer|location|people|tags) - Photos that have a value for the specified field
+- name:[name] - The photo's name (file path) contains the specified text
+- rating(<=|>=|<|>|=)[rating] - Photos with a rating compared to the given value
+- of:[person] - Photos that include the specified person
+- date(<=|>=|<|>|=)[date] - Photos with a date compared to the given value
+- is:(raw|video) - Only RAW or video files
+
 # Installation
 - Install [Rust](https://www.rust-lang.org/learn/get-started)
 - Install [ImageMagick](https://imagemagick.org/script/download.php)
