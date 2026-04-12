@@ -16,6 +16,7 @@ declare module 'vue' {
     ColorPicker: typeof import('./components/common/ColorPicker.vue')['default']
     EmbeddedMap: typeof import('./components/locations/EmbeddedMap.vue')['default']
     ErrorHint: typeof import('./components/common/ErrorHint.vue')['default']
+    FormDialog: typeof import('./components/common/FormDialog.vue')['default']
     LayersPanels: typeof import('./components/locations/LayersPanels.vue')['default']
     PhotoDetail: typeof import('./components/photos/PhotoDetail.vue')['default']
     PhotoGrid: typeof import('./components/photos/PhotoGrid.vue')['default']

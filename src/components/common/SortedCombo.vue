@@ -1,7 +1,7 @@
 <script setup lang="ts" generic="T extends SortableItem">
   import type { ColorableItem } from '@/classes/ColorableItem';
   import type { SortableItem } from '@/classes/SortableItem';
-  import stringSimilarity from 'string-similarity-js';
+  import { stringSimilarity } from 'string-similarity-js';
 
   const props = defineProps<{
     avatars?: boolean;
@@ -43,6 +43,7 @@
     if (query.value.length < 2) {
       return items.map(s => s[k.value]);
     }
+    console.log(stringSimilarity);
     return items
       .entries()
       .map(([i, item]) => ({

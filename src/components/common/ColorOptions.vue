@@ -6,11 +6,14 @@
   const store = useFileStore();
   const { reportError } = store;
 
-  const color = defineModel<Nullable<string> | undefined>({ required: true });
+  const emit = defineEmits<{
+    (e: 'select', value?: Nullable<string>): void;
+  }>();
 
   const props = defineProps<{
     disabled?: boolean;
     error?: boolean;
+    value?: Nullable<string>;
   }>();
 
   const size = 16;
@@ -18,11 +21,11 @@
   const newColor = ref('');
   const colors = ref<string[]>([]);
 
-  function setColor(value: Nullable<string>) {
+  async function setColor(value: Nullable<string>) {
     if (!props.disabled) {
-      color.value = value;
+      emit('select', value);
       if (value !== null && colors.value.indexOf(value) >= size) {
-        promote_color(value)
+        await promote_color(value)
           .ok(c => (colors.value = c))
           .err(reportError)
           .send();
@@ -39,7 +42,7 @@
 </script>
 
 <template>
-  <div class="color-opts" :style="{ border: `2px solid ${color}` }">
+  <div class="color-opts" :style="{ border: `2px solid ${value}` }">
     <div
       :class="{ 'color-opt clear-opt': true, 'color-opt--disabled': disabled }"
       @click="setColor(null)"

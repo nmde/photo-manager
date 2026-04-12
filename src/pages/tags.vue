@@ -84,8 +84,14 @@
           <br />
           Set Tag Color:
           <color-options
-            v-model="selectedTag.color"
             :disabled="selectedTag === undefined"
+            @select="
+              color => {
+                if (selectedTag !== undefined) {
+                  selectedTag.setColor(color ?? null);
+                }
+              }
+            "
           />
           <br />
           <tag-input

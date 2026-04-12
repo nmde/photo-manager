@@ -793,7 +793,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect::<HashMap<String, Person>>();
-    debug!("{} unmet terms need to be evaluted", unmet_terms.len());
     if unmet_terms.len() > 0 {
         for photo in photo_records {
             let mut meets_terms = true;

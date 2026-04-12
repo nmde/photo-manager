@@ -50,10 +50,10 @@
   });
 
   async function initialize() {
-    localValue.value = props.value;
     await get_tags()
       .ok(t => {
         tags.value = t;
+        localValue.value = props.value;
       })
       .err(reportError)
       .send();

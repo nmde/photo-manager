@@ -41,7 +41,8 @@ export type PhotoData = {
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
-export class Photo { // TODO should implement PhotoData but I don't feel like resolving the date type conflict
+export class Photo {
+  // TODO should implement PhotoData but I don't feel like resolving the date type conflict
   public _date: Nullable<Date> = null;
   public _metaDate: Nullable<Date> = null;
 
@@ -209,11 +210,13 @@ export class Photo { // TODO should implement PhotoData but I don't feel like re
   public async setTags(value: PhotoData['tags']) {
     this._tags = value;
     await set_photo_tags(this.name, value)
-      .err(reportError)
-      .send();
-    await validate_photo(this.name)
-      .ok(async validation => {
-        this.setValidation(validation);
+      .ok(async () => {
+        await validate_photo(this.name)
+          .ok(async validation => {
+            this.setValidation(validation);
+          })
+          .err(reportError)
+          .send();
       })
       .err(reportError)
       .send();

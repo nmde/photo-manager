@@ -14,12 +14,12 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{ensure_db, get_photo_targets, row_to_vec, vec_to_row, DATE_FORMAT, DB},
-    models::Photo,
+    app::{DATE_FORMAT, DB, ensure_db, get_photo_targets, row_to_vec, vec_to_row},
+    models::{Photo, Tag},
     people::PEOPLE_COUNTS,
     places::PLACE_COUNTS,
     schema::photos,
-    tags::{validate_tags, ValidationResult, TAG_COUNTS},
+    tags::{TAG_COUNTS, TAGS, ValidationResult, validate_tags},
 };
 
 pub mod api;
@@ -441,6 +441,7 @@ impl Photo {
         let validation = validate_tags(&value).await?;
         let mut targets = get_photo_targets(&photo).await?;
         let existing_tags = targets[0].tags();
+        let mut tags = TAGS.lock().await;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
         let joined = vec_to_row(value);
@@ -461,6 +462,12 @@ impl Photo {
                 let vc = validation_cache.get_mut(&target.name).unwrap();
                 vc.is_valid = validation.is_valid;
                 vc.message = validation.message.clone();
+            }
+        }
+
+        for tag in value {
+            if !tags.contains_key(tag) {
+                tags.insert(tag.clone(), Tag::new(tag));
             }
         }
 

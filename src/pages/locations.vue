@@ -11,6 +11,8 @@
     get_layers,
     get_places,
     get_shapes,
+    set_place_layer,
+    set_shape_layer,
   } from '@/api/places';
   import { Layer, type LayerData, type LayerRec } from '@/classes/Layer';
   import { icons, locToString, Map, type PlaceType, type Position } from '@/classes/Map';
@@ -41,7 +43,7 @@
   const hideMarkers = ref(false);
   const hideLabels = ref(false);
   const changeLayerDialog = ref(false);
-  const changeShapeLayerDialog = ref(false);
+  const changeTarget = ref<'Place' | 'Shape'>('Place');
   const places = ref<PlaceRec>({});
   const shapes = ref<ShapeRec>({});
   const fromPhotoLoc = ref(false);
@@ -137,10 +139,10 @@
     }
   }
 
-  async function deleteShapeFunc(layer_id: string, id: string) {
+  async function deleteShape(id: string) {
     await delete_shape(id);
     map.removeShape(id);
-    delete shapes.value[layer_id];
+    delete shapes.value[id];
   }
 
   async function createShape(type: ShapeType, points: Position[], layer: string, name: string) {
@@ -171,7 +173,7 @@
         fields.position.lng,
         targetLayer.value,
         fields.category,
-        '',
+        null,
         0,
       );
       places.value[id] = place;
@@ -190,7 +192,7 @@
   async function deletePlace(place: Place) {
     await delete_place(place.id);
     if (place.shape !== null) {
-      deleteShapeFunc(place.layer, place.shape);
+      await deleteShape(place.shape);
     }
     delete places.value[place.id];
     map.removeMarker(place.id);
@@ -457,22 +459,6 @@
                     &nbsp;{{ place.name }}
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
-                    <v-btn
-                      v-if="place.shape === null"
-                      color="primary"
-                      @click="
-                        () => {
-                          tmpShape = [];
-                          drawMode = true;
-                          editingShape = false;
-                          tmpShapeType = 'polygon';
-                          targetLayer = layer.id;
-                          targetPlace = place.id;
-                        }
-                      "
-                    >
-                      Draw Polygon
-                    </v-btn>
                     <v-menu>
                       <template #activator="{ props }">
                         <v-btn flat icon v-bind="props">
@@ -480,7 +466,23 @@
                         </v-btn>
                       </template>
                       <v-list>
-                        <v-list-item v-if="place.shape !== null" @click="editPlaceShape(place)">
+                        <v-list-item
+                          v-if="place.shape === null"
+                          @click="
+                            () => {
+                              tmpShape = [];
+                              drawMode = true;
+                              editingShape = false;
+                              shapeName = `${place.name} Polygon`;
+                              tmpShapeType = 'polygon';
+                              targetLayer = layer.id;
+                              targetPlace = place.id;
+                            }
+                          "
+                        >
+                          Draw Polygon
+                        </v-list-item>
+                        <v-list-item v-else @click="editPlaceShape(place)">
                           Edit Polygon
                         </v-list-item>
                         <v-list-item
@@ -497,6 +499,7 @@
                           @click="
                             () => {
                               targetPlace = place.id;
+                              changeTarget = 'Place';
                               changeLayerDialog = true;
                             }
                           "
@@ -586,21 +589,14 @@
                       @click="
                         () => {
                           targetShape = shape.id;
-                          changeShapeLayerDialog = true;
+                          changeTarget = 'Shape';
+                          changeLayerDialog = true;
                         }
                       "
                     >
                       Change Layer
                     </v-btn>
-                    <v-btn
-                      @click="
-                        async () => {
-                          await deleteShapeFunc(layer.id, shape.id);
-                        }
-                      "
-                    >
-                      Delete Shape
-                    </v-btn>
+                    <v-btn @click="deleteShape(shape.id)">Delete Shape</v-btn>
                   </v-expansion-panel-text>
                 </v-expansion-panel>
               </v-expansion-panels>
@@ -619,13 +615,19 @@
           <div ref="mapEl" class="map" />
         </div>
         <v-btn v-if="drawMode" color="primary" @click="saveShape()">Save Shape</v-btn>
-        <v-btn v-if="drawMode" color="primary" @click="splitShape()">Splt Shape</v-btn>
+        <v-btn v-if="drawMode && editingShape" color="primary" @click="splitShape()">
+          Splt Shape
+        </v-btn>
         <v-btn
           v-if="drawMode"
           color="error"
           @click="
             () => {
               tmpShape = [];
+              const x = shapes[targetShape];
+              if (editingShape && x !== undefined) {
+                map.createShape(x.type, x.shape, layers[x.layer]?.color ?? '', targetShape, false);
+              }
               map.removeShape(targetShape);
               drawMode = false;
             }
@@ -767,7 +769,11 @@
             label="Name"
             :rules="[rules.required('Layer name is required')]"
           />
-          <color-options v-model="layerFields.color" :error="missingLayerColor" />
+          <color-options
+            :error="missingLayerColor"
+            :value="layerFields.color"
+            @select="color => (layerFields.color = color ?? '')"
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -776,6 +782,29 @@
       </v-form>
     </v-card>
   </v-dialog>
+  <form-dialog
+    v-model="changeLayerDialog"
+    title="Change Layer"
+    @submit="
+      async () => {
+        if (changeTarget === 'Place') {
+          await set_place_layer(targetPlace, targetLayer);
+        } else {
+          await set_shape_layer(targetShape, targetLayer);
+        }
+      }
+    "
+  >
+    <v-select
+      v-model="targetLayer"
+      color="primary"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(layers)"
+      label="Layer"
+      :rules="[rules.required('A layer is required.')]"
+    />
+  </form-dialog>
 </template>
 
 <style scoped>
