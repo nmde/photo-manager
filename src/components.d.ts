@@ -11,16 +11,16 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AutosaveText: typeof import('./components/AutosaveText.vue')['default']
-    ColorOptions: typeof import('./components/ColorOptions.vue')['default']
-    ColorPicker: typeof import('./components/ColorPicker.vue')['default']
-    PhotoDetail: typeof import('./components/PhotoDetail.vue')['default']
-    PhotoGrid: typeof import('./components/PhotoGrid.vue')['default']
-    PhotoIcon: typeof import('./components/PhotoIcon.vue')['default']
+    AutosaveText: typeof import('./components/common/AutosaveText.vue')['default']
+    ColorOptions: typeof import('./components/common/ColorOptions.vue')['default']
+    ColorPicker: typeof import('./components/common/ColorPicker.vue')['default']
+    PhotoDetail: typeof import('./components/photos/PhotoDetail.vue')['default']
+    PhotoGrid: typeof import('./components/photos/PhotoGrid.vue')['default']
+    PhotoIcon: typeof import('./components/photos/PhotoIcon.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    SortedCombo: typeof import('./components/SortedCombo.vue')['default']
-    TagGraph: typeof import('./components/TagGraph.vue')['default']
-    TagInput: typeof import('./components/TagInput.vue')['default']
+    SortedCombo: typeof import('./components/common/SortedCombo.vue')['default']
+    TagGraph: typeof import('./components/tags/TagGraph.vue')['default']
+    TagInput: typeof import('./components/tags/TagInput.vue')['default']
   }
 }
