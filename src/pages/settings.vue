@@ -1,13 +1,13 @@
 <script setup lang="ts">
-  import { set_setting } from '@/api/settings';
+  import { set_theme } from '@/api/settings';
   import { useFileStore } from '@/stores/fileStore';
 
   const store = useFileStore();
-  const { darkMode } = storeToRefs(store);
+  const { theme } = storeToRefs(store);
 
   async function toggleTheme() {
     store.toggleTheme();
-    await set_setting('theme', Number(darkMode.value));
+    await set_theme(theme.value);
   }
 </script>
 
@@ -15,7 +15,7 @@
   <div class="main">
     <h1>Application Theme</h1>
     <v-btn color="primary" @click="toggleTheme()">
-      Switch to {{ darkMode ? 'Light' : 'Dark' }} Mode
+      Switch to {{ theme === 'Dark' ? 'Light' : 'Dark' }} Mode
     </v-btn>
   </div>
 </template>

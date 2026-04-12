@@ -66,7 +66,7 @@ CREATE TABLE
 CREATE TABLE
     IF NOT EXISTS "settings" (
         "setting" TEXT NOT NULL UNIQUE,
-        "value" INTEGER NOT NULL,
+        "value" TEXT NOT NULL,
         PRIMARY KEY ("setting")
     );
 

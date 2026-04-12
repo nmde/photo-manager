@@ -256,15 +256,15 @@
   onMounted(async () => {
     await get_layers()
       .ok(l => (layers.value = l))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_places()
       .ok(p => (places.value = p))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_shapes()
       .ok(s => (shapes.value = s))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     placeMap.value = {};
     shapeMap.value = {};

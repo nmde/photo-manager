@@ -70,19 +70,19 @@
     }
     await get_people_categories()
       .ok(c => (peopleCategories.value = c))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_places()
       .ok(p => (placeList.value = p))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_people()
       .ok(p => (people.value = p))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_layers()
       .ok(l => (layers.value = l))
-      .err(message => reportError(message))
+      .err(reportError)
       .send();
   }
 

@@ -64,11 +64,11 @@
   onMounted(async () => {
     await get_people_categories()
       .ok(c => (localCategories.value = c))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await get_people()
       .ok(p => (localPeople.value = p))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
   });
 </script>

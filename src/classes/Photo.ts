@@ -209,13 +209,13 @@ export class Photo { // TODO should implement PhotoData but I don't feel like re
   public async setTags(value: PhotoData['tags']) {
     this._tags = value;
     await set_photo_tags(this.name, value)
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     await validate_photo(this.name)
       .ok(async validation => {
         this.setValidation(validation);
       })
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
   }
 

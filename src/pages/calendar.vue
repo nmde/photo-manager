@@ -63,7 +63,7 @@
             }
           }
         })
-        .err(msg => reportError(msg))
+        .err(reportError)
         .send();
       for (let i = 1; i <= new Date(year, month, 0).getDate(); i += 1) {
         const d = new Date(year, month, i);
@@ -120,11 +120,11 @@
     await buildEventMap();
     await get_places()
       .ok(p => (places.value = p))
-      .err(message => reportError(message))
+      .err(reportError)
       .send();
     await get_layers()
       .ok(l => (layers.value = l))
-      .err(message => reportError(message))
+      .err(reportError)
       .send();
   });
 </script>

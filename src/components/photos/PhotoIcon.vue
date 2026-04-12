@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import type { Photo } from '@/classes/Photo';
-  import hiddenPng from '../assets/hidden.png';
+  import hiddenPng from '@/assets/hidden.png';
 
   const props = defineProps<{
     photo: Photo;

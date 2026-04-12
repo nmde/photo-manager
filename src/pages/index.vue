@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
   import { initialize, remove_deleted } from '@/api/app';
-  import { get_setting } from '@/api/settings';
+  import { get_theme } from '@/api/settings';
   import { useFileStore } from '@/stores/fileStore';
 
   const store = useFileStore();
@@ -37,10 +37,10 @@
           initErrorMessage.value = msg;
         })
         .send();
-      await get_setting('theme')
+      await get_theme()
         .ok(saved_theme => {
           if (saved_theme !== null) {
-            store.setTheme(Boolean(saved_theme.value));
+            store.setTheme(saved_theme);
           }
         })
         .send();
@@ -73,7 +73,7 @@
         <v-container>
           <v-row>
             <v-col v-if="deleted.length > 0">
-              <h2>{{deleted.length}} Missing Files</h2>
+              <h2>{{ deleted.length }} Missing Files</h2>
               The following files could not be found:
               <ul>
                 <li v-for="file in deleted" :key="file">{{ file }}</li>
@@ -97,7 +97,7 @@
               </v-btn>
             </v-col>
             <v-col v-if="newPhotos.length > 0">
-              <h2>{{newPhotos.length}} New Files</h2>
+              <h2>{{ newPhotos.length }} New Files</h2>
               <v-btn color="primary" @click="router.push('/tagger')">Show New Photos</v-btn>
             </v-col>
           </v-row>

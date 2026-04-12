@@ -83,7 +83,10 @@
           <br />
           <br />
           Set Tag Color:
-          <color-options @select="async color => await selectedTag?.setColor(color)" />
+          <color-options
+            :disabled="selectedTag === undefined"
+            @select="async color => await selectedTag?.setColor(color)"
+          />
           <br />
           <tag-input
             :disabled="selectedTag === undefined"

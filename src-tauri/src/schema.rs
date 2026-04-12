@@ -68,7 +68,7 @@ diesel::table! {
 diesel::table! {
     settings (setting) {
         setting -> Text,
-        value -> Integer,
+        value -> Text,
     }
 }
 

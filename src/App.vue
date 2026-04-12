@@ -4,7 +4,7 @@
   const route = useRoute();
 
   const store = useFileStore();
-  const { darkMode, globalError } = storeToRefs(store);
+  const { theme, globalError } = storeToRefs(store);
 
   const errorSnack = ref(false);
 
@@ -14,7 +14,7 @@
 </script>
 
 <template>
-  <v-app :theme="darkMode ? 'Theme' : 'LightTheme'">
+  <v-app :theme="theme === 'Dark' ? 'Theme' : 'LightTheme'">
     <v-layout>
       <v-navigation-drawer v-if="route.path !== '/'" expand-on-hover permanent rail>
         <v-list class="top-nav" color="primary" nav>

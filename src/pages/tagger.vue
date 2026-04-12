@@ -23,7 +23,7 @@
     searching.value = true;
     await photo_grid(query.value, sortBy.value)
       .ok(p => (photos.value = p))
-      .err(msg => reportError(msg))
+      .err(reportError)
       .send();
     searching.value = false;
   }

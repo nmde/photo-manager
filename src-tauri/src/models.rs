@@ -74,7 +74,7 @@ pub struct Place {
 #[diesel(table_name = settings)]
 pub struct Setting {
     pub setting: String,
-    pub value: i32,
+    pub value: String,
 }
 
 #[derive(Clone, Insertable, Queryable, Selectable, Serialize)]

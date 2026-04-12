@@ -27,7 +27,7 @@ use crate::{
         set_place_layer, set_place_name, set_place_position, set_place_shape, set_shape_layer,
         set_shape_name, set_shape_points,
     },
-    settings::api::{get_setting, set_setting},
+    settings::api::{add_color, get_colors, get_theme, promote_color, set_theme},
     tags::api::{
         get_tags, set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs,
         validate_photo,
@@ -121,8 +121,11 @@ async fn main() {
             set_tag_incompatible,
             get_tags,
             validate_photo,
-            set_setting,
-            get_setting,
+            get_theme,
+            set_theme,
+            get_colors,
+            promote_color,
+            add_color,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

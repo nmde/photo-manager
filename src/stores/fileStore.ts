@@ -1,7 +1,8 @@
 import type { Sort } from '@/api/app';
+import type { ThemeSetting } from '@/api/settings';
 
 export const useFileStore = defineStore('files', () => {
-  const darkMode = ref(true);
+  const theme = ref<ThemeSetting>('Dark');
   const query = ref<string[]>([]);
   const sortBy = ref<Sort>('name');
   const calendarViewDate = ref(new Date());
@@ -10,11 +11,11 @@ export const useFileStore = defineStore('files', () => {
   const globalError = ref<string>();
 
   function toggleTheme() {
-    darkMode.value = !darkMode.value;
+    theme.value = theme.value === 'Dark' ? 'Light' : 'Dark';
   }
 
-  function setTheme(theme: boolean) {
-    darkMode.value = theme;
+  function setTheme(value: ThemeSetting) {
+    theme.value = value;
   }
 
   function setQuery(q: string[], s: Sort) {
@@ -41,7 +42,7 @@ export const useFileStore = defineStore('files', () => {
   }
 
   return {
-    darkMode,
+    theme,
     query,
     sortBy,
     calendarViewDate,

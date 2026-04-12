@@ -55,7 +55,7 @@
       .ok(t => {
         tags.value = t;
       })
-      .err(message => reportError(message))
+      .err(reportError)
       .send();
   }
 
