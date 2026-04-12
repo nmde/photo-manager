@@ -151,7 +151,7 @@
       <v-card-title>Add Category</v-card-title>
       <v-card-text>
         <v-text-field v-model="addCategoryName" label="Name" />
-        <color-options @select="color => (addCategoryColor = color ?? '')" />
+        <color-options v-model="addCategoryColor" />
       </v-card-text>
       <v-card-actions>
         <v-btn @click="addCategoryDialog = false">Cancel</v-btn>

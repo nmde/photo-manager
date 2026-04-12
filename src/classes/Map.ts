@@ -226,11 +226,7 @@ export class Map extends EventEmitter<{
         this.emit('markerClicked', id);
       });
       this.map.setCenter(position);
-      /**
-      if (count > this.maxCount) {
-        this.maxCount = count;
-      }
-       */
+      return id;
     }
   }
 
@@ -379,5 +375,9 @@ export class Map extends EventEmitter<{
       lng,
     });
     this.map.setZoom(zoom);
+  }
+
+  public getCenter() {
+    return { center: this.map.getCenter(), zoom: this.map.getZoom() };
   }
 }

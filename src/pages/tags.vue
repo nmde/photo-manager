@@ -84,8 +84,8 @@
           <br />
           Set Tag Color:
           <color-options
+            v-model="selectedTag.color"
             :disabled="selectedTag === undefined"
-            @select="async color => await selectedTag?.setColor(color)"
           />
           <br />
           <tag-input

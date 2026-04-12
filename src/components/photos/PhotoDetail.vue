@@ -193,20 +193,6 @@
     >
       File location: {{ photo.metadata_location.join(', ') }}
       <v-btn
-        color="primary"
-        density="comfortable"
-        @click="
-          () => {
-            if (photo.metaDate !== null) {
-              date = photo.metaDate;
-              saveDate(photo.metaDate);
-            }
-          }
-        "
-      >
-        Set As Location
-      </v-btn>
-      <v-btn
         color="secondary"
         density="comfortable"
         @click="

@@ -6,12 +6,11 @@
   const store = useFileStore();
   const { reportError } = store;
 
-  const emit = defineEmits<{
-    (e: 'select', color: Nullable<string>): void;
-  }>();
+  const color = defineModel<Nullable<string> | undefined>({ required: true });
 
   const props = defineProps<{
     disabled?: boolean;
+    error?: boolean;
   }>();
 
   const size = 16;
@@ -21,7 +20,7 @@
 
   function setColor(value: Nullable<string>) {
     if (!props.disabled) {
-      emit('select', value);
+      color.value = value;
       if (value !== null && colors.value.indexOf(value) >= size) {
         promote_color(value)
           .ok(c => (colors.value = c))
@@ -40,7 +39,7 @@
 </script>
 
 <template>
-  <div class="color-opts">
+  <div class="color-opts" :style="{ border: `2px solid ${color}` }">
     <div
       :class="{ 'color-opt clear-opt': true, 'color-opt--disabled': disabled }"
       @click="setColor(null)"
@@ -48,17 +47,17 @@
       <v-icon>mdi-close-circle-outline</v-icon>
     </div>
     <div
-      v-for="color in colors.slice(0, size)"
-      :key="color"
+      v-for="c in colors.slice(0, size)"
+      :key="c"
       :class="{ 'color-opt': true, 'color-opt--disabled': disabled }"
-      :style="{ 'background-color': color }"
-      @click="setColor(color)"
+      :style="{ 'background-color': c }"
+      @click="setColor(c)"
     />
     <div
       :class="{ 'color-opt clear-opt': true, 'color-opt--disabled': disabled }"
       @click="
         () => {
-          if (disabled) {
+          if (!disabled) {
             dialog = true;
           }
         }
@@ -67,6 +66,7 @@
       <v-icon>mdi-plus</v-icon>
     </div>
   </div>
+  <error-hint :message="error ? 'A color is required.' : undefined" />
   <v-dialog v-model="dialog" :max-width="1000">
     <v-card title="Color Options">
       <v-card-text>
@@ -75,11 +75,11 @@
             <v-col cols="8">
               <div class="color-opts">
                 <div
-                  v-for="color in colors"
-                  :key="color"
+                  v-for="c in colors"
+                  :key="c"
                   class="color-opt"
-                  :style="{ 'background-color': color }"
-                  @click="setColor(color)"
+                  :style="{ 'background-color': c }"
+                  @click="setColor(c)"
                 />
               </div>
             </v-col>
@@ -112,6 +112,7 @@
   .color-opts {
     display: flex;
     flex-wrap: wrap;
+    border-radius: 2px;
   }
 
   .color-opt {
