@@ -14,12 +14,12 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    app::{DATE_FORMAT, DB, ensure_db, get_photo_targets, row_to_vec, vec_to_row},
+    app::{ensure_db, get_photo_targets, row_to_vec, vec_to_row, DATE_FORMAT, DB},
     models::{Photo, Tag},
     people::PEOPLE_COUNTS,
     places::PLACE_COUNTS,
     schema::photos,
-    tags::{TAG_COUNTS, TAGS, ValidationResult, validate_tags},
+    tags::{validate_tags, ValidationResult, TAGS, TAG_COUNTS},
 };
 
 pub mod api;
@@ -46,14 +46,18 @@ struct GroupFields {
     date: Option<String>,
 }
 
+pub fn get_asset_path(filename: &String) -> String {
+    format!(
+        "https://asset.localhost/{0}",
+        url_escape::encode_component(&filename)
+    )
+}
+
 impl Photo {
     pub fn new(filename: String) -> Self {
         Self {
             name: filename.clone(),
-            asset_path: format!(
-                "https://asset.localhost/{0}",
-                url_escape::encode_component(&filename)
-            ),
+            asset_path: get_asset_path(&filename),
             title: None,
             description: None,
             tags: None,

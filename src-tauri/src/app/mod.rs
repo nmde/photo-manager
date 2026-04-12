@@ -4,7 +4,7 @@ use std::{
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::Duration,
 };
 
@@ -28,13 +28,7 @@ use tokio::{fs, sync::Mutex};
 use walkdir::WalkDir;
 
 use crate::{
-    models::{Layer, Person, Photo, Place, Tag},
-    people::{PEOPLE, PEOPLE_COUNTS},
-    photos::{PHOTOS, RAW, VALIDATION_CACHE, VIDEO},
-    places::{LAYERS, LAYER_COUNTS, PLACES, PLACE_COUNTS},
-    schema::{layers, people, photos, places, tags},
-    tags::{validate_tags, TAGS, TAG_COUNTS},
-    MIGRATIONS,
+    MIGRATIONS, models::{Layer, Person, Photo, Place, Tag}, people::{PEOPLE, PEOPLE_COUNTS}, photos::{PHOTOS, RAW, VALIDATION_CACHE, VIDEO, get_asset_path}, places::{LAYER_COUNTS, LAYERS, PLACE_COUNTS, PLACES}, schema::{layers, people, photos, places, tags}, tags::{TAG_COUNTS, TAGS, validate_tags}
 };
 
 pub mod api;
@@ -226,11 +220,6 @@ async fn create_photo(
     let mut file_date: Option<NaiveDateTime> = None;
     let mut file_location: Option<(f32, f32)> = None;
     if exif.is_err() {
-        warn!(
-            "Failed to read exif for {0}: {1}",
-            filename,
-            exif.as_ref().err().unwrap()
-        );
         // If exif read fails, fall back to file metadata
         // Take the min between file created and file modified, often in my project the modified is more accurate than created
         let mut min_meta_time: Option<DateTime<Utc>> = None;
@@ -250,12 +239,6 @@ async fn create_photo(
         }
         if min_meta_time.is_some() {
             file_date = Some(min_meta_time.unwrap().naive_utc());
-        } else {
-            warn!(
-                "Failed to read file metadata dates for {0}: {1}",
-                filename,
-                created.as_ref().err().unwrap()
-            );
         }
     } else {
         let exif = exif.unwrap();
@@ -327,8 +310,6 @@ async fn create_photo(
                 }
                 file_location = Some((lat_val, lng_val));
             }
-        } else {
-            warn!("No GPS data in exif for {filename}");
         }
     }
 
@@ -425,10 +406,12 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
                 if RAW.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
+                        let thumbnail_path = format!("{}.jpg", thumbnail_path.display());
                         threads.push(pool.complete(async move {
                             debug!("Generating thumbnail for raw {filename}");
                             let output = Command::new("magick")
-                                .args([&filename, thumbnail_path.to_str().unwrap()])
+                                .args([&filename, &thumbnail_path])
+                                .stderr(Stdio::piped())
                                 .output();
                             if output.is_err() {
                                 error!(
@@ -436,14 +419,23 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     &filename.to_string(),
                                     &output.err().unwrap().to_string()
                                 );
+                            } else {
+                                let stderr = output.unwrap().stderr;
+                                if stderr.len() > 0 {
+                                    error!(
+                                        "ffmpeg error: {}",
+                                        String::from_utf8(stderr).ok().unwrap_or_default()
+                                    );
+                                }
                             }
                             let mut photo = Photo::new(filename);
-                            photo.thumbnail = Some(thumbnail_path.to_str().unwrap().to_string());
+                            photo.thumbnail = Some(get_asset_path(&thumbnail_path));
                             photo
                         }));
                     }
                 } else if VIDEO.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
+                        let thumbnail_path = format!("{}.jpg", thumbnail_path.display());
                         threads.push(pool.complete(async move {
                             debug!("Generating thumbnail for video {filename}");
                             let output = Command::new("ffmpeg")
@@ -454,8 +446,9 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     "00:00:01.00",
                                     "-vframes",
                                     "1",
-                                    &thumbnail_path.to_str().unwrap(),
+                                    &thumbnail_path,
                                 ])
+                                .stderr(Stdio::piped())
                                 .output();
                             if output.is_err() {
                                 error!(
@@ -463,9 +456,17 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     &filename.to_string(),
                                     &output.err().unwrap().to_string()
                                 );
+                            } else {
+                                let stderr = output.unwrap().stderr;
+                                if stderr.len() > 0 {
+                                    error!(
+                                        "ffmpeg error: {}",
+                                        String::from_utf8(stderr).ok().unwrap_or_default()
+                                    );
+                                }
                             }
                             let mut photo = Photo::new(filename);
-                            photo.thumbnail = Some(thumbnail_path.to_str().unwrap().to_string());
+                            photo.thumbnail = Some(get_asset_path(&thumbnail_path));
                             photo
                         }));
                     }
