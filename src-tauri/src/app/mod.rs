@@ -20,7 +20,7 @@ use exif::In;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use regex::Regex;
-use rusty_pool::ThreadPool;
+use rusty_pool::{JoinHandle, ThreadPool};
 use serde::{Serialize, Serializer};
 use strum::EnumString;
 use thiserror::Error;
@@ -213,13 +213,10 @@ fn degrees_to_dec(input: &String) -> Result<f32> {
     Ok(digits[0] + (digits[1] / 60.0) + (digits[2] / 3600.0))
 }
 
-async fn create_photo(
-    _photo: &Photo,
-    conn: &mut SyncConnectionWrapper<SqliteConnection>,
-    photo_state: &mut HashMap<String, Photo>,
-) -> Result<String> {
+async fn create_photo(_photo: &Photo) -> Result<Photo> {
     let mut photo = _photo.clone();
     let filename = &photo.name;
+    debug!("Creating new photo {filename}");
     let mut file_open = File::open(filename)?;
     let mut file_reader = BufReader::new(&mut file_open);
     let exif = exif::Reader::new().read_from_container(&mut file_reader);
@@ -321,28 +318,36 @@ async fn create_photo(
 
     if file_date.is_some() {
         let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
+        debug!("Resolved photo date from file {filename}: {date_str}");
         photo.metadata_date = Some(date_str.clone());
         photo.date = Some(date_str);
     }
 
     if file_location.is_some() {
         let file_location = file_location.unwrap();
+        debug!(
+            "Resolved photo location from file {filename}: {0}, {1}",
+            file_location.0, file_location.1
+        );
         photo.metadata_location = Some(format!("{0},{1}", file_location.0, file_location.1));
     }
 
-    if insert_into(photos::table)
-        .values(photo.clone())
-        .execute(conn)
-        .await
-        .is_err()
     {
-        error!(
-            "ERROR: Could not insert photo {} into database!",
-            &photo.name,
-        );
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
+        if insert_into(photos::table)
+            .values(photo.clone())
+            .execute(conn)
+            .await
+            .is_err()
+        {
+            error!(
+                "ERROR: Could not insert photo {} into database!",
+                &photo.name,
+            );
+        }
     }
-    photo_state.insert(photo.name.clone(), photo.clone());
-    Ok(filename.to_string())
+    Ok(photo)
 }
 
 async fn load_photos() -> Result<LoadedPhotos> {
@@ -355,24 +360,26 @@ async fn load_photos() -> Result<LoadedPhotos> {
     if thumbnail_dir.is_none() {
         return Err(anyhow!("No thumbnail dir found"));
     }
-    let thumbnail_dir = thumbnail_dir.as_ref().unwrap();
+    let thumbnail_dir = thumbnail_dir.as_ref().unwrap().clone();
     info!("Loading photos from {}", path.display());
     ensure_db().await?;
-    let mut conn = DB.lock().await;
-    let conn = conn.as_mut().unwrap();
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
     let mut existing = HashMap::new();
     let mut new_photos = vec![];
 
-    let photo_load = photos::table.load::<Photo>(conn).await;
-    if photo_load.is_err() {
-        return Err(anyhow!(
-            "Failed to load photos from database: {}",
-            photo_load.err().unwrap()
-        ));
-    }
-    for photo in photo_load.unwrap() {
-        existing.insert(photo.name.clone(), photo);
+    {
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
+        let photo_load = photos::table.load::<Photo>(conn).await;
+        if photo_load.is_err() {
+            return Err(anyhow!(
+                "Failed to load photos from database: {}",
+                photo_load.err().unwrap()
+            ));
+        }
+        for photo in photo_load.unwrap() {
+            existing.insert(photo.name.clone(), photo);
+        }
     }
     debug!("Found {} existing photos", existing.len());
 
@@ -393,7 +400,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
         file_queue.push_back(entry.path());
     }
     let pool = ThreadPool::new(4, 4, Duration::from_millis(50));
-    let mut threads = vec![];
+    let mut threads = Vec::<JoinHandle<Result<Photo>>>::new();
     for file in WalkDir::new(path) {
         let file = file?;
         if file.metadata().unwrap().is_file() {
@@ -402,18 +409,23 @@ async fn load_photos() -> Result<LoadedPhotos> {
             if extension.is_some() && extension.unwrap().to_str().unwrap() == "zip" {
                 warn!("Skipping zip file: {filename}");
                 continue;
+            } else if filename.contains(".dropbox.cache") {
+                continue;
             }
             if existing.contains_key(&filename) {
                 let existing_photo = existing.get(&filename.to_string()).unwrap();
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
-                let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(&filename));
-                let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
-                let thumbnail_path = Path::new(&thumbnail_path_str);
-                if RAW.is_match(&filename.to_uppercase()) {
-                    if !thumbnail_path.exists() {
-                        threads.push(pool.complete(async move {
+                let moved_thumbnail_dir = thumbnail_dir.clone();
+                threads.push(pool.complete(async move {
+                    let mut photo = Photo::new(filename.clone());
+                    let thumbnail_path_str =
+                        moved_thumbnail_dir.join(clean_thumbnail_path(&filename));
+                    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+                    let thumbnail_path = Path::new(&thumbnail_path_str);
+                    if RAW.is_match(&filename.to_uppercase()) {
+                        if !thumbnail_path.exists() {
                             debug!("Generating thumbnail for raw {filename}");
                             let output = Command::new("magick")
                                 .args([&filename, &thumbnail_path_str])
@@ -434,14 +446,10 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     );
                                 }
                             }
-                            let mut photo = Photo::new(filename);
                             photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
-                            photo
-                        }));
-                    }
-                } else if VIDEO.is_match(&filename.to_uppercase()) {
-                    if !thumbnail_path.exists() {
-                        threads.push(pool.complete(async move {
+                        }
+                    } else if VIDEO.is_match(&filename.to_uppercase()) {
+                        if !thumbnail_path.exists() {
                             debug!("Generating thumbnail for video {filename}");
                             let output = Command::new("ffmpeg")
                                 .args([
@@ -470,22 +478,19 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     );
                                 }
                             }
-                            let mut photo = Photo::new(filename);
                             photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
-                            photo
-                        }));
+                        }
                     }
-                } else {
-                    new_photos.push(
-                        create_photo(&Photo::new(filename.clone()), conn, &mut photos).await?,
-                    );
-                }
+                    Ok(create_photo(&photo).await?)
+                }));
             }
         }
     }
 
     for thread in threads {
-        new_photos.push(create_photo(&thread.await_complete(), conn, &mut photos).await?);
+        let photo = thread.await_complete()?;
+        photos.insert(photo.name.clone(), photo.clone());
+        new_photos.push(photo.name);
     }
 
     debug!("Validating photos");
