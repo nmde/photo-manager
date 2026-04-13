@@ -43,7 +43,6 @@
     if (query.value.length < 2) {
       return items.map(s => s[k.value]);
     }
-    console.log(stringSimilarity);
     return items
       .entries()
       .map(([i, item]) => ({

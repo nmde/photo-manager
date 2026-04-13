@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import type { TagRec } from '@/classes/Tag';
-  import stringSimilarity from 'string-similarity-js';
+  import { stringSimilarity } from 'string-similarity-js';
   import { get_tags } from '@/api/tags';
   import { useFileStore } from '@/stores/fileStore';
 

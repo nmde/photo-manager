@@ -28,7 +28,13 @@ use tokio::{fs, sync::Mutex};
 use walkdir::WalkDir;
 
 use crate::{
-    MIGRATIONS, models::{Layer, Person, Photo, Place, Tag}, people::{PEOPLE, PEOPLE_COUNTS}, photos::{PHOTOS, RAW, VALIDATION_CACHE, VIDEO, get_asset_path}, places::{LAYER_COUNTS, LAYERS, PLACE_COUNTS, PLACES}, schema::{layers, people, photos, places, tags}, tags::{TAG_COUNTS, TAGS, validate_tags}
+    models::{Layer, Person, Photo, Place, Tag},
+    people::{PEOPLE, PEOPLE_COUNTS},
+    photos::{get_asset_path, PHOTOS, RAW, VALIDATION_CACHE, VIDEO},
+    places::{LAYERS, LAYER_COUNTS, PLACES, PLACE_COUNTS},
+    schema::{layers, people, photos, places, tags},
+    tags::{validate_tags, TAGS, TAG_COUNTS},
+    MIGRATIONS,
 };
 
 pub mod api;
@@ -315,7 +321,6 @@ async fn create_photo(
 
     if file_date.is_some() {
         let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
-        info!("Resolved photo date from file data: {date_str}",);
         photo.metadata_date = Some(date_str.clone());
         photo.date = Some(date_str);
     }
@@ -403,14 +408,15 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
-                let thumbnail_path = thumbnail_dir.join(clean_thumbnail_path(&filename));
+                let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(&filename));
+                let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+                let thumbnail_path = Path::new(&thumbnail_path_str);
                 if RAW.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
-                        let thumbnail_path = format!("{}.jpg", thumbnail_path.display());
                         threads.push(pool.complete(async move {
                             debug!("Generating thumbnail for raw {filename}");
                             let output = Command::new("magick")
-                                .args([&filename, &thumbnail_path])
+                                .args([&filename, &thumbnail_path_str])
                                 .stderr(Stdio::piped())
                                 .output();
                             if output.is_err() {
@@ -429,13 +435,12 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                 }
                             }
                             let mut photo = Photo::new(filename);
-                            photo.thumbnail = Some(get_asset_path(&thumbnail_path));
+                            photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
                             photo
                         }));
                     }
                 } else if VIDEO.is_match(&filename.to_uppercase()) {
                     if !thumbnail_path.exists() {
-                        let thumbnail_path = format!("{}.jpg", thumbnail_path.display());
                         threads.push(pool.complete(async move {
                             debug!("Generating thumbnail for video {filename}");
                             let output = Command::new("ffmpeg")
@@ -446,7 +451,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                     "00:00:01.00",
                                     "-vframes",
                                     "1",
-                                    &thumbnail_path,
+                                    &thumbnail_path_str,
                                 ])
                                 .stderr(Stdio::piped())
                                 .output();
@@ -466,7 +471,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
                                 }
                             }
                             let mut photo = Photo::new(filename);
-                            photo.thumbnail = Some(get_asset_path(&thumbnail_path));
+                            photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
                             photo
                         }));
                     }

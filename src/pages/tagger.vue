@@ -252,6 +252,7 @@
         <div class="toolbar-controls">
           <v-combobox
             v-model="query"
+            aria-autocomplete="none"
             chips
             clearable
             density="compact"
