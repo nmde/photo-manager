@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import type { ValidationRule } from 'vuetify';
   import { get_tags } from '@/api/tags';
   import { Tag, type TagData, type TagRec } from '@/classes/Tag';
   import { useFileStore } from '@/stores/fileStore';
@@ -12,6 +13,7 @@
     validation?: string;
     disabled?: boolean;
     filtered?: boolean;
+    rules?: ValidationRule[];
   }>();
 
   const emit = defineEmits<{

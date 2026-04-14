@@ -1,9 +1,11 @@
 <script setup lang="ts">
   import type { Photo } from '@/classes/Photo';
+  import { useRules } from 'vuetify/labs/rules';
   import { photo_grid, refresh, type Sort } from '@/api/app';
   import { useFileStore } from '@/stores/fileStore';
 
   const route = useRoute();
+  const rules = useRules();
 
   const store = useFileStore();
   const { reportError } = store;
@@ -75,47 +77,46 @@
     lastSelectedIndex.value = index;
   }
 
-  const loading = ref(false);
-  const targetTags = ref<string[]>([]);
   const tagAddDialog = ref(false);
   const tagReplaceDialog = ref(false);
 
+  type ReplaceTagFields = {
+    target?: string[];
+    action: 'remove' | 'replace';
+    replacement?: string[];
+  };
+  const replaceTagFields = ref<ReplaceTagFields>({ action: 'remove' });
+
   async function addTags() {
-    loading.value = true;
+    const fields = replaceTagFields.value as Required<ReplaceTagFields>;
     for (const photo of selected.value) {
       const combinedTags = new Set(photo.tags);
-      for (const tag of targetTags.value) {
+      for (const tag of fields.target) {
         combinedTags.add(tag);
       }
       await photo.setTags(combinedTags.values().toArray());
     }
-    loading.value = false;
-    tagAddDialog.value = false;
   }
 
-  const tagAction = ref('replace');
-  const replacementTag = ref<string[]>([]);
   async function replaceTags() {
-    loading.value = true;
-    const tag = targetTags.value[0];
+    const fields = replaceTagFields.value as Required<ReplaceTagFields>;
+    const tag = fields.target[0];
     if (tag) {
       for (const photo of selected.value) {
-        if (tagAction.value === 'remove') {
+        if (fields.action === 'remove') {
           const updatedTags = [...photo.tags];
           updatedTags.splice(updatedTags.indexOf(tag), 1);
           await photo.setTags(updatedTags);
         } else {
           const updatedTags = [...photo.tags];
           updatedTags.splice(updatedTags.indexOf(tag), 1);
-          if (replacementTag.value[0]) {
-            updatedTags.push(replacementTag.value[0]);
+          if (fields.replacement[0]) {
+            updatedTags.push(fields.replacement[0]);
           }
           await photo.setTags(updatedTags);
         }
       }
     }
-    loading.value = false;
-    tagReplaceDialog.value = false;
   }
 
   async function quickGroup(groupName: string) {
@@ -345,7 +346,9 @@
         <v-btn v-else icon @click="showDetail = false">
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
-        <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
+        <template #extension>
+          <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
+        </template>
         <v-spacer />
         <v-btn
           v-if="selected.length > 0"
@@ -367,46 +370,51 @@
       />
     </div>
   </div>
-  <v-dialog v-model="tagAddDialog" max-width="700">
-    <v-card title="Add Tags">
-      <v-card-text>
-        Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
-        <tag-input label="Tag to add" :value="targetTags" @change="tags => (targetTags = tags)" />
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="tagAddDialog = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="loading" @click="addTags()"> Apply Changes </v-btn>
-        </v-card-actions>
-      </v-card-text>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="tagReplaceDialog" max-width="700">
-    <v-card title="Remove or Replace">
-      <v-card-title>Remove and Replace Tags</v-card-title>
-      <v-card-text>
-        Search for a tag to remove (<b>this action will effect {{ selected.length }} photos</b>!)
-        <tag-input label="Tag to find" :value="targetTags" @change="tag => (targetTags = tag)" />
-        <v-radio-group v-model="tagAction">
-          <v-radio label="Remove tag" value="remove" />
-          <v-radio label="Replace tag" value="replace" />
-        </v-radio-group>
-        <div v-if="tagAction === 'replace'">
-          Replace with:
-          <tag-input
-            label="Tag to replace with"
-            :value="replacementTag"
-            @change="tag => (replacementTag = tag)"
-          />
-          Replacing {{ targetTags[0] }} with {{ replacementTag[0] }}.
-        </div>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn color="primary" :loading="loading" @click="replaceTags()"> Apply Changes </v-btn>
-        <v-btn @click="tagReplaceDialog = false">Cancel</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <form-dialog
+    v-model="tagAddDialog"
+    :reset="() => (replaceTagFields = { action: 'remove' })"
+    save-text="Apply Changes"
+    title="Add Tags"
+    @submit="async () => await addTags()"
+  >
+    Add a tag to selected photos (<b>this action will effect {{ selected.length }} photos</b>!)
+    <tag-input
+      label="Tag to add"
+      :rules="[rules.required('A tag to add is required.')]"
+      :value="replaceTagFields.target ?? []"
+      @change="tags => (replaceTagFields.target = tags)"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="tagReplaceDialog"
+    :reset="() => (replaceTagFields = { action: 'remove' })"
+    save-text="Apply Changes"
+    title="Remove or Replace Tags"
+    @submit="async () => await replaceTags()"
+  >
+    Search for a tag to remove (this action will effect <b>{{ selected.length }} photos</b>!)
+    <tag-input
+      label="Tag to find"
+      :rules="[rules.required('A target tag is required.')]"
+      :value="replaceTagFields.target ?? []"
+      @change="tag => (replaceTagFields.target = tag)"
+    />
+    <v-radio-group v-model="replaceTagFields.action">
+      <v-radio label="Remove tag" value="remove" />
+      <v-radio label="Replace tag" value="replace" />
+    </v-radio-group>
+    <div v-if="replaceTagFields.action === 'replace'">
+      Replace with:
+      <tag-input
+        label="Tag to replace with"
+        :rules="[rules.required('A replacement tag is required.')]"
+        :value="replaceTagFields.replacement ?? []"
+        @change="tag => (replaceTagFields.replacement = tag)"
+      />
+      Will replace {{ replaceTagFields.target?.[0] ?? '...' }} with
+      {{ replaceTagFields.replacement?.[0] ?? '...' }}.
+    </div>
+  </form-dialog>
 </template>
 
 <style scoped>

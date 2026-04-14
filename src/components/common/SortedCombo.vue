@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends SortableItem">
   import type { ColorableItem } from '@/classes/ColorableItem';
   import type { SortableItem } from '@/classes/SortableItem';
+  import type { ValidationRule } from 'vuetify';
   import { stringSimilarity } from 'string-similarity-js';
 
   const props = defineProps<{
@@ -19,6 +20,7 @@
     multiple?: boolean;
     sortKey?: keyof T;
     value: string[];
+    rules?: ValidationRule[];
   }>();
 
   const emit = defineEmits<{
@@ -100,6 +102,7 @@
     :label="label"
     :loading="loading"
     :multiple="multiple"
+    :rules="rules"
     @update:focused="val => emit('focused', val)"
     @update:model-value="
       selected => {

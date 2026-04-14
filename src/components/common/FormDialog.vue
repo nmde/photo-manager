@@ -3,10 +3,14 @@
 
   defineProps<{
     title: string;
+    saveText?: string;
+    reset: () => void;
   }>();
 
+  const saving = ref(false);
+
   const emit = defineEmits<{
-    (e: 'submit'): void;
+    (e: 'submit'): Promise<void>;
   }>();
 </script>
 
@@ -18,7 +22,11 @@
         @submit.prevent="
           async event => {
             if (await event) {
-              emit('submit');
+              saving = true;
+              await emit('submit');
+              saving = false;
+              reset();
+              model = false;
             }
           }
         "
@@ -27,7 +35,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn @click="model = false">Cancel</v-btn>
-          <v-btn color="primary" type="submit">Save</v-btn>
+          <v-btn color="primary" :loading="saving" type="submit">{{ saveText ?? 'Save' }}</v-btn>
         </v-card-actions>
       </v-form>
     </v-card>

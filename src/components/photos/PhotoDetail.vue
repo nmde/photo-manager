@@ -5,12 +5,14 @@
   import type { Photo, PhotoData } from '@/classes/Photo';
   import type { PlaceRec } from '@/classes/Place';
   import { VideoPlayer } from '@videojs-player/vue';
+  import { useRules } from 'vuetify/labs/rules';
   import { get_people, get_people_categories } from '@/api/people';
   import { get_layers, get_places } from '@/api/places';
   import { useFileStore } from '@/stores/fileStore';
   import 'video.js/dist/video-js.css';
 
   const router = useRouter();
+  const rules = useRules();
   const store = useFileStore();
   const { reportError, setLastDate } = store;
   const { lastSetDate } = storeToRefs(store);
@@ -307,50 +309,41 @@
       </v-card-text>
     </v-card>
   </v-dialog>
-  <v-dialog v-model="setPhotoDialog">
-    <v-card title="Set Profile Photo">
-      <v-card-text>
-        Preview:
-        <v-avatar size="128">
-          <v-img :src="photoPath" />
-        </v-avatar>
-        <v-avatar size="48">
-          <v-img :src="photoPath" />
-        </v-avatar>
-        <br />
-        <sorted-combo
-          :id="photo.name"
-          avatars
-          chips
-          color-key="category"
-          :color-repo="peopleCategories"
-          item-size="x-large"
-          :items="people"
-          label="Profile Photo"
-          :value="setPhotoTarget"
-          @focused="val => emit('input-focused', val)"
-          @update="value => (setPhotoTarget = value)"
-        />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="setPhotoDialog = false">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          @click="
-            async () => {
-              if (setPhotoTarget[0]) {
-                await people[setPhotoTarget[0]]?.setPhoto(photoPath);
-              }
-              setPhotoDialog = false;
-              setPhotoTarget = [];
-            }
-          "
-        >
-          Save
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <form-dialog
+    v-model="setPhotoDialog"
+    :reset="() => setPhotoTarget = []"
+    title="Set As Profile Photo"
+    @submit="
+      async () => {
+        if (setPhotoTarget[0]) {
+          await people[setPhotoTarget[0]]?.setPhoto(photoPath);
+        }
+      }
+    "
+  >
+    Preview:
+    <v-avatar size="128">
+      <v-img :src="photoPath" />
+    </v-avatar>
+    <v-avatar size="48">
+      <v-img :src="photoPath" />
+    </v-avatar>
+    <br />
+    <sorted-combo
+      :id="photo.name"
+      avatars
+      chips
+      color-key="category"
+      :color-repo="peopleCategories"
+      item-size="x-large"
+      :items="people"
+      label="Profile Photo"
+      :rules="[rules.required()]"
+      :value="setPhotoTarget"
+      @focused="val => emit('input-focused', val)"
+      @update="value => (setPhotoTarget = value)"
+    />
+  </form-dialog>
 </template>
 
 <style scoped>

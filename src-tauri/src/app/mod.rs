@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     fmt::{self, Display, Formatter},
     fs::File,
     io::BufReader,
@@ -11,8 +11,8 @@ use std::{
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use diesel::{
-    debug_query, delete, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
-    QueryDsl, SqliteConnection, TextExpressionMethods,
+    debug_query, delete, dsl::update, insert_into, BoolExpressionMethods, Connection,
+    ExpressionMethods, QueryDsl, SqliteConnection, TextExpressionMethods,
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
@@ -413,7 +413,38 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 continue;
             }
             if existing.contains_key(&filename) {
-                let existing_photo = existing.get(&filename.to_string()).unwrap();
+                let existing_photo = existing.get_mut(&filename.to_string()).unwrap();
+                // Check if the photo is supposed to have a thumbnail but doesn't
+                // This accounts for updates to the list of recognized raw & video extensions, or the computer running out of space while generating thumbnails
+                if existing_photo.thumbnail.is_none()
+                    && (existing_photo.is_raw() || existing_photo.is_video())
+                {
+                    warn!(
+                        "{} should have a thumbnail, but a thumbnail is not set",
+                        existing_photo.name
+                    );
+                    let thumbnail_path_str =
+                        thumbnail_dir.join(clean_thumbnail_path(&existing_photo.name));
+                    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+                    let thumbnail_path = Path::new(&thumbnail_path_str);
+                    debug!("Expected thumbnail path: {thumbnail_path_str}");
+                    if thumbnail_path.exists() {
+                        let thumbnail_asset = get_asset_path(&thumbnail_path_str);
+                        existing_photo.thumbnail = Some(thumbnail_asset.clone());
+                        let mut conn = DB.lock().await;
+                        let conn = conn.as_mut().unwrap();
+                        update(photos::table.filter(photos::name.eq(existing_photo.name.clone())))
+                            .set(photos::thumbnail.eq(thumbnail_asset.clone()))
+                            .execute(conn)
+                            .await?;
+                        debug!(
+                            "Set thumbnail for {} to existing file {thumbnail_asset}",
+                            existing_photo.name
+                        );
+                    } else {
+                        debug!("Need to generate new thumbnail for {}", existing_photo.name);
+                    }
+                }
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
                 existing.remove(&filename.to_string());
             } else {
@@ -424,6 +455,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
                         moved_thumbnail_dir.join(clean_thumbnail_path(&filename));
                     let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
                     let thumbnail_path = Path::new(&thumbnail_path_str);
+                    // TODO - A lot of thumbnails for HEIC files are not getting successfully set on the first pass here
                     if RAW.is_match(&filename.to_uppercase()) {
                         if !thumbnail_path.exists() {
                             debug!("Generating thumbnail for raw {filename}");
@@ -582,6 +614,16 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     let mut tag_counts = TAG_COUNTS.lock().unwrap();
     let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
 
+    *layers = HashMap::<String, Layer>::new();
+    *places = HashMap::<String, Place>::new();
+    *tags = HashMap::<String, Tag>::new();
+    *people = HashMap::<String, People>::new();
+    *loaded_photos = HashMap::<String, Photo>::new();
+    *layer_counts = HashMap::<String, usize>::new();
+    *place_counts = HashMap::<String, usize>::new();
+    *tag_counts = HashMap::<String, usize>::new();
+    *people_counts = HashMap::<String, usize>::new();
+
     for layer in layers_data {
         layer_counts.insert(layer.id.clone(), 0);
         layers.insert(layer.id.clone(), layer);
@@ -729,7 +771,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 }
             }
         } else if term_matches(&tmp_term, "NAME:") {
-            let name = try_get_term(&tmp_term, 5)?;
+            let name = format!("%{}%", try_get_term(&tmp_term, 5)?);
             if negated {
                 statement = statement.filter(photos::name.not_like(name));
             } else {
@@ -804,8 +846,15 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect::<HashMap<String, Person>>();
+    let mut encountered_groups = HashSet::<String>::new();
     if unmet_terms.len() > 0 {
         for photo in photo_records {
+            let group = photo.photo_group.clone();
+            if group.is_some()
+                && encountered_groups.contains(group.as_ref().unwrap())
+            {
+                continue;
+            }
             let mut meets_terms = true;
             for term in &unmet_terms {
                 let mut chars = term.chars();
@@ -896,6 +945,9 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 }
             }
             if meets_terms {
+                if group.is_some() {
+                    encountered_groups.insert(group.unwrap());
+                }
                 if sort == Sort::Name || sort == Sort::NameDesc {
                     match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
                         Ok(_pos) => {}

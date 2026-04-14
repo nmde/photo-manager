@@ -1,5 +1,4 @@
 <script setup lang="ts">
-  import type { SubmitEventPromise } from 'vuetify';
   import { v4 as uuid } from 'uuid';
   import { useRules } from 'vuetify/labs/rules';
   import {
@@ -31,7 +30,7 @@
   const newPlaceMapEl = ref<HTMLDivElement>();
   const mapInitialized = ref(false);
   const layers = ref<LayerRec>({});
-  const targetLayer = ref('');
+  const targetLayer = ref<string>();
   const drawMode = ref(false);
   const tmpShape = ref<Position[]>([]);
   const tmpShapeType = ref<ShapeType>('line');
@@ -153,40 +152,36 @@
     return shape;
   }
 
-  async function createPlace(event: SubmitEventPromise) {
-    missingNewPlaceLoc.value = placeFields.value.position === undefined;
-    if ((await event) && placeFields.value.position !== undefined) {
-      const id = uuid();
-      const fields = placeFields.value as Required<PlaceFields>;
-      await create_place(
-        id,
-        fields.name,
-        fields.position.lat,
-        fields.position.lng,
-        targetLayer.value,
-        fields.category,
-      );
-      const place = new Place(
-        id,
-        fields.name,
-        fields.position.lat,
-        fields.position.lng,
-        targetLayer.value,
-        fields.category,
-        null,
-        0,
-      );
-      places.value[id] = place;
-      map.createMarker(
-        locToString(fields.position),
-        id,
-        fields.category,
-        layers.value[targetLayer.value]?.color,
-        fields.name,
-      );
-      createDialog.value = false;
-      placeFields.value = {};
-    }
+  async function createPlace() {
+    const id = uuid();
+    const fields = placeFields.value as Required<PlaceFields>;
+    await create_place(
+      id,
+      fields.name,
+      fields.position.lat,
+      fields.position.lng,
+      targetLayer.value,
+      fields.category,
+    );
+    const place = new Place(
+      id,
+      fields.name,
+      fields.position.lat,
+      fields.position.lng,
+      targetLayer.value,
+      fields.category,
+      null,
+      0,
+    );
+    places.value[id] = place;
+    map.createMarker(
+      locToString(fields.position),
+      id,
+      fields.category,
+      layers.value[targetLayer.value]?.color,
+      fields.name,
+    );
+    placeFields.value = {};
   }
 
   async function deletePlace(place: Place) {
@@ -301,16 +296,12 @@
     }
   }
 
-  async function createLayer(event: SubmitEventPromise) {
-    missingLayerColor.value = layerFields.value.color === undefined;
-    if ((await event) && layerFields.value.color !== undefined) {
-      const fields = layerFields.value as Required<LayerFields>;
-      const id = uuid();
-      await create_layer(id, fields.name, fields.color);
-      layers.value[id] = new Layer(id, fields.name, fields.color, 0);
-      layerDialog.value = false;
-      layerFields.value = {};
-    }
+  async function createLayer() {
+    const fields = layerFields.value as Required<LayerFields>;
+    const id = uuid();
+    await create_layer(id, fields.name, fields.color);
+    layers.value[id] = new Layer(id, fields.name, fields.color, 0);
+    layerFields.value = {};
   }
 
   function placesByLayer(layer: LayerData['id']) {
@@ -688,109 +679,107 @@
       </v-col>
     </v-row>
   </v-container>
-  <v-dialog v-model="createDialog" max-width="80vw">
-    <v-card :title="`Add a Location to ${layers[targetLayer]?.name ?? '...'}`">
-      <v-form validate-on="submit" @submit.prevent="createPlace">
-        <v-card-text>
-          <v-select
-            v-model="targetLayer"
-            color="primary"
-            item-title="name"
-            item-value="id"
-            :items="Object.values(layers)"
-            label="Layer"
-            :rules="[rules.required('A layer is required.')]"
-          />
-          <v-text-field
-            v-model="placeFields.name"
-            color="primary"
-            label="Name"
-            :rules="[rules.required('A place name is required.')]"
-          />
-          Category:
-          <v-select
-            v-model="placeFields.category"
-            color="primary"
-            :items="categories"
-            :rules="[rules.required('A category is required.')]"
-          />
-          <br />
-          <div class="map-container">
-            <div ref="newPlaceMapEl" class="map" />
-          </div>
-          <error-hint :message="missingNewPlaceLoc ? 'A location is required.' : undefined" />
-          <br />
-          Selected position: {{ placeFields.position }}<br />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="createDialog = false">Cancel</v-btn>
-          <v-btn color="primary" type="submit">Save</v-btn>
-        </v-card-actions>
-      </v-form>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="shapeDialog" max-width="80vw">
-    <v-card :title="`Create a ${tmpShapeType}`">
-      <v-form
-        validate-on="submit"
-        @submit.prevent="
-          async event => {
-            if (await event) {
-              tmpShape = [];
-              drawMode = true;
-              shapeDialog = false;
-            }
-          }
-        "
-      >
-        <v-card-text>
-          <v-text-field
-            v-model="shapeName"
-            label="Name"
-            :rules="[rules.required('A shape name is required.')]"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="shapeDialog = false">Cancel</v-btn>
-          <v-btn color="primary" type="submit">Create</v-btn>
-        </v-card-actions>
-      </v-form>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="layerDialog" max-width="80vw">
-    <v-card title="Create Layer">
-      <v-form validate-on="submit" @submit.prevent="createLayer">
-        <v-card-text>
-          <v-text-field
-            v-model="layerFields.name"
-            color="primary"
-            label="Name"
-            :rules="[rules.required('Layer name is required')]"
-          />
-          <color-options
-            :error="missingLayerColor"
-            :value="layerFields.color"
-            @select="color => (layerFields.color = color ?? '')"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn color="primary" type="submit">Create Layer</v-btn>
-        </v-card-actions>
-      </v-form>
-    </v-card>
-  </v-dialog>
+  <form-dialog
+    v-model="createDialog"
+    :reset="
+      () => {
+        targetLayer = undefined;
+        placeFields = {};
+      }
+    "
+    :title="`Add a Location to ${targetLayer ? (layers[targetLayer]?.name ?? '...') : '...'}`"
+    @submit="
+      async () => {
+        missingNewPlaceLoc = placeFields.position === undefined;
+        if (!missingNewPlaceLoc) {
+          await createPlace();
+        }
+      }
+    "
+  >
+    <v-select
+      v-model="targetLayer"
+      color="primary"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(layers)"
+      label="Layer"
+      :rules="[rules.required('A layer is required.')]"
+    />
+    <v-text-field
+      v-model="placeFields.name"
+      color="primary"
+      label="Name"
+      :rules="[rules.required('A place name is required.')]"
+    />
+    Category:
+    <v-select
+      v-model="placeFields.category"
+      color="primary"
+      :items="categories"
+      :rules="[rules.required('A category is required.')]"
+    />
+    <br />
+    <div class="map-container">
+      <div ref="newPlaceMapEl" class="map" />
+    </div>
+    <error-hint :message="missingNewPlaceLoc ? 'A location is required.' : undefined" />
+    <br />
+    Selected position: {{ placeFields.position }}<br />
+  </form-dialog>
+  <form-dialog
+    v-model="shapeDialog"
+    :reset="() => (shapeName = '')"
+    :title="`Create a ${tmpShapeType}`"
+    @submit="
+      () => {
+        tmpShape = [];
+        drawMode = true;
+        shapeDialog = false;
+      }
+    "
+  >
+    <v-text-field
+      v-model="shapeName"
+      label="Name"
+      :rules="[rules.required('A shape name is required.')]"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="layerDialog"
+    :reset="() => (layerFields = {})"
+    title="Create Layer"
+    @submit="
+      async () => {
+        missingLayerColor = layerFields.color === undefined;
+        if (!missingLayerColor) {
+          await createLayer();
+        }
+      }
+    "
+  >
+    <v-text-field
+      v-model="layerFields.name"
+      color="primary"
+      label="Name"
+      :rules="[rules.required('Layer name is required')]"
+    />
+    <color-options
+      :error="missingLayerColor"
+      :value="layerFields.color"
+      @select="color => (layerFields.color = color ?? '')"
+    />
+  </form-dialog>
   <form-dialog
     v-model="changeLayerDialog"
+    :reset="() => (targetLayer = undefined)"
     title="Change Layer"
     @submit="
       async () => {
         if (changeTarget === 'Place') {
-          await set_place_layer(targetPlace, targetLayer);
+          await set_place_layer(targetPlace, targetLayer as string);
         } else {
-          await set_shape_layer(targetShape, targetLayer);
+          await set_shape_layer(targetShape, targetLayer as string);
         }
       }
     "

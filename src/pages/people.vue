@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import type { Person, PersonRec } from '@/classes/Person';
   import { v4 as uuid } from 'uuid';
+  import { useRules } from 'vuetify/labs/rules';
   import {
     create_person,
     create_person_category,
@@ -10,18 +11,27 @@
   import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
 
   const router = useRouter();
+  const rules = useRules();
 
   const editing = ref(false);
   const editTarget = ref<Person>();
   const addDialog = ref(false);
-  const addName = ref('');
-  const addCategory = ref('');
   const addCategoryDialog = ref(false);
-  const addCategoryName = ref('');
-  const addCategoryColor = ref('');
-  const saving = ref(false);
   const localCategories = ref<PersonCategoryRec>({});
   const localPeople = ref<PersonRec>({});
+  const missingCategoryColor = ref(false);
+
+  type AddPersonFields = {
+    name?: string;
+    category?: string;
+  };
+  const addPersonFields = ref<AddPersonFields>({});
+
+  type AddCategoryFields = {
+    name?: string;
+    color?: string;
+  };
+  const addCategoryFields = ref<AddCategoryFields>({});
 
   const personCardWidth = 64;
   const personCardHeight = 212;
@@ -44,21 +54,17 @@
   });
 
   async function savePerson() {
-    saving.value = true;
+    const fields = addPersonFields.value as Required<AddPersonFields>;
     if (editing && editTarget.value) {
-      if (addName.value !== editTarget.value.name) {
-        await editTarget.value.setName(addName.value);
+      if (fields.name !== editTarget.value.name) {
+        await editTarget.value.setName(fields.name);
       }
-      if (addCategory.value !== editTarget.value.category) {
-        await editTarget.value.setCategory(addCategory.value);
+      if (fields.category !== editTarget.value.category) {
+        await editTarget.value.setCategory(fields.category);
       }
     } else {
-      await create_person(uuid(), addName.value, addCategory.value);
+      await create_person(uuid(), fields.name, fields.category);
     }
-    saving.value = false;
-    addDialog.value = false;
-    addName.value = '';
-    addCategory.value = '';
   }
 
   onMounted(async () => {
@@ -117,8 +123,7 @@
                           () => {
                             editing = true;
                             editTarget = person;
-                            addName = person.name;
-                            addCategory = person.category;
+                            addPersonFields = person;
                             addDialog = true;
                           }
                         "
@@ -146,58 +151,53 @@
       </v-expansion-panel-text>
     </v-expansion-panel>
   </v-expansion-panels>
-  <v-dialog v-model="addCategoryDialog">
-    <v-card>
-      <v-card-title>Add Category</v-card-title>
-      <v-card-text>
-        <v-text-field v-model="addCategoryName" label="Name" />
-        <color-options
-          :value="addCategoryColor"
-          @select="color => (addCategoryColor = color ?? '')"
-        />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="addCategoryDialog = false">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          @click="
-            async () => {
-              const id = uuid();
-              await create_person_category(id, addCategoryName, addCategoryColor);
-              localCategories[id] = new PersonCategory(id, addCategoryName, addCategoryColor);
-              addCategoryDialog = false;
-              addCategoryName = '';
-              addCategoryColor = '';
-            }
-          "
-        >
-          Save
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="addDialog">
-    <v-card :title="`${editing ? 'Edit' : 'Add'} Person`">
-      <v-card-text>
-        <v-text-field v-model="addName" color="primary" label="Name" />
-        <v-select
-          v-model="addCategory"
-          item-title="name"
-          item-value="id"
-          :items="Object.values(localCategories)"
-          label="Category"
-        >
-          <template #item="{ props, item }">
-            <v-list-item v-bind="props" :base-color="item.color" />
-          </template>
-        </v-select>
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="addDialog = false">Cancel</v-btn>
-        <v-btn color="primary" :loading="saving" @click="async () => savePerson()">Save</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <form-dialog
+    v-model="addCategoryDialog"
+    :reset="() => (addCategoryFields = {})"
+    title="Add Category"
+    @submit="
+      async () => {
+        missingCategoryColor = addCategoryFields.color === undefined;
+        if (!missingCategoryColor) {
+          const id = uuid();
+          const fields = addCategoryFields as Required<AddCategoryFields>;
+          await create_person_category(id, fields.name, fields.color);
+          localCategories[id] = new PersonCategory(id, fields.name, fields.color);
+        }
+      }
+    "
+  >
+    <v-text-field
+      v-model="addCategoryFields.name"
+      label="Name"
+      :rules="[rules.required('A name is required.')]"
+    />
+    <color-options
+      :error="missingCategoryColor"
+      :value="addCategoryFields.color"
+      @select="color => (addCategoryFields.color = color ?? undefined)"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="addDialog"
+    :reset="() => (addPersonFields = {})"
+    :title="`${editing ? 'Edit' : 'Add'} Person`"
+    @submit="async () => savePerson()"
+  >
+    <v-text-field v-model="addPersonFields.name" color="primary" label="Name" />
+    <v-select
+      v-model="addPersonFields.category"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(localCategories)"
+      label="Category"
+      :rules="[rules.required('A category is required.')]"
+    >
+      <template #item="{ props, item }">
+        <v-list-item v-bind="props" :base-color="item.color" />
+      </template>
+    </v-select>
+  </form-dialog>
 </template>
 
 <style scoped>
