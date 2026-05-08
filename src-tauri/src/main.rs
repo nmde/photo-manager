@@ -72,6 +72,7 @@ async fn setup_logger() -> Result<()> {
 async fn main() {
     setup_logger().await.expect("Failed to initialize logger");
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             create_person,

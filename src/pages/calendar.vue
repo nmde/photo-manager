@@ -156,7 +156,7 @@
         <template #day="{ date }">
           <div class="calendar-photos">
             <photo-icon
-              v-for="photo in getPhotosByDate(date).slice(0, 4)"
+              v-for="photo in getPhotosByDate(date).slice(0, 2)"
               :key="photo.name"
               hide-icons
               :photo="photo as Photo"
@@ -216,7 +216,7 @@
 
 <style scoped>
   .calendar-page {
-    height: 100%;
+    height: 100vh;
     overflow-y: scroll;
   }
 

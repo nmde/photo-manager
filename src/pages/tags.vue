@@ -11,7 +11,7 @@
   const selected = ref<string[]>([]);
   const tags = ref<TagRec>({});
   const query = ref('');
-  const graphContainer = ref<HTMLDivElement | null>();
+  const graphContainer = useTemplateRef('graphContainer');
   const graphWidth = ref(0);
   const graphHeight = ref(0);
   const changeCounter = ref(0);

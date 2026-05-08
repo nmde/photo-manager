@@ -45,27 +45,25 @@
 </script>
 
 <template>
-  <div ref="photoScroller">
-    <v-virtual-scroll
-      :height="scrollerHeight"
-      :item-height="size"
-      :items="photoRows"
-      :width="adjustedWidth"
-    >
-      <template #default="{ item, index }">
-        <div class="photo-row">
-          <photo-icon
-            v-for="(photo, j) in item"
-            :key="photo.name"
-            :photo="photo"
-            :size="size"
-            :selected="selected.findIndex(p => p.name === photo.name) >= 0"
-            @select="emit('select', photo, index * itemsPerRow + j)"
-          />
-        </div>
-      </template>
-    </v-virtual-scroll>
-  </div>
+  <v-virtual-scroll
+    :height="scrollerHeight"
+    :item-height="size"
+    :items="photoRows"
+    :width="adjustedWidth"
+  >
+    <template #default="{ item, index }">
+      <div class="photo-row">
+        <photo-icon
+          v-for="(photo, j) in item"
+          :key="photo.name"
+          :photo="photo"
+          :size="size"
+          :selected="selected.findIndex(p => p.name === photo.name) >= 0"
+          @select="emit('select', photo, index * itemsPerRow + j)"
+        />
+      </div>
+    </template>
+  </v-virtual-scroll>
 </template>
 
 <style scoped>

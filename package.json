@@ -29,6 +29,7 @@
     "@mdi/font": "^7.4.47",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-opener": "^2.5.3",
     "@videojs-player/vue": "^1.0.0",
     "d3": "^7.9.0",
     "ee-ts": "^1.0.2",

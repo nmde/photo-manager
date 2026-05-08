@@ -350,6 +350,71 @@ async fn create_photo(_photo: &Photo) -> Result<Photo> {
     Ok(photo)
 }
 
+fn generate_thumbnail(filename: &String, thumbnail_dir: &PathBuf) -> Result<String> {
+    let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(&filename));
+    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+    let thumbnail_path = Path::new(&thumbnail_path_str);
+    // TODO - A lot of thumbnails for HEIC files are not getting successfully set on the first pass here
+    if RAW.is_match(&filename.to_uppercase()) {
+        if !thumbnail_path.exists() {
+            debug!("Generating thumbnail for raw {filename}");
+            let output = Command::new("magick")
+                .args([&filename, &thumbnail_path_str])
+                .stderr(Stdio::piped())
+                .output();
+            if output.is_err() {
+                return Err(anyhow!(
+                    "ERROR: Could not generate thumbnail for {0}: {1}",
+                    &filename.to_string(),
+                    &output.err().unwrap().to_string()
+                ));
+            } else {
+                let stderr = output.unwrap().stderr;
+                if stderr.len() > 0 {
+                    return Err(anyhow!(
+                        "magick error: {}",
+                        String::from_utf8(stderr).ok().unwrap_or_default()
+                    ));
+                }
+            }
+        }
+    } else if VIDEO.is_match(&filename.to_uppercase()) {
+        if !thumbnail_path.exists() {
+            debug!("Generating thumbnail for video {filename}");
+            let output = Command::new("ffmpeg")
+                .args([
+                    "-i",
+                    &filename.to_string(),
+                    "-ss",
+                    "00:00:00.00",
+                    "-frames:v",
+                    "1",
+                    "-update",
+                    "1",
+                    &thumbnail_path_str,
+                ])
+                .stderr(Stdio::piped())
+                .output();
+            if output.is_err() {
+                return Err(anyhow!(
+                    "ERROR: Could not generate thumbnail for {0}: {1}",
+                    &filename.to_string(),
+                    &output.err().unwrap().to_string()
+                ));
+            } else {
+                let stderr = output.unwrap().stderr;
+                if stderr.len() > 0 {
+                    return Err(anyhow!(
+                        "ffmpeg error: {}",
+                        String::from_utf8(stderr).ok().unwrap_or_default()
+                    ));
+                }
+            }
+        }
+    }
+    Ok(get_asset_path(&thumbnail_path_str))
+}
+
 async fn load_photos() -> Result<LoadedPhotos> {
     let path = OPEN_FOLDER.lock().await;
     if path.is_none() {
@@ -414,6 +479,10 @@ async fn load_photos() -> Result<LoadedPhotos> {
             }
             if existing.contains_key(&filename) {
                 let existing_photo = existing.get_mut(&filename.to_string()).unwrap();
+                let thumbnail_path_str =
+                    thumbnail_dir.join(clean_thumbnail_path(&existing_photo.name));
+                let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+                let thumbnail_path = Path::new(&thumbnail_path_str);
                 // Check if the photo is supposed to have a thumbnail but doesn't
                 // This accounts for updates to the list of recognized raw & video extensions, or the computer running out of space while generating thumbnails
                 if existing_photo.thumbnail.is_none()
@@ -423,11 +492,6 @@ async fn load_photos() -> Result<LoadedPhotos> {
                         "{} should have a thumbnail, but a thumbnail is not set",
                         existing_photo.name
                     );
-                    let thumbnail_path_str =
-                        thumbnail_dir.join(clean_thumbnail_path(&existing_photo.name));
-                    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
-                    let thumbnail_path = Path::new(&thumbnail_path_str);
-                    debug!("Expected thumbnail path: {thumbnail_path_str}");
                     if thumbnail_path.exists() {
                         let thumbnail_asset = get_asset_path(&thumbnail_path_str);
                         existing_photo.thumbnail = Some(thumbnail_asset.clone());
@@ -442,7 +506,26 @@ async fn load_photos() -> Result<LoadedPhotos> {
                             existing_photo.name
                         );
                     } else {
-                        debug!("Need to generate new thumbnail for {}", existing_photo.name);
+                        debug!("Regenerating thumbnail for {}", existing_photo.name);
+                        let thumb_res = generate_thumbnail(&filename, &thumbnail_dir);
+                        if thumb_res.is_err() {
+                            error!(
+                                "Failed to generate thumbnail for {0}: {1}",
+                                existing_photo.name,
+                                thumb_res.err().unwrap()
+                            );
+                        }
+                    }
+                // Check if the photo has a thumbnail set, but the file doesn't exist
+                } else if existing_photo.thumbnail.is_some() && !thumbnail_path.exists() {
+                    debug!("Regenerating thumbnail for {}", existing_photo.name);
+                    let thumb_res = generate_thumbnail(&filename, &thumbnail_dir);
+                    if thumb_res.is_err() {
+                        error!(
+                            "Failed to generate thumbnail for {0}: {1}",
+                            existing_photo.name,
+                            thumb_res.err().unwrap()
+                        );
                     }
                 }
                 photos.insert(existing_photo.name.clone(), existing_photo.clone());
@@ -451,66 +534,15 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 let moved_thumbnail_dir = thumbnail_dir.clone();
                 threads.push(pool.complete(async move {
                     let mut photo = Photo::new(filename.clone());
-                    let thumbnail_path_str =
-                        moved_thumbnail_dir.join(clean_thumbnail_path(&filename));
-                    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
-                    let thumbnail_path = Path::new(&thumbnail_path_str);
-                    // TODO - A lot of thumbnails for HEIC files are not getting successfully set on the first pass here
-                    if RAW.is_match(&filename.to_uppercase()) {
-                        if !thumbnail_path.exists() {
-                            debug!("Generating thumbnail for raw {filename}");
-                            let output = Command::new("magick")
-                                .args([&filename, &thumbnail_path_str])
-                                .stderr(Stdio::piped())
-                                .output();
-                            if output.is_err() {
-                                error!(
-                                    "ERROR: Could not generate thumbnail for {0}: {1}",
-                                    &filename.to_string(),
-                                    &output.err().unwrap().to_string()
-                                );
-                            } else {
-                                let stderr = output.unwrap().stderr;
-                                if stderr.len() > 0 {
-                                    error!(
-                                        "ffmpeg error: {}",
-                                        String::from_utf8(stderr).ok().unwrap_or_default()
-                                    );
-                                }
-                            }
-                            photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
-                        }
-                    } else if VIDEO.is_match(&filename.to_uppercase()) {
-                        if !thumbnail_path.exists() {
-                            debug!("Generating thumbnail for video {filename}");
-                            let output = Command::new("ffmpeg")
-                                .args([
-                                    "-i",
-                                    &filename.to_string(),
-                                    "-ss",
-                                    "00:00:01.00",
-                                    "-vframes",
-                                    "1",
-                                    &thumbnail_path_str,
-                                ])
-                                .stderr(Stdio::piped())
-                                .output();
-                            if output.is_err() {
-                                error!(
-                                    "ERROR: Could not generate thumbnail for {0}: {1}",
-                                    &filename.to_string(),
-                                    &output.err().unwrap().to_string()
-                                );
-                            } else {
-                                let stderr = output.unwrap().stderr;
-                                if stderr.len() > 0 {
-                                    error!(
-                                        "ffmpeg error: {}",
-                                        String::from_utf8(stderr).ok().unwrap_or_default()
-                                    );
-                                }
-                            }
-                            photo.thumbnail = Some(get_asset_path(&thumbnail_path_str));
+                    if RAW.is_match(&filename) || VIDEO.is_match(&filename) {
+                        let thumb_res = generate_thumbnail(&filename, &moved_thumbnail_dir);
+                        if thumb_res.is_ok() {
+                            photo.thumbnail = Some(thumb_res.unwrap());
+                        } else {
+                            error!(
+                                "Failed to generate thumbnail for {filename}: {}",
+                                thumb_res.err().unwrap()
+                            );
                         }
                     }
                     Ok(create_photo(&photo).await?)
@@ -617,8 +649,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     *layers = HashMap::<String, Layer>::new();
     *places = HashMap::<String, Place>::new();
     *tags = HashMap::<String, Tag>::new();
-    *people = HashMap::<String, People>::new();
-    *loaded_photos = HashMap::<String, Photo>::new();
+    *people = HashMap::<String, Person>::new();
     *layer_counts = HashMap::<String, usize>::new();
     *place_counts = HashMap::<String, usize>::new();
     *tag_counts = HashMap::<String, usize>::new();
@@ -836,9 +867,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
     let photo_records = statement.load::<Photo>(conn).await?;
     debug!("Query returned {} photos", photo_records.len());
 
-    // I *want* to use SQL ORDER BY to sort the results, but it seems the results lose their order somewhere in the above statement
-    // TODO test again with sql ordering
-
     // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
     let people = people::table
         .load::<Person>(conn)
@@ -849,13 +877,11 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
     let mut encountered_groups = HashSet::<String>::new();
     if unmet_terms.len() > 0 {
         for photo in photo_records {
-            let group = photo.photo_group.clone();
-            if group.is_some()
-                && encountered_groups.contains(group.as_ref().unwrap())
-            {
-                continue;
-            }
             let mut meets_terms = true;
+            let group = photo.photo_group.clone();
+            if group.is_some() && encountered_groups.contains(group.as_ref().unwrap()) {
+                meets_terms = false;
+            }
             for term in &unmet_terms {
                 let mut chars = term.chars();
                 let negated = term.get(0..1).unwrap() == "-";

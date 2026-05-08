@@ -134,7 +134,7 @@
     refreshing.value = false;
   }
 
-  const gridSection = ref<HTMLDivElement>();
+  const gridSection = useTemplateRef('gridSection');
   const photoGridWidth = ref(0);
   const ctrlPressed = ref(false);
   const shiftPressed = ref(false);
@@ -347,7 +347,7 @@
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
         <template #extension>
-          <v-toolbar-title class="photo-name">{{ selected[current]?.name }}</v-toolbar-title>
+          <v-toolbar-title class="photo-name">&nbsp;{{ selected[current]?.name }}</v-toolbar-title>
         </template>
         <v-spacer />
         <v-btn

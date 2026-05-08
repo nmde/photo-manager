@@ -38,6 +38,21 @@
     typeof props.itemKey === 'string' ? (props.itemKey as keyof SortableItem) : 'id',
   );
 
+  function exactMatch(a: string, b: string) {
+    let count = 0;
+    let valid = true;
+    let i = 0;
+    while (valid && i < a.length) {
+      if (a[i] === b[i]) {
+        count += 1;
+      } else {
+        valid = false;
+      }
+      i += 1;
+    }
+    return count;
+  }
+
   const itemList = computed(() => {
     const items = Object.values(props.items).toSorted(
       (a, b) => (b[sortBy.value] as number) - (a[sortBy.value] as number),
@@ -48,6 +63,7 @@
     return items
       .entries()
       .map(([i, item]) => ({
+        exact: exactMatch(query.value, item.name ?? ''),
         value: stringSimilarity(query.value, item.name ?? ''),
         index: i,
         count: item[sortBy.value],
@@ -55,6 +71,7 @@
       .toArray()
       .filter(i => i.value > 0)
       .toSorted((a, b) => b.value - a.value)
+      .toSorted((a, b) => b.exact - a.exact)
       .map(s => items[s.index]?.[k.value]);
   });
 

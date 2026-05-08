@@ -4,6 +4,7 @@
   import type { PersonCategoryRec } from '@/classes/PersonCategory';
   import type { Photo, PhotoData } from '@/classes/Photo';
   import type { PlaceRec } from '@/classes/Place';
+  import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
   import { VideoPlayer } from '@videojs-player/vue';
   import { useRules } from 'vuetify/labs/rules';
   import { get_people, get_people_categories } from '@/api/people';
@@ -254,17 +255,37 @@
       @focused="val => emit('input-focused', val)"
       @save="description => photo.setDescription(description)"
     />
-    <v-date-input
-      v-model="date"
-      aria-autocomplete="none"
-      clearable
-      color="primary"
-      label="Date"
-      :loading="savingDate"
-      :month="focusDate.getMonth()"
-      :year="focusDate.getFullYear()"
-      @update:model-value="date => saveDate(date)"
-    />
+    <v-container>
+      <v-row>
+        <v-col>
+          <v-date-input
+            v-model="date"
+            aria-autocomplete="none"
+            clearable
+            color="primary"
+            label="Date"
+            :loading="savingDate"
+            :month="focusDate.getMonth()"
+            :year="focusDate.getFullYear()"
+            @update:model-value="date => saveDate(date)"
+          >
+            <template #append>
+              <v-menu>
+                <template #activator="{ props: vprops }">
+                  <v-btn v-bind="vprops" icon variant="flat">
+                    <v-icon>mdi-dots-vertical</v-icon>
+                  </v-btn>
+                </template>
+                <v-list>
+                  <v-list-item>Search This Date</v-list-item>
+                  <v-list-item>Show In Calendar</v-list-item>
+                </v-list>
+              </v-menu>
+            </template>
+          </v-date-input>
+        </v-col>
+      </v-row>
+    </v-container>
     <v-alert v-if="photo.metaDate !== null" :type="photo.date === null ? 'info' : undefined">
       File date: {{ photo.metaDate }}
       <v-btn
@@ -287,12 +308,32 @@
       label="Duplicate"
       @update:model-value="isDuplicate => photo.setDuplicate(isDuplicate ?? false)"
     />
-    <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
     <v-checkbox
       v-model="hideThumbnail"
       label="Hide Thumbnail"
       @update:model-value="hideThumbnail => photo.setHideThumbnail(hideThumbnail ?? false)"
     />
+    <v-btn @click="setPhotoDialog = true">Set As Profile Photo</v-btn>
+    <v-btn
+      color="primary"
+      @click="
+        async () => {
+          await openPath(photo.name);
+        }
+      "
+    >
+      Open File
+    </v-btn>
+    <v-btn
+      color="primary"
+      @click="
+        async () => {
+          await revealItemInDir(photo.name);
+        }
+      "
+    >
+      Reveal in Explorer
+    </v-btn>
   </div>
   <v-dialog v-model="closeUp">
     <v-card :title="photo.name">
@@ -311,7 +352,7 @@
   </v-dialog>
   <form-dialog
     v-model="setPhotoDialog"
-    :reset="() => setPhotoTarget = []"
+    :reset="() => (setPhotoTarget = [])"
     title="Set As Profile Photo"
     @submit="
       async () => {
@@ -348,7 +389,7 @@
 
 <style scoped>
   .photo-detail {
-    max-height: calc(100vh - 64px);
+    max-height: calc(100vh - 128px);
     overflow-y: scroll;
   }
 

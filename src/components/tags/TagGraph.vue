@@ -27,7 +27,7 @@
     changed: number;
   }>();
 
-  const containerEl = ref<SVGElement | null>();
+  const containerEl = useTemplateRef('containerEl');
 
   const graph = computed(() => {
     const nodes: Record<string, Node> = {};
