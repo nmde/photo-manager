@@ -389,9 +389,10 @@
   .photo-detail {
     max-height: calc(100vh - 128px);
     overflow-y: scroll;
+    padding: 0 var(--space-md) var(--space-md);
   }
 
   .hidden-message {
-    padding: 16px;
+    padding: var(--space-md);
   }
 </style>

@@ -33,7 +33,13 @@
         </v-list>
       </v-navigation-drawer>
       <v-main>
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <Transition mode="out-in" name="route">
+            <div :key="$route.path" class="route-view">
+              <component :is="Component" />
+            </div>
+          </Transition>
+        </RouterView>
       </v-main>
     </v-layout>
     <v-snackbar v-model="errorSnack" color="error">
@@ -45,5 +51,9 @@
 <style scoped>
   .top-nav {
     height: calc(100vh - 128px);
+  }
+
+  .route-view {
+    height: 100%;
   }
 </style>

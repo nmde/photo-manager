@@ -2,24 +2,25 @@
 name: Photo Manager
 description: Desktop photo and video management for hobbyist photographers. The Observatory.
 colors:
-  primary: "oklch(63% 0.09 245)"
+  primary: "oklch(65% 0.14 245)"
   background: "oklch(9% 0.003 245)"
-  surface: "oklch(14% 0.003 245)"
-  surface-raised: "oklch(18% 0.003 245)"
-  text-primary: "oklch(91% 0.005 245)"
-  text-secondary: "oklch(63% 0.005 245)"
+  surface: "oklch(14% 0.004 245)"
+  surface-raised: "oklch(21% 0.006 245)"
+  border: "oklch(30% 0.008 245)"
+  text-primary: "oklch(94% 0.006 245)"
+  text-secondary: "oklch(58% 0.006 245)"
   error: "oklch(58% 0.13 14)"
 typography:
   headline:
     fontFamily: "Roboto, sans-serif"
     fontSize: "20px"
-    fontWeight: 500
+    fontWeight: 700
     lineHeight: 1.3
-    letterSpacing: "normal"
+    letterSpacing: "0.01em"
   title:
     fontFamily: "Roboto, sans-serif"
     fontSize: "16px"
-    fontWeight: 500
+    fontWeight: 600
     lineHeight: 1.4
     letterSpacing: "normal"
   body:

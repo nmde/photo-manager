@@ -6,6 +6,7 @@
     itemsPerRow: number;
     selected: Photo[];
     halfWidth: boolean;
+    loading?: boolean;
   }>();
 
   const emit = defineEmits<{
@@ -45,7 +46,16 @@
 </script>
 
 <template>
+  <div
+    v-if="photos.length === 0 && !props.loading"
+    class="empty-state"
+    :style="{ height: `${scrollerHeight}px` }"
+  >
+    <v-icon class="empty-icon" size="56">mdi-aperture</v-icon>
+    <p class="empty-text">No photos to display.</p>
+  </div>
   <v-virtual-scroll
+    v-else
     :height="scrollerHeight"
     :item-height="size"
     :items="photoRows"
@@ -69,5 +79,24 @@
 <style scoped>
   .photo-row {
     display: flex;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    color: var(--color-text-secondary);
+  }
+
+  .empty-icon {
+    opacity: 0.3;
+    color: var(--color-text-secondary);
+  }
+
+  .empty-text {
+    font-size: var(--text-size-body);
+    letter-spacing: var(--text-tracking-body);
   }
 </style>

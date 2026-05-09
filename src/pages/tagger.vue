@@ -302,6 +302,7 @@
       <photo-grid
         :half-width="showDetail"
         :items-per-row="itemsPerRow"
+        :loading="searching || refreshing"
         :photos="photos as Photo[]"
         :selected="selected as Photo[]"
         @select="

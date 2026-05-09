@@ -154,6 +154,14 @@
   }
 
   .tag-details {
-    margin: 18px;
+    margin: var(--space-md);
+  }
+
+  .tag-details h2 {
+    font-size: var(--text-size-headline);
+    font-weight: var(--text-weight-bold);
+    line-height: var(--text-lh-tight);
+    letter-spacing: var(--text-tracking-tight);
+    margin-bottom: var(--space-sm);
   }
 </style>

@@ -9,6 +9,7 @@
     get_people_categories,
   } from '@/api/people';
   import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
+  import { useFileStore } from '@/stores/fileStore';
 
   const { reportError } = useFileStore();
   const router = useRouter();
@@ -104,7 +105,7 @@
         >
           <template #default="{ item }">
             <div class="people-grid">
-              <v-card v-for="person in item" :key="person.id">
+              <v-card v-for="person in item" :key="person.id" class="person-card">
                 <template v-if="person.photo !== null" #prepend>
                   <v-avatar size="128">
                     <v-img :src="person.photo" />
@@ -208,7 +209,7 @@
   }
 
   .person-card {
-    margin: 12px;
+    margin: var(--space-sm);
   }
 
   .notes {

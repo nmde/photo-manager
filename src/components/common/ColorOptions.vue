@@ -95,7 +95,7 @@
                 @click="
                   async () => {
                     await add_color(newColor)
-                      .ok(c => (colors.value = c))
+                      .ok(c => (colors = c))
                       .err(reportError)
                       .send();
                   }

@@ -75,15 +75,19 @@
       .map(s => items[s.index]?.[k.value]);
   });
 
-  function updateCounts(prevValue: string[], newValue: string[]) {
-    for (const val of prevValue) {
-      if (!newValue.includes(val) && typeof counts.value[val] === 'number') {
-        counts.value[val] -= 1;
+  function updateCounts(prevValue: string[] | null, newValue: string[] | null) {
+    if (newValue !== null) {
+      for (const val of prevValue ?? []) {
+        if (!newValue.includes(val) && typeof counts.value[val] === 'number') {
+          counts.value[val] -= 1;
+        }
       }
     }
-    for (const val of newValue) {
-      if (!prevValue.includes(val) && typeof counts.value[val] === 'number') {
-        counts.value[val] += 1;
+    if (prevValue !== null) {
+      for (const val of newValue ?? []) {
+        if (!prevValue.includes(val) && typeof counts.value[val] === 'number') {
+          counts.value[val] += 1;
+        }
       }
     }
   }
@@ -137,8 +141,7 @@
         v-bind="lprops"
         :prepend-avatar="items[item ?? '']?.photo ?? ''"
         :style="{
-          color:
-            colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
+          color: colorRepo[items[item ?? '']?.[colorKey as keyof SortableItem] as string]?.color,
         }"
         :title="`${items[item ?? '']?.name} (${items[item ?? '']?.[sortBy]})`"
       />
