@@ -26,8 +26,8 @@
   const rules = useRules();
 
   const createDialog = ref(false);
-  const mapEl = ref<HTMLDivElement>();
-  const newPlaceMapEl = ref<HTMLDivElement>();
+  const mapEl = useTemplateRef('mapEl');
+  const newPlaceMapEl = useTemplateRef('newPlaceMapEl');
   const mapInitialized = ref(false);
   const layers = ref<LayerRec>({});
   const targetLayer = ref<string>();
@@ -88,7 +88,7 @@
             locToString(queryLoc.value),
             '0',
             placeFields.value.category,
-            layers.value[targetLayer.value]?.color,
+            layers.value[targetLayer.value ?? '']?.color,
             placeFields.value.name,
           );
           placeFields.value.position = queryLoc.value;
@@ -103,7 +103,7 @@
             locToString(pos),
             '0',
             placeFields.value.category,
-            layers.value[targetLayer.value]?.color,
+            layers.value[targetLayer.value ?? '']?.color,
             placeFields.value.name,
           );
         });
@@ -155,33 +155,35 @@
   async function createPlace() {
     const id = uuid();
     const fields = placeFields.value as Required<PlaceFields>;
-    await create_place(
-      id,
-      fields.name,
-      fields.position.lat,
-      fields.position.lng,
-      targetLayer.value,
-      fields.category,
-    );
-    const place = new Place(
-      id,
-      fields.name,
-      fields.position.lat,
-      fields.position.lng,
-      targetLayer.value,
-      fields.category,
-      null,
-      0,
-    );
-    places.value[id] = place;
-    map.createMarker(
-      locToString(fields.position),
-      id,
-      fields.category,
-      layers.value[targetLayer.value]?.color,
-      fields.name,
-    );
-    placeFields.value = {};
+    if (targetLayer.value !== undefined) {
+      await create_place(
+        id,
+        fields.name,
+        fields.position.lat,
+        fields.position.lng,
+        targetLayer.value,
+        fields.category,
+      );
+      const place = new Place(
+        id,
+        fields.name,
+        fields.position.lat,
+        fields.position.lng,
+        targetLayer.value,
+        fields.category,
+        null,
+        0,
+      );
+      places.value[id] = place;
+      map.createMarker(
+        locToString(fields.position),
+        id,
+        fields.category,
+        layers.value[targetLayer.value]?.color,
+        fields.name,
+      );
+      placeFields.value = {};
+    }
   }
 
   async function deletePlace(place: Place) {
@@ -234,41 +236,47 @@
   }
 
   async function saveShape() {
-    if (editingShape.value) {
-      await shapes.value[targetShape.value]?.setPoints(tmpShape.value);
-      map.removeShape(targetShape.value);
-      map.createShape(
-        shapes.value[targetShape.value]?.type ?? 'line',
-        tmpShape.value,
-        layers.value[targetLayer.value]?.color ?? '',
-        targetShape.value,
-      );
-    } else {
-      const s = await createShape(
-        tmpShapeType.value,
-        tmpShape.value,
-        targetLayer.value,
-        shapeName.value,
-      );
-      if (targetPlace.value.length > 0) {
-        await places.value[targetPlace.value]?.setShape(s.id);
+    if (targetLayer.value !== undefined) {
+      if (editingShape.value) {
+        await shapes.value[targetShape.value]?.setPoints(tmpShape.value);
+        map.removeShape(targetShape.value);
+        map.createShape(
+          shapes.value[targetShape.value]?.type ?? 'line',
+          tmpShape.value,
+          layers.value[targetLayer.value]?.color ?? '',
+          targetShape.value,
+        );
       } else {
-        shapes.value[s.id] = s;
+        const s = await createShape(
+          tmpShapeType.value,
+          tmpShape.value,
+          targetLayer.value,
+          shapeName.value,
+        );
+        if (targetPlace.value.length > 0) {
+          await places.value[targetPlace.value]?.setShape(s.id);
+        } else {
+          shapes.value[s.id] = s;
+        }
+        map.removeShape(`${prevShape}`);
+        map.createShape(
+          tmpShapeType.value,
+          tmpShape.value,
+          layers.value[targetLayer.value]?.color ?? '',
+          s.id,
+        );
       }
-      map.removeShape(`${prevShape}`);
-      map.createShape(
-        tmpShapeType.value,
-        tmpShape.value,
-        layers.value[targetLayer.value]?.color ?? '',
-        s.id,
-      );
     }
     prevShape = 0;
     drawMode.value = false;
   }
 
   async function splitShape() {
-    if (lastChangedIndex > 0 && lastChangedIndex < tmpShape.value.length - 1) {
+    if (
+      lastChangedIndex > 0
+      && lastChangedIndex < tmpShape.value.length - 1
+      && targetLayer.value !== undefined
+    ) {
       const split1 = tmpShape.value.slice(0, lastChangedIndex);
       const split2 = tmpShape.value.slice(lastChangedIndex + 1);
       await shapes.value[targetShape.value]?.setPoints(split1);
@@ -378,7 +386,7 @@
     }
 
     map.on('click', pos => {
-      if (drawMode.value) {
+      if (drawMode.value && targetLayer.value !== undefined) {
         tmpShape.value.push(pos);
         let nextId = (prevShape + 1).toString();
         if (editingShape.value) {

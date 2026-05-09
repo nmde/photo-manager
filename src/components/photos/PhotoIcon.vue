@@ -68,13 +68,9 @@
 </template>
 
 <style scoped>
-  .photo,
-  .photo-name {
-    transition: all 100ms ease-in;
-  }
-
   .photo-name {
     opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-standard);
   }
 
   .photo:hover .photo-name {
@@ -82,6 +78,6 @@
   }
 
   .icons {
-    background: rgba(0, 0, 0, 0.1);
+    background: oklch(5% 0.003 245 / 0.4);
   }
 </style>

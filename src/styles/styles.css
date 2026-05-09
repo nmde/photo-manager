@@ -26,21 +26,21 @@ html {
 }
 
 .tag-graph-link--default {
-  stroke: rgb(var(--v-theme-surface-light));
+  stroke: var(--color-surface-raised);
 }
 
 .tag-graph-node--default {
-  fill: rgb(var(--v-theme-surface-light));
-  stroke: rgb(var(--v-theme-surface-light));
+  fill: var(--color-surface-raised);
+  stroke: var(--color-surface-raised);
 }
 
 .tag-graph-label {
   font-size: 10px;
-  stroke: rgb(var(--v-theme-background));
+  stroke: var(--color-background);
   paint-order: stroke;
   cursor: pointer;
 }
 
 .tag-graph-label--default {
-  fill: rgb(var(--v-theme-on-background));
+  fill: var(--color-text-primary);
 }

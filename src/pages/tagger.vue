@@ -423,7 +423,7 @@
   }
 
   .tagger-page > div {
-    transition: width 150ms ease-in;
+    transition: width var(--duration-standard) var(--ease-standard);
   }
 
   .photo-pane {

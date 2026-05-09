@@ -1,0 +1,19 @@
+/* Observatory design token layer — canonical OKLCH values */
+:root {
+  /* Color primitives */
+  --color-primary:        oklch(63% 0.09 245);
+  --color-primary-hover:  oklch(70% 0.09 245);
+  --color-primary-active: oklch(55% 0.09 245);
+  --color-background:     oklch(9%  0.003 245);
+  --color-surface:        oklch(14% 0.003 245);
+  --color-surface-raised: oklch(18% 0.003 245);
+  --color-border:         oklch(25% 0.003 245);
+  --color-text-primary:   oklch(91% 0.005 245);
+  --color-text-secondary: oklch(63% 0.005 245);
+  --color-error:          oklch(58% 0.13 14);
+
+  /* Motion */
+  --ease-standard:    cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast:    100ms;
+  --duration-standard: 150ms;
+}
