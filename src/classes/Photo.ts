@@ -276,6 +276,6 @@ export class Photo {
       throw new Error('Malformed date string');
     }
     const split2 = split as [number, number, number];
-    return new Date(split2[0], split2[1] - 1, split[2]);
+    return new Date(split2[0], split2[1] - 1, split2[2]);
   }
 }

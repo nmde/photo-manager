@@ -10,6 +10,7 @@
   } from '@/api/people';
   import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
 
+  const { reportError } = useFileStore();
   const router = useRouter();
   const rules = useRules();
 
@@ -55,7 +56,7 @@
 
   async function savePerson() {
     const fields = addPersonFields.value as Required<AddPersonFields>;
-    if (editing && editTarget.value) {
+    if (editing.value && editTarget.value) {
       if (fields.name !== editTarget.value.name) {
         await editTarget.value.setName(fields.name);
       }

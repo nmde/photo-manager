@@ -128,7 +128,7 @@
         <v-toolbar-title>
           {{
             [
-              'Janaury',
+              'January',
               'February',
               'March',
               'April',

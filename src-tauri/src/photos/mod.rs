@@ -347,7 +347,7 @@ impl Photo {
 
             let count = targets.len();
             for person in &existing_people {
-                if !value.contains(person) {
+                if !people_vec.contains(person) {
                     if people_counts.contains_key(person) {
                         *people_counts.get_mut(person).unwrap() -= count;
                     }
@@ -378,13 +378,15 @@ impl Photo {
             }
             for tag in &existing_tags {
                 if !tags_vec.contains(tag) {
-                    *tag_counts.get_mut(tag).unwrap() -= count;
+                    if tag_counts.contains_key(tag) {
+                        *tag_counts.get_mut(tag).unwrap() -= count;
+                    }
                 }
             }
             for tag in &tags_vec {
                 if !existing_tags.contains(tag) {
                     if tag_counts.contains_key(tag) {
-                        *tag_counts.get_mut(tag).unwrap() += 1;
+                        *tag_counts.get_mut(tag).unwrap() += count;
                     } else {
                         tag_counts.insert(tag.clone(), count);
                     }
@@ -479,13 +481,15 @@ impl Photo {
         let count = targets.len();
         for tag in &existing_tags {
             if !value.contains(tag) {
-                *tag_counts.get_mut(tag).unwrap() -= count;
+                if tag_counts.contains_key(tag) {
+                    *tag_counts.get_mut(tag).unwrap() -= count;
+                }
             }
         }
         for tag in value {
             if !existing_tags.contains(tag) {
                 if tag_counts.contains_key(tag) {
-                    *tag_counts.get_mut(tag).unwrap() += 1;
+                    *tag_counts.get_mut(tag).unwrap() += count;
                 } else {
                     tag_counts.insert(tag.clone(), count);
                 }

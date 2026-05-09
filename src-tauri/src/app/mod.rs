@@ -233,7 +233,7 @@ async fn create_photo(_photo: &Photo) -> Result<Photo> {
         }
         let modified = metadata.modified();
         if modified.is_ok() {
-            let modified = DateTime::<Utc>::from(created.as_ref().unwrap().clone());
+            let modified = DateTime::<Utc>::from(modified.as_ref().unwrap().clone());
             if min_meta_time.is_none() {
                 min_meta_time = Some(modified);
             } else if &modified < min_meta_time.as_ref().unwrap() {
@@ -753,18 +753,18 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 statement = statement.filter(photos::location.eq(location));
             }
         } else if term_matches(&tmp_term, "ONLY:") {
-            let person = try_get_term(&tmp_term, 6)?;
+            let person = try_get_term(&tmp_term, 5)?;
             if negated {
                 statement = statement.filter(photos::people.ne(person));
             } else {
                 statement = statement.filter(photos::people.eq(person));
             }
         } else if term_matches(&tmp_term, "BY:") {
-            let photographer = try_get_term(&tmp_term, 4)?;
+            let photographer = try_get_term(&tmp_term, 3)?;
             if negated {
                 statement = statement.filter(photos::photographer.ne(photographer));
             } else {
-                statement = statement.filter(photos::photographer.ne(photographer));
+                statement = statement.filter(photos::photographer.eq(photographer));
             }
         } else if term_matches(&tmp_term, "HAS:") {
             if try_get_term(&tmp_term, 4)?.to_uppercase() == "RATING" {
@@ -823,14 +823,14 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 statement = statement.filter(photos::rating.ge(rating));
             }
         } else if term_matches(&tmp_term, "RATING<") {
-            let rating = try_get_term(&tmp_term, 8)?.parse::<i32>()?;
+            let rating = try_get_term(&tmp_term, 7)?.parse::<i32>()?;
             if negated {
                 statement = statement.filter(photos::rating.ge(rating));
             } else {
                 statement = statement.filter(photos::rating.lt(rating));
             }
         } else if term_matches(&tmp_term, "RATING>") {
-            let rating = try_get_term(&tmp_term, 8)?.parse::<i32>()?;
+            let rating = try_get_term(&tmp_term, 7)?.parse::<i32>()?;
             if negated {
                 statement = statement.filter(photos::rating.le(rating));
             } else {
@@ -957,10 +957,10 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                                 || (!negated && photo.date() < comp_date));
                     }
                 } else if term_matches(&tmp_term, "IS:") {
-                    if try_get_term(&tmp_term, 4)?.to_uppercase() == "VIDEO" {
+                    if try_get_term(&tmp_term, 3)?.to_uppercase() == "VIDEO" {
                         meets_terms = meets_terms
                             && ((negated && !photo.is_video()) || (!negated && photo.is_video()));
-                    } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "RAW" {
+                    } else if try_get_term(&tmp_term, 3)?.to_uppercase() == "RAW" {
                         meets_terms = meets_terms
                             && ((negated && !photo.is_raw()) || (!negated && photo.is_raw()));
                     }

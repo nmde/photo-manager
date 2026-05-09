@@ -293,7 +293,7 @@
         targetLayer.value,
         `${shapes.value[targetShape.value]?.name} - Split`,
       );
-      shapes.value[targetLayer.value] = newShape;
+      shapes.value[newShape.id] = newShape;
       map.createShape(
         tmpShapeType.value,
         split2,
