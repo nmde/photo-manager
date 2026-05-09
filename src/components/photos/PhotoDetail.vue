@@ -91,14 +91,12 @@
 
   const savingLocation = ref(false);
   async function saveLocation(location: string[]) {
-    if (location.length > 0) {
-      savingLocation.value = true;
-      const l = location[0] as string;
-      for (const photo of props.photos) {
-        await photo.setLocation(l);
-      }
-      savingLocation.value = false;
+    savingLocation.value = true;
+    const l = location[0] as string;
+    for (const photo of props.photos) {
+      await photo.setLocation(l);
     }
+    savingLocation.value = false;
   }
 
   const savingPeople = ref(false);
@@ -167,7 +165,7 @@
         :src="photo.asset_path"
         :width="700"
       />
-      <v-img v-if="!photo.is_video" max-height="600" :src="photoPath" @click="closeUp = true" />
+      <v-img v-else max-height="600" :src="photoPath" @click="closeUp = true" />
     </div>
     <tag-input
       :id="photo.name"

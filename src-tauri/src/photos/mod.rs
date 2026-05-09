@@ -174,11 +174,10 @@ impl Photo {
 
     pub async fn set_photo_people(&self, photo: &String, value: &Vec<String>) -> Result<()> {
         ensure_db().await?;
-        let mut conn = DB.lock().await;
-        let conn = conn.as_mut().unwrap();
-
         let mut targets = get_photo_targets(&photo).await?;
         let existing_people = targets[0].people();
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
         let joined = vec_to_row(&value);
         for target in &mut targets {
             update(photos::table.filter(photos::name.eq(target.name.clone())))
@@ -214,11 +213,10 @@ impl Photo {
 
     pub async fn set_photo_location(&self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let mut conn = DB.lock().await;
-        let conn = conn.as_mut().unwrap();
-
         let mut targets = get_photo_targets(&photo).await?;
         let existing_place = targets[0].location.clone();
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
         for target in &mut targets {
             update(photos::table.filter(photos::name.eq(target.name.clone())))
                 .set(photos::location.eq(value.clone()))
