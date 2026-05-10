@@ -17,7 +17,7 @@ use crate::{
         set_person_category, set_person_name, set_person_photo,
     },
     photos::api::{
-        set_photo_date, set_photo_desc, set_photo_group, set_photo_hide_thumbnail,
+        get_grouped_raw, set_photo_date, set_photo_desc, set_photo_group, set_photo_hide_thumbnail,
         set_photo_is_duplicate, set_photo_location, set_photo_people, set_photo_rating,
         set_photo_tags, set_photo_title, set_photographer,
     },
@@ -96,6 +96,7 @@ async fn main() {
             set_photo_rating,
             set_photo_is_duplicate,
             set_photo_hide_thumbnail,
+            get_grouped_raw,
             refresh,
             get_layers,
             get_shapes,

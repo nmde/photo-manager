@@ -736,8 +736,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 .or(photos::is_duplicate.is_null()),
         )
         .into_boxed();
-    let mut has_date = sort == Sort::Date || sort == Sort::DateDesc;
-    let mut has_date_negated = false;
     for term in query {
         let mut chars = term.chars();
         let negated = term.get(0..1).unwrap() == "-";
@@ -780,8 +778,11 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                     statement = statement.filter(photos::photographer.is_not_null());
                 }
             } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "DATE" {
-                has_date = true;
-                has_date_negated = negated;
+                if negated {
+                    statement = statement.filter(photos::date.is_null());
+                } else {
+                    statement = statement.filter(photos::date.is_not_null());
+                }
             } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "LOCATION" {
                 if negated {
                     statement = statement.filter(photos::location.is_null());
@@ -848,13 +849,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         }
     }
 
-    if has_date {
-        if has_date_negated {
-            statement = statement.filter(photos::date.is_null());
-        } else {
-            statement = statement.filter(photos::date.is_not_null());
-        }
-    }
     debug!(
         "Constructed SQL query for search: {}",
         debug_query(&statement)
@@ -874,14 +868,9 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect::<HashMap<String, Person>>();
-    let mut encountered_groups = HashSet::<String>::new();
     if unmet_terms.len() > 0 {
         for photo in photo_records {
             let mut meets_terms = true;
-            let group = photo.photo_group.clone();
-            if group.is_some() && encountered_groups.contains(group.as_ref().unwrap()) {
-                meets_terms = false;
-            }
             for term in &unmet_terms {
                 let mut chars = term.chars();
                 let negated = term.get(0..1).unwrap() == "-";
@@ -971,9 +960,6 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 }
             }
             if meets_terms {
-                if group.is_some() {
-                    encountered_groups.insert(group.unwrap());
-                }
                 if sort == Sort::Name || sort == Sort::NameDesc {
                     match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
                         Ok(_pos) => {}
@@ -1002,6 +988,30 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
             results.sort_by_key(|p| p.date());
         }
     }
+
+    // Apply groups
+    let mut encountered_groups = HashSet::<String>::new();
+    let mut encountered_raws = HashSet::<String>::new();
+    results = results
+        .into_iter()
+        .filter(|result| {
+            // Group raws that have a jpg version in the same folder (showing the jpg in the grid instead of the raw)
+            let raw = result.grouped_raw();
+            if raw.is_some() {
+                encountered_raws.insert(raw.unwrap());
+            }
+            if result.photo_group.is_some() {
+                let group = result.photo_group.as_ref().unwrap();
+                if encountered_groups.contains(group) {
+                    return false;
+                } else {
+                    encountered_groups.insert(group.clone());
+                }
+            }
+            true
+        })
+        .collect();
+    results.retain(|result| !result.is_raw() || !encountered_raws.contains(&result.name));
 
     if sort == Sort::NameDesc || sort == Sort::RatingDesc || sort == Sort::DateDesc {
         results.reverse();

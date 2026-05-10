@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync,
 };
 
@@ -92,6 +93,20 @@ impl Photo {
 
     pub fn is_raw(&self) -> bool {
         RAW.is_match(&self.name.to_uppercase())
+    }
+
+    /// Returns the filename of a paired RAW file if one exists on disk alongside this photo.
+    pub fn grouped_raw(&self) -> Option<String> {
+        if !self.is_raw() && !self.is_video() {
+            let as_path = Path::new(&self.name);
+            for ext in ["ORF", "NRW"] {
+                let raw_path = as_path.with_extension(ext);
+                if raw_path.exists() {
+                    return Some(raw_path.to_str().unwrap().to_string());
+                }
+            }
+        }
+        None
     }
 
     pub fn is_video(&self) -> bool {
@@ -519,6 +534,7 @@ pub struct PhotoDto {
     pub valid_tags: ValidationResult,
     pub metadata_date: Option<NaiveDate>,
     pub metadata_location: Option<(f32, f32)>,
+    pub grouped_raw: Option<String>,
 }
 
 impl From<&Photo> for PhotoDto {
@@ -547,6 +563,7 @@ impl From<&Photo> for PhotoDto {
                 .clone(),
             metadata_date: value.metadata_date(),
             metadata_location: value.metadata_location(),
+            grouped_raw: value.grouped_raw(),
         }
     }
 }

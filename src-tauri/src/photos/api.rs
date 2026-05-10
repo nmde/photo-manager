@@ -253,3 +253,16 @@ pub async fn set_photo_tags(
         .await
         .with_context(|| format!("Could not set photo {photo} tags to {}", value.join(",")))?)
 }
+
+/// Gets the thumbnail of a grouped raw for the "show raw" button
+#[tauri::command]
+pub async fn get_grouped_raw(photo: String) -> Option<String> {
+    debug!("Getting grouped raw thumbnail from base photo {photo}");
+
+    let photos = PHOTOS.lock().await;
+    let target = photos.get(&photo);
+    if target.is_some() {
+        return target.unwrap().thumbnail.clone();
+    }
+    None
+}

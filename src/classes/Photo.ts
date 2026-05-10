@@ -38,6 +38,7 @@ export type PhotoData = {
   valid_tags: ValidationResult;
   metadata_date: Nullable<string>;
   metadata_location: Nullable<[number, number]>;
+  grouped_raw: Nullable<string>;
 };
 
 // The _variables here have to be public or eslint complains about them being used in vue components
@@ -66,6 +67,7 @@ export class Photo {
     public valid_tags: PhotoData['valid_tags'],
     public readonly metadata_date: PhotoData['metadata_date'],
     public readonly metadata_location: PhotoData['metadata_location'],
+    public readonly grouped_raw: PhotoData['grouped_raw'],
   ) {
     if (date !== null && date.length > 0) {
       this._date = this.parseDate(date);
@@ -145,6 +147,7 @@ export class Photo {
         valid_tags,
         metadata_date,
         metadata_location,
+        grouped_raw,
       }) =>
         new Photo(
           name,
@@ -166,6 +169,7 @@ export class Photo {
           valid_tags,
           metadata_date,
           metadata_location,
+          grouped_raw,
         ),
     );
 
@@ -188,6 +192,7 @@ export class Photo {
       false,
       null,
       { is_valid: true, message: null },
+      null,
       null,
       null,
     );

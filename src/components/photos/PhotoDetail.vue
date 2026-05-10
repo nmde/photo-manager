@@ -8,6 +8,7 @@
   import { VideoPlayer } from '@videojs-player/vue';
   import { useRules } from 'vuetify/labs/rules';
   import { get_people, get_people_categories } from '@/api/people';
+  import { get_grouped_raw } from '@/api/photos';
   import { get_layers, get_places } from '@/api/places';
   import { useFileStore } from '@/stores/fileStore';
   import 'video.js/dist/video-js.css';
@@ -53,6 +54,9 @@
   const people = ref<PersonRec>({});
   const peopleCategories = ref<PersonCategoryRec>({});
   const validTags = ref<string | undefined>();
+  const showRaw = ref(false);
+  const rawLoading = ref(false);
+  const rawThumbnail = ref<string>();
 
   async function initialize() {
     viewConfirmation.value = false;
@@ -167,6 +171,26 @@
       />
       <v-img v-else max-height="600" :src="photoPath" @click="closeUp = true" />
     </div>
+    <template v-if="photo.grouped_raw !== null">
+      <v-btn
+        block
+        class="show-raw"
+        :loading="rawLoading"
+        @click="
+          async () => {
+            showRaw = !showRaw;
+            if (rawThumbnail === undefined && photo.grouped_raw !== null) {
+              rawLoading = true;
+              rawThumbnail = (await get_grouped_raw(photo.grouped_raw)) ?? undefined;
+              rawLoading = false;
+            }
+          }
+        "
+      >
+        {{ showRaw ? 'Hide' : 'Show' }} RAW
+      </v-btn>
+      <v-img v-if="showRaw && rawThumbnail !== undefined" max-height="600" :src="rawThumbnail" />
+    </template>
     <tag-input
       :id="photo.name"
       filtered
@@ -393,6 +417,10 @@
   }
 
   .hidden-message {
+    padding: var(--space-md);
+  }
+
+  .show-raw {
     padding: var(--space-md);
   }
 </style>

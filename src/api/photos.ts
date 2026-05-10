@@ -54,3 +54,7 @@ export async function set_photo_hide_thumbnail(
 ) {
   await invoke('set_photo_hide_thumbnail', { photo, value });
 }
+
+export async function get_grouped_raw(photo: PhotoData['name']) {
+  return await invoke<string | null>('get_grouped_raw', { photo });
+}
