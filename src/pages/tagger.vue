@@ -347,9 +347,7 @@
         <v-btn v-else icon @click="showDetail = false">
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
-        <template #extension>
-          <v-toolbar-title class="photo-name">&nbsp;{{ selected[current]?.name }}</v-toolbar-title>
-        </template>
+        <v-toolbar-title class="photo-name">&nbsp;{{ selected[current]?.name }}</v-toolbar-title>
         <v-spacer />
         <v-btn
           v-if="selected.length > 0"

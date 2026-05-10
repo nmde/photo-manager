@@ -1,5 +1,4 @@
 <script setup lang="ts">
-  import type { Person, PersonRec } from '@/classes/Person';
   import { v4 as uuid } from 'uuid';
   import { useRules } from 'vuetify/labs/rules';
   import {
@@ -8,6 +7,7 @@
     get_people,
     get_people_categories,
   } from '@/api/people';
+  import { Person, type PersonRec } from '@/classes/Person';
   import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
   import { useFileStore } from '@/stores/fileStore';
 
@@ -22,6 +22,8 @@
   const localCategories = ref<PersonCategoryRec>({});
   const localPeople = ref<PersonRec>({});
   const missingCategoryColor = ref(false);
+  const loadingCategory = ref(false);
+  const loadingPerson = ref(false);
 
   type AddPersonFields = {
     name?: string;
@@ -57,6 +59,7 @@
 
   async function savePerson() {
     const fields = addPersonFields.value as Required<AddPersonFields>;
+    loadingPerson.value = true;
     if (editing.value && editTarget.value) {
       if (fields.name !== editTarget.value.name) {
         await editTarget.value.setName(fields.name);
@@ -64,9 +67,13 @@
       if (fields.category !== editTarget.value.category) {
         await editTarget.value.setCategory(fields.category);
       }
+      localPeople.value[editTarget.value.id] = editTarget.value;
     } else {
-      await create_person(uuid(), fields.name, fields.category);
+      const id = uuid();
+      await create_person(id, fields.name, fields.category);
+      localPeople.value[id] = new Person(id, fields.name, null, fields.category, 0, 0);
     }
+    loadingPerson.value = false;
   }
 
   onMounted(async () => {
@@ -83,7 +90,9 @@
 
 <template>
   <v-toolbar color="primary">
+    <v-btn :loading="loadingCategory" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-btn
+      :loading="loadingPerson"
       @click="
         () => {
           editing = false;
@@ -141,11 +150,7 @@
                     </v-list>
                   </v-menu>
                 </v-card-title>
-                <v-card-text>
-                  Photo count: {{ person.count }}
-                  <br />
-                  Photos taken: {{ person.photographer_count }}
-                </v-card-text>
+                <v-card-text> Photo count: {{ person.count }} </v-card-text>
               </v-card>
             </div>
           </template>
@@ -163,8 +168,10 @@
         if (!missingCategoryColor) {
           const id = uuid();
           const fields = addCategoryFields as Required<AddCategoryFields>;
+          loadingCategory = true;
           await create_person_category(id, fields.name, fields.color);
           localCategories[id] = new PersonCategory(id, fields.name, fields.color);
+          loadingCategory = false;
         }
       }
     "

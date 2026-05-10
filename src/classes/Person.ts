@@ -9,7 +9,7 @@ export type PersonData = {
   photo: Nullable<string>;
   category: PersonCategoryData['id'];
   photographer_count: number;
-  photo_count: number;
+  count: number;
 };
 
 export type PersonRec = Record<PersonData['id'], Person>;
@@ -21,7 +21,7 @@ export class Person extends SortableItem implements PersonData {
     _photo: PersonData['photo'],
     private _category: PersonData['category'],
     public photographer_count: PersonData['photographer_count'],
-    public photo_count: PersonData['photo_count'],
+    public photo_count: PersonData['count'],
   ) {
     super(id, photo_count, _name, _photo);
   }
@@ -39,7 +39,7 @@ export class Person extends SortableItem implements PersonData {
         person.photo,
         person.category,
         person.photographer_count,
-        person.photo_count,
+        person.count,
       );
     }
     return mapped;
