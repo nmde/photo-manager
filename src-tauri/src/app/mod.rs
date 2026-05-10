@@ -1,19 +1,18 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     fmt::{self, Display, Formatter},
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    str::FromStr,
     time::Duration,
 };
 
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::{
-    debug_query, delete, dsl::update, insert_into, BoolExpressionMethods, Connection,
-    ExpressionMethods, QueryDsl, SqliteConnection, TextExpressionMethods,
+    delete, dsl::update, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
+    QueryDsl, SqliteConnection,
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
@@ -23,7 +22,6 @@ use log::{debug, error, info, warn};
 use regex::Regex;
 use rusty_pool::{JoinHandle, ThreadPool};
 use serde::{Serialize, Serializer};
-use strum::EnumString;
 use thiserror::Error;
 use tokio::{fs, sync::Mutex};
 use walkdir::WalkDir;
@@ -39,6 +37,7 @@ use crate::{
 };
 
 pub mod api;
+pub mod search;
 
 pub const DATE_FORMAT: &str = "%F";
 
@@ -114,54 +113,6 @@ fn clean_thumbnail_path(path: &String) -> String {
         })
         .collect::<Vec<String>>()
         .join("")
-}
-
-fn term_matches(term: &String, test: &str) -> bool {
-    if term.len() > test.len() {
-        let substr = term.get(0..test.len());
-        if substr.is_none() {
-            return false;
-        }
-        return substr.unwrap().to_uppercase() == test;
-    }
-    false
-}
-
-fn try_get_term(term: &String, start: usize) -> Result<String> {
-    let val = term.get(start..);
-    if val.is_none() {
-        return Err(anyhow!("Invalid search term: {term}"));
-    }
-    Ok(val.unwrap().to_string())
-}
-
-#[derive(EnumString, PartialEq)]
-pub enum Sort {
-    #[strum(ascii_case_insensitive)]
-    Date,
-    #[strum(ascii_case_insensitive)]
-    DateDesc,
-    #[strum(ascii_case_insensitive)]
-    Name,
-    #[strum(ascii_case_insensitive)]
-    NameDesc,
-    #[strum(ascii_case_insensitive)]
-    Rating,
-    #[strum(ascii_case_insensitive)]
-    RatingDesc,
-}
-
-impl Display for Sort {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Sort::Date => write!(f, "date"),
-            Sort::DateDesc => write!(f, "date descending"),
-            Sort::Name => write!(f, "name"),
-            Sort::NameDesc => write!(f, "name descending"),
-            Sort::Rating => write!(f, "rating"),
-            Sort::RatingDesc => write!(f, "rating descending"),
-        }
-    }
 }
 
 pub async fn ensure_db() -> Result<()> {
@@ -730,311 +681,6 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     }
 
     Ok(photo_load)
-}
-
-/// Performs a search of the photos using the given query.
-pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>> {
-    debug!(
-        "Searching photos with query \"{0}\", sorted by {1}",
-        query.join(","),
-        sort
-    );
-    let mut unmet_terms = vec![];
-    let mut sort = sort;
-
-    // Construct a SQL statement using terms that require no additional processing (is:..., at:..., only:..., by:..., has:...)
-    let mut statement = photos::table
-        .filter(
-            photos::is_duplicate
-                .eq(0)
-                .or(photos::is_duplicate.is_null()),
-        )
-        .into_boxed();
-    for term in query {
-        let mut chars = term.chars();
-        let negated = term.get(0..1).unwrap() == "-";
-        if negated {
-            chars.next();
-        }
-        let tmp_term = chars.as_str().to_string();
-        if term_matches(&tmp_term, "AT:") {
-            let location = try_get_term(&tmp_term, 3)?;
-            if negated {
-                statement = statement.filter(photos::location.ne(location));
-            } else {
-                statement = statement.filter(photos::location.eq(location));
-            }
-        } else if term_matches(&tmp_term, "ONLY:") {
-            let person = try_get_term(&tmp_term, 5)?;
-            if negated {
-                statement = statement.filter(photos::people.ne(person));
-            } else {
-                statement = statement.filter(photos::people.eq(person));
-            }
-        } else if term_matches(&tmp_term, "BY:") {
-            let photographer = try_get_term(&tmp_term, 3)?;
-            if negated {
-                statement = statement.filter(photos::photographer.ne(photographer));
-            } else {
-                statement = statement.filter(photos::photographer.eq(photographer));
-            }
-        } else if term_matches(&tmp_term, "HAS:") {
-            if try_get_term(&tmp_term, 4)?.to_uppercase() == "RATING" {
-                if negated {
-                    statement = statement.filter(photos::rating.is_null());
-                } else {
-                    statement = statement.filter(photos::rating.is_not_null());
-                }
-            } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "PHOTOGRAPHER" {
-                if negated {
-                    statement = statement.filter(photos::photographer.is_null());
-                } else {
-                    statement = statement.filter(photos::photographer.is_not_null());
-                }
-            } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "DATE" {
-                if negated {
-                    statement = statement.filter(photos::date.is_null());
-                } else {
-                    statement = statement.filter(photos::date.is_not_null());
-                }
-            } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "LOCATION" {
-                if negated {
-                    statement = statement.filter(photos::location.is_null());
-                } else {
-                    statement = statement.filter(photos::location.is_not_null());
-                }
-            } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "PEOPLE" {
-                if negated {
-                    statement = statement.filter(photos::people.is_null());
-                } else {
-                    statement = statement.filter(photos::people.is_not_null());
-                }
-            } else if try_get_term(&tmp_term, 4)?.to_uppercase() == "TAGS" {
-                if negated {
-                    statement = statement.filter(photos::tags.is_null());
-                } else {
-                    statement = statement.filter(photos::tags.is_not_null());
-                }
-            }
-        } else if term_matches(&tmp_term, "NAME:") {
-            let name = format!("%{}%", try_get_term(&tmp_term, 5)?);
-            if negated {
-                statement = statement.filter(photos::name.not_like(name));
-            } else {
-                statement = statement.filter(photos::name.like(name));
-            }
-        } else if term_matches(&tmp_term, "RATING<=") {
-            let rating = try_get_term(&tmp_term, 8)?.parse::<i32>()?;
-            if negated {
-                statement = statement.filter(photos::rating.gt(rating));
-            } else {
-                statement = statement.filter(photos::rating.le(rating));
-            }
-        } else if term_matches(&tmp_term, "RATING>=") {
-            let rating = try_get_term(&tmp_term, 8)?.parse::<i32>()?;
-            if negated {
-                statement = statement.filter(photos::rating.lt(rating));
-            } else {
-                statement = statement.filter(photos::rating.ge(rating));
-            }
-        } else if term_matches(&tmp_term, "RATING<") {
-            let rating = try_get_term(&tmp_term, 7)?.parse::<i32>()?;
-            if negated {
-                statement = statement.filter(photos::rating.ge(rating));
-            } else {
-                statement = statement.filter(photos::rating.lt(rating));
-            }
-        } else if term_matches(&tmp_term, "RATING>") {
-            let rating = try_get_term(&tmp_term, 7)?.parse::<i32>()?;
-            if negated {
-                statement = statement.filter(photos::rating.le(rating));
-            } else {
-                statement = statement.filter(photos::rating.gt(rating));
-            }
-        } else if term_matches(&tmp_term, "RATING=") {
-            let rating = try_get_term(&tmp_term, 7)?.parse::<i32>()?;
-            if negated {
-                statement = statement.filter(photos::rating.ne(rating));
-            } else {
-                statement = statement.filter(photos::rating.eq(rating));
-            }
-        } else if term_matches(&tmp_term, "SORT:") || term_matches(&tmp_term, "SORT=") {
-            sort = Sort::from_str(&try_get_term(&tmp_term, 5)?)?;
-        } else {
-            unmet_terms.push(term.to_string());
-        }
-    }
-
-    debug!(
-        "Constructed SQL query for search: {}",
-        debug_query(&statement)
-    );
-
-    let mut results = Vec::<Photo>::new();
-    ensure_db().await?;
-    let mut conn = DB.lock().await;
-    let conn = conn.as_mut().unwrap();
-    let photo_records = statement.load::<Photo>(conn).await?;
-    debug!("Query returned {} photos", photo_records.len());
-
-    // Terms that require additional processing and iterating over the photos (date:..., of:..., any tags)
-    let people = people::table
-        .load::<Person>(conn)
-        .await?
-        .into_iter()
-        .map(|p| (p.id.clone(), p))
-        .collect::<HashMap<String, Person>>();
-    if unmet_terms.len() > 0 {
-        for photo in photo_records {
-            let mut meets_terms = true;
-            for term in &unmet_terms {
-                let mut chars = term.chars();
-                let negated = term.get(0..1).unwrap() == "-";
-                if negated {
-                    chars.next();
-                }
-                let tmp_term = chars.as_str().to_string();
-                if term_matches(&tmp_term, "OF:") {
-                    let q = &tmp_term.get(3..).unwrap().to_string();
-                    let mut in_photo = photo.people().contains(q);
-                    if !in_photo {
-                        in_photo = photo
-                            .people
-                            .iter()
-                            .map(|id| people.get(id).unwrap().name.to_uppercase())
-                            .collect::<Vec<String>>()
-                            .contains(&q.to_uppercase());
-                    }
-                    meets_terms = meets_terms && ((negated && !in_photo) || (!negated && in_photo));
-                }
-                if term_matches(&tmp_term, "DATE:") {
-                    if photo.date.is_none() {
-                        meets_terms = false;
-                    } else {
-                        let comp_date =
-                            NaiveDate::parse_from_str(&try_get_term(&tmp_term, 5)?, DATE_FORMAT)
-                                .ok();
-                        meets_terms = meets_terms
-                            && ((negated && photo.date() != comp_date)
-                                || (!negated && photo.date() == comp_date));
-                    }
-                } else if term_matches(&tmp_term, "DATE>=") {
-                    let comp_date =
-                        NaiveDate::parse_from_str(&try_get_term(&tmp_term, 6)?, DATE_FORMAT).ok();
-                    if photo.date.is_none() {
-                        meets_terms = false;
-                    } else {
-                        meets_terms = meets_terms
-                            && ((negated && photo.date() < comp_date)
-                                || (!negated && photo.date() >= comp_date));
-                    }
-                } else if term_matches(&tmp_term, "DATE<=") {
-                    if photo.date.is_none() {
-                        meets_terms = false;
-                    } else {
-                        let comp_date =
-                            NaiveDate::parse_from_str(&try_get_term(&tmp_term, 6)?, DATE_FORMAT)
-                                .ok();
-                        meets_terms = meets_terms
-                            && ((negated && photo.date() > comp_date)
-                                || (!negated && photo.date() <= comp_date));
-                    }
-                } else if term_matches(&tmp_term, "DATE>") {
-                    if photo.date.is_none() {
-                        meets_terms = false;
-                    } else {
-                        let comp_date =
-                            NaiveDate::parse_from_str(&try_get_term(&tmp_term, 5)?, DATE_FORMAT)
-                                .ok();
-                        meets_terms = meets_terms
-                            && ((negated && photo.date() < comp_date)
-                                || (!negated && photo.date() > comp_date));
-                    }
-                } else if term_matches(&tmp_term, "DATE<") {
-                    if photo.date.is_none() {
-                        meets_terms = false;
-                    } else {
-                        let comp_date =
-                            NaiveDate::parse_from_str(&try_get_term(&tmp_term, 5)?, DATE_FORMAT)
-                                .ok();
-                        meets_terms = meets_terms
-                            && ((negated && photo.date() > comp_date)
-                                || (!negated && photo.date() < comp_date));
-                    }
-                } else if term_matches(&tmp_term, "IS:") {
-                    if try_get_term(&tmp_term, 3)?.to_uppercase() == "VIDEO" {
-                        meets_terms = meets_terms
-                            && ((negated && !photo.is_video()) || (!negated && photo.is_video()));
-                    } else if try_get_term(&tmp_term, 3)?.to_uppercase() == "RAW" {
-                        meets_terms = meets_terms
-                            && ((negated && !photo.is_raw()) || (!negated && photo.is_raw()));
-                    }
-                } else {
-                    // Treat all remaining terms as tags
-                    let in_tags = photo.tags().contains(&tmp_term);
-                    meets_terms = meets_terms && ((negated && !in_tags) || (!negated && in_tags));
-                }
-            }
-            if meets_terms {
-                if sort == Sort::Name || sort == Sort::NameDesc {
-                    match results.binary_search_by_key(&photo.name, |p| p.name.clone()) {
-                        Ok(_pos) => {}
-                        Err(pos) => results.insert(pos, photo.clone()),
-                    }
-                } else if sort == Sort::Rating || sort == Sort::RatingDesc {
-                    match results.binary_search_by_key(&photo.rating, |p| p.rating) {
-                        Ok(pos) => results.insert(pos, photo.clone()),
-                        Err(pos) => results.insert(pos, photo.clone()),
-                    }
-                } else if sort == Sort::Date || sort == Sort::DateDesc {
-                    match results.binary_search_by_key(&photo.date(), |p| p.date()) {
-                        Ok(pos) => results.insert(pos, photo.clone()),
-                        Err(pos) => results.insert(pos, photo.clone()),
-                    }
-                }
-            }
-        }
-    } else {
-        results = photo_records.into_iter().collect::<Vec<Photo>>();
-        if sort == Sort::Name || sort == Sort::NameDesc {
-            results.sort_by_key(|p| p.name.clone());
-        } else if sort == Sort::Rating || sort == Sort::RatingDesc {
-            results.sort_by_key(|p| p.rating);
-        } else if sort == Sort::Date || sort == Sort::DateDesc {
-            results.sort_by_key(|p| p.date());
-        }
-    }
-
-    // Apply groups
-    let mut encountered_groups = HashSet::<String>::new();
-    let mut encountered_raws = HashSet::<String>::new();
-    results = results
-        .into_iter()
-        .filter(|result| {
-            // Group raws that have a jpg version in the same folder (showing the jpg in the grid instead of the raw)
-            let raw = result.grouped_raw();
-            if raw.is_some() {
-                encountered_raws.insert(raw.unwrap());
-            }
-            if result.photo_group.is_some() {
-                let group = result.photo_group.as_ref().unwrap();
-                if encountered_groups.contains(group) {
-                    return false;
-                } else {
-                    encountered_groups.insert(group.clone());
-                }
-            }
-            true
-        })
-        .collect();
-    results.retain(|result| !result.is_raw() || !encountered_raws.contains(&result.name));
-
-    if sort == Sort::NameDesc || sort == Sort::RatingDesc || sort == Sort::DateDesc {
-        results.reverse();
-    }
-
-    debug!("Search returned {} photos", results.len());
-    Ok(results)
 }
 
 pub async fn remove_deleted(deleted: &Vec<String>) -> Result<()> {

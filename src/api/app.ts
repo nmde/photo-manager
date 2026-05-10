@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { APIResult } from '@/classes/APIResult';
 import { Photo, type PhotoData } from '@/classes/Photo';
 
-export type Sort = 'name' | 'namedesc' | 'date' | 'datedesc' | 'rating' | 'ratingdesc';
+export type Sort = 'name' | 'name_desc' | 'date' | 'date_desc' | 'rating' | 'rating_desc';
 
 type LoadedPhotos = {
   removed: string[];

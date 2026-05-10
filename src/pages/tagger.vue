@@ -269,11 +269,11 @@
           </template>
           <v-list>
             <v-list-item @click="setSortMode('name')">Sort by name</v-list-item>
-            <v-list-item @click="setSortMode('namedesc')"> Sort by name (desc) </v-list-item>
+            <v-list-item @click="setSortMode('name_desc')"> Sort by name (desc) </v-list-item>
             <v-list-item @click="setSortMode('rating')">Sort by rating</v-list-item>
-            <v-list-item @click="setSortMode('ratingdesc')"> Sort by rating (desc) </v-list-item>
+            <v-list-item @click="setSortMode('rating_desc')"> Sort by rating (desc) </v-list-item>
             <v-list-item @click="setSortMode('date')">Sort by date</v-list-item>
-            <v-list-item @click="setSortMode('datedesc')"> Sort by date (desc) </v-list-item>
+            <v-list-item @click="setSortMode('date_desc')"> Sort by date (desc) </v-list-item>
           </v-list>
         </v-menu>
         <div class="toolbar-controls">
