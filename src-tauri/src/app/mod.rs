@@ -5,6 +5,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    str::FromStr,
     time::Duration,
 };
 
@@ -193,6 +194,18 @@ pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
         {
             targets.push(row);
         }
+    }
+    for raw in targets
+        .clone()
+        .iter()
+        .filter_map(|photo| photo.grouped_raw())
+    {
+        targets.push(
+            photos::table
+                .filter(photos::name.eq(raw))
+                .first::<Photo>(DB.lock().await.as_mut().unwrap())
+                .await?,
+        );
     }
     Ok(targets)
 }
@@ -727,6 +740,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         sort
     );
     let mut unmet_terms = vec![];
+    let mut sort = sort;
 
     // Construct a SQL statement using terms that require no additional processing (is:..., at:..., only:..., by:..., has:...)
     let mut statement = photos::table
@@ -844,6 +858,8 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
             } else {
                 statement = statement.filter(photos::rating.eq(rating));
             }
+        } else if term_matches(&tmp_term, "SORT:") || term_matches(&tmp_term, "SORT=") {
+            sort = Sort::from_str(&try_get_term(&tmp_term, 5)?)?;
         } else {
             unmet_terms.push(term.to_string());
         }
