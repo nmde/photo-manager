@@ -2,6 +2,7 @@
   import type { Photo } from '@/classes/Photo';
   import { useRules } from 'vuetify/labs/rules';
   import { photo_grid, refresh, type Sort } from '@/api/app';
+  import { get_group } from '@/api/photos';
   import { useFileStore } from '@/stores/fileStore';
 
   const route = useRoute();
@@ -11,8 +12,8 @@
   const { reportError } = store;
   const { query, sortBy, itemsPerRow } = storeToRefs(store);
 
-  const selected = ref<Photo[]>([]);
-  const photos = ref<Photo[]>([]);
+  const selected = shallowRef<Photo[]>([]);
+  const photos = shallowRef<Photo[]>([]);
   const searching = ref(false);
   const sorting = ref(false);
   const current = ref(0);
@@ -38,12 +39,35 @@
   }
 
   /**
+   * Expands the photo selection to include photos within groups
+   * @param photos - The top-level selected photos.
+   */
+  async function getPhotosForGroup(photos: Photo[]) {
+    const visited: string[] = [];
+    let re: Photo[] = [];
+    for (const photo of photos) {
+      if (photo.group === null) {
+        re.push(photo);
+      } else if (!visited.includes(photo.group)) {
+        visited.push(photo.group);
+        await get_group(photo.group)
+          .ok(photos => {
+            re = re.concat(photos);
+          })
+          .err(reportError)
+          .send();
+      }
+    }
+    return re;
+  }
+
+  /**
    * Handles selecting one or more photos.
    * @param photo - The photo being selected.
    * @param index - The index of the photo selected.
    */
-  function selectPhoto(photo: Photo, index: number) {
-    const s: Photo[] = [photo];
+  async function selectPhoto(photo: Photo, index: number) {
+    const s = [photo];
     if (shiftPressed.value && index !== lastSelectedIndex.value) {
       const startIndex = Math.min(index, lastSelectedIndex.value);
       const endIndex = Math.max(index, lastSelectedIndex.value);
@@ -54,24 +78,26 @@
           range.push(p);
         }
       }
-      selected.value = range;
+      selected.value = await getPhotosForGroup(range);
       if (current.value >= selected.value.length) {
         current.value = selected.value.length - 1;
       }
     } else if (ctrlPressed.value) {
+      const initial = [...selected.value];
       for (const x of s) {
         const idx = selected.value.findIndex(p => p.name === x.name);
         if (idx === -1) {
-          selected.value.push(x);
+          initial.push(x);
         } else {
-          selected.value.splice(idx, 1);
+          initial.splice(idx, 1);
         }
       }
+      selected.value = await getPhotosForGroup(initial);
       if (current.value >= selected.value.length) {
         current.value = selected.value.length - 1;
       }
     } else {
-      selected.value = s;
+      selected.value = await getPhotosForGroup(s);
       current.value = 0;
     }
     lastSelectedIndex.value = index;
@@ -303,8 +329,8 @@
         :half-width="showDetail"
         :items-per-row="itemsPerRow"
         :loading="searching || refreshing"
-        :photos="photos as Photo[]"
-        :selected="selected as Photo[]"
+        :photos="photos"
+        :selected="selected"
         @select="
           (photo, index) => {
             selectPhoto(photo, index);
@@ -364,7 +390,7 @@
       </v-toolbar>
       <photo-detail
         :index="current"
-        :photos="selected as Photo[]"
+        :photos="selected"
         @input-focused="val => (inputFocus = val)"
       />
     </div>

@@ -1,7 +1,11 @@
 use anyhow::Context;
 use log::debug;
 
-use crate::{app::ApiError, photos::PHOTOS, tags::ValidationResult};
+use crate::{
+    app::ApiError,
+    photos::{get_group as _get_group, PhotoDto, PHOTOS},
+    tags::ValidationResult,
+};
 
 #[tauri::command]
 pub async fn set_photo_title(photo: String, value: Option<String>) -> Result<(), ApiError> {
@@ -265,4 +269,14 @@ pub async fn get_grouped_raw(photo: String) -> Option<String> {
         return target.unwrap().thumbnail.clone();
     }
     None
+}
+
+/// Gets photos in the given group
+#[tauri::command]
+pub async fn get_group(group: String) -> Result<Vec<PhotoDto>, ApiError> {
+    Ok(_get_group(&group)
+        .await?
+        .iter()
+        .map(|photo| PhotoDto::from(photo))
+        .collect())
 }

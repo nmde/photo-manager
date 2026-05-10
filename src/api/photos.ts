@@ -1,7 +1,7 @@
 import type { ValidationResult } from './tags';
-import type { PhotoData } from '@/classes/Photo';
 import { invoke } from '@tauri-apps/api/core';
 import { APIResult } from '@/classes/APIResult';
+import { Photo, type PhotoData } from '@/classes/Photo';
 
 export async function set_photo_title(photo: PhotoData['name'], value: PhotoData['title']) {
   await invoke('set_photo_title', { photo, value });
@@ -57,4 +57,11 @@ export async function set_photo_hide_thumbnail(
 
 export async function get_grouped_raw(photo: PhotoData['name']) {
   return await invoke<string | null>('get_grouped_raw', { photo });
+}
+
+export function get_group(group: PhotoData['photo_group']) {
+  return new APIResult<PhotoData[], Photo[]>(
+    async () => await invoke('get_group', { group }),
+    photos => Photo.createPhotos(photos),
+  );
 }

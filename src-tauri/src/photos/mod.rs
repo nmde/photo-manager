@@ -54,6 +54,14 @@ pub fn get_asset_path(filename: &String) -> String {
     )
 }
 
+pub async fn get_group(group: &String) -> Result<Vec<Photo>> {
+    ensure_db().await?;
+    Ok(photos::table
+        .filter(photos::photo_group.eq(group))
+        .load(DB.lock().await.as_mut().unwrap())
+        .await?)
+}
+
 impl Photo {
     pub fn new(filename: String) -> Self {
         Self {
