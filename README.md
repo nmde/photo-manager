@@ -39,10 +39,13 @@ The following search terms are implemented. Any search term can be negated by pr
 - by:[person] - Taken by the specified person
 - has:(rating|photographer|location|people|tags) - Photos that have a value for the specified field
 - name:[name] - The photo's name (file path) contains the specified text
+- name=[name] - The photo's filename is exactly the specified text
+- path:[path] - Photos in the specified directory
 - rating(<=|>=|<|>|=)[rating] - Photos with a rating compared to the given value
 - of:[person] - Photos that include the specified person
 - date(<=|>=|<|>|=)[date] - Photos with a date compared to the given value
 - is:(raw|video) - Only RAW or video files
+- sort/order:(date|date_desc|name|name_desc|rating|rating_desc) - Set the sort order from the query to avoid having to sort again from the dropdown menu
 
 # Installation
 - Install [Rust](https://www.rust-lang.org/learn/get-started)

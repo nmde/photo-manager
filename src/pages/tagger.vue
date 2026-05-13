@@ -203,11 +203,13 @@
             const nextPhoto = photos.value[idx + 1];
             if (nextPhoto) {
               selected.value = [nextPhoto];
+              lastSelectedIndex.value = idx + 1;
             }
           } else if (selected.value.length === 0) {
             const firstPhoto = photos.value[0];
             if (firstPhoto) {
               selected.value = [firstPhoto];
+              lastSelectedIndex.value = 0;
             }
           }
           showDetail.value = true;
@@ -220,11 +222,13 @@
             const prevPhoto = photos.value[idx - 1];
             if (prevPhoto) {
               selected.value = [prevPhoto];
+              lastSelectedIndex.value = idx - 1;
             }
           } else if (selected.value.length === 0) {
             const firstPhoto = photos.value[0];
             if (firstPhoto) {
               selected.value = [firstPhoto];
+              lastSelectedIndex.value = 0;
             }
           }
           showDetail.value = true;
@@ -234,6 +238,7 @@
           const downPhoto = photos.value[idx + itemsPerRow.value];
           if (downPhoto) {
             selected.value = [downPhoto];
+            lastSelectedIndex.value = idx + itemsPerRow.value;
           }
         }
         if (event.key === 'ArrowUp' && selected.value.length === 1) {
@@ -241,6 +246,7 @@
           const upPhoto = photos.value[idx - itemsPerRow.value];
           if (upPhoto) {
             selected.value = [upPhoto];
+            lastSelectedIndex.value = idx - itemsPerRow.value;
           }
         }
       }

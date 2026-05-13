@@ -166,8 +166,13 @@ fn parse_term(term: &str) -> Result<(SearchTerm, bool)> {
             SearchTerm::Rating(CompOp::Eq, t[7..].parse::<i32>()?),
             negated,
         ))
-    } else if up.starts_with("SORT:") || up.starts_with("SORT=") {
+    } else if up.starts_with("SORT:")
+        || up.starts_with("SORT=")
+    {
         Ok((SearchTerm::SortBy(Sort::from_str(&t[5..])?), negated))
+    } else if up.starts_with("ORDER:")
+        || up.starts_with("ORDER=") {
+        Ok((SearchTerm::SortBy(Sort::from_str(&t[6..])?), negated))
     } else if up.starts_with("OF:") {
         let val = t[3..].to_string();
         Ok((SearchTerm::Of(val), negated))

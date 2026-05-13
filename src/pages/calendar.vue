@@ -73,7 +73,7 @@
         `date>=${year}-${month.toString().padStart(2, '0')}-01`,
         `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(year, month, 0).getDate()}`,
       ],
-      'ratingdesc',
+      'rating_desc',
     )
       .ok(p => (photos.value = p))
       .err(reportError)
