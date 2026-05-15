@@ -24,6 +24,7 @@ pub enum Sort {
     Date(bool),
     Name(bool),
     Rating(bool),
+    FileDate(bool),
 }
 
 impl FromStr for Sort {
@@ -40,12 +41,13 @@ impl FromStr for Sort {
             let key = key.unwrap().to_uppercase();
             (key, dir.unwrap().to_uppercase() == "DESC")
         } else {
-            (s.to_uppercase(), true)
+            (s.to_uppercase(), false)
         };
         match sorting.0.as_str() {
             "DATE" => Ok(Sort::Date(sorting.1)),
             "NAME" => Ok(Sort::Name(sorting.1)),
             "RATING" => Ok(Sort::Rating(sorting.1)),
+            "FILEDATE" => Ok(Sort::FileDate(sorting.1)),
             _ => Err(anyhow!("Unknown sort key: {}", sorting.0)),
         }
     }
@@ -54,9 +56,10 @@ impl FromStr for Sort {
 impl Display for Sort {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Sort::Date(dir) => write!(f, "date{}", if !dir { " descending" } else { "" }),
-            Sort::Name(dir) => write!(f, "name{}", if !dir { " descending" } else { "" }),
-            Sort::Rating(dir) => write!(f, "rating{}", if !dir { " descending" } else { "" }),
+            Sort::Date(dir) => write!(f, "date{}", if *dir { " descending" } else { "" }),
+            Sort::Name(dir) => write!(f, "name{}", if *dir { " descending" } else { "" }),
+            Sort::Rating(dir) => write!(f, "rating{}", if *dir { " descending" } else { "" }),
+            Sort::FileDate(dir) => write!(f, "file_date{}", if *dir { " descending" } else { "" }),
         }
     }
 }
@@ -475,15 +478,19 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         Sort::Name(dir) => {
             results.sort_by(|a, b| a.name.cmp(&b.name));
             dir
-        }
+        },
         Sort::Rating(dir) => {
             results.sort_by_cached_key(|p| p.rating);
             dir
-        }
+        },
         Sort::Date(dir) => {
             results.sort_by_cached_key(|p| p.date());
             dir
-        }
+        },
+        Sort::FileDate(dir) => {
+            results.sort_by_cached_key(|p| p.metadata_date());
+            dir
+        },
     } {
         results.reverse();
     }

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use log::debug;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Window};
 
 use crate::{
     app::{
@@ -16,6 +16,7 @@ use crate::{
 #[tauri::command]
 pub async fn initialize<R: Runtime>(
     app: AppHandle<R>,
+    window: Window<R>,
     path: String,
 ) -> Result<LoadedPhotos, ApiError> {
     debug!("Initializing with path {path}");

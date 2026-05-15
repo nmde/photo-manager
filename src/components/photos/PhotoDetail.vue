@@ -74,6 +74,7 @@
       validTags.value = photo.value.valid_tags.is_valid
         ? undefined
         : (photo.value.valid_tags.message ?? undefined);
+      focusDate.value = photo.value.date ?? lastSetDate.value;
     }
     await get_people_categories()
       .ok(c => (peopleCategories.value = c))
@@ -149,7 +150,6 @@
 
   onMounted(() => {
     initialize();
-    focusDate.value = lastSetDate.value;
   });
 </script>
 
@@ -277,37 +277,31 @@
       @focused="val => emit('input-focused', val)"
       @save="description => photo.setDescription(description)"
     />
-    <v-container>
-      <v-row>
-        <v-col>
-          <v-date-input
-            v-model="date"
-            aria-autocomplete="none"
-            clearable
-            color="primary"
-            label="Date"
-            :loading="savingDate"
-            :month="focusDate.getMonth()"
-            :year="focusDate.getFullYear()"
-            @update:model-value="date => saveDate(date)"
-          >
-            <template #append>
-              <v-menu>
-                <template #activator="{ props: vprops }">
-                  <v-btn v-bind="vprops" icon variant="flat">
-                    <v-icon>mdi-dots-vertical</v-icon>
-                  </v-btn>
-                </template>
-                <v-list>
-                  <v-list-item>Search This Date</v-list-item>
-                  <v-list-item>Show In Calendar</v-list-item>
-                </v-list>
-              </v-menu>
-            </template>
-          </v-date-input>
-        </v-col>
-      </v-row>
-    </v-container>
+    <v-date-input
+      v-model="date"
+      aria-autocomplete="none"
+      clearable
+      color="primary"
+      label="Date"
+      :loading="savingDate"
+      :month="focusDate.getMonth()"
+      :year="focusDate.getFullYear()"
+      @update:model-value="date => saveDate(date)"
+    >
+      <template #append>
+        <v-menu>
+          <template #activator="{ props: vprops }">
+            <v-btn v-bind="vprops" icon variant="flat">
+              <v-icon>mdi-dots-vertical</v-icon>
+            </v-btn>
+          </template>
+          <v-list>
+            <v-list-item>Search This Date</v-list-item>
+            <v-list-item>Show In Calendar</v-list-item>
+          </v-list>
+        </v-menu>
+      </template>
+    </v-date-input>
     <v-alert v-if="photo.metaDate !== null" :type="photo.date === null ? 'info' : undefined">
       File date: {{ photo.metaDate }}
       <v-btn

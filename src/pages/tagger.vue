@@ -183,28 +183,42 @@
         shiftPressed.value = true;
       }
       if (!inputFocus.value) {
+        // Crtl a: Select all
         if (event.key === 'a' && event.ctrlKey) {
           event.preventDefault();
           selected.value = photos.value;
         }
+        // Crtl -: Zoom grid out
         if (event.key === '-' && event.ctrlKey) {
           event.preventDefault();
           store.setItemsPerRow(itemsPerRow.value + 1);
         }
+        // Ctrl +: Zoom grid in
         if (event.key === '=' && event.ctrlKey) {
           event.preventDefault();
           store.setItemsPerRow(itemsPerRow.value - 1);
         }
         if (event.key === 'ArrowRight') {
-          if (selected.value.length > 1 && current.value + 1 < selected.value.length) {
+          // Shift ->: Extend selection to the right
+          if (shiftPressed.value && selected.value.length > 0) {
+            const nextPhoto = photos.value[lastSelectedIndex.value + 1];
+            if (nextPhoto !== undefined) {
+              selected.value = [...selected.value, nextPhoto];
+              lastSelectedIndex.value += 1;
+              current.value = selected.value.length - 1;
+            }
+            // ->: Move right between selected photos in the details pane
+          } else if (selected.value.length > 1 && current.value + 1 < selected.value.length) {
             current.value += 1;
+            // ->: Move to photo to the right
           } else if (selected.value.length === 1) {
             const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const nextPhoto = photos.value[idx + 1];
-            if (nextPhoto) {
+            if (nextPhoto !== undefined) {
               selected.value = [nextPhoto];
               lastSelectedIndex.value = idx + 1;
             }
+            // ->: Select first photo in the grid
           } else if (selected.value.length === 0) {
             const firstPhoto = photos.value[0];
             if (firstPhoto) {
@@ -215,8 +229,16 @@
           showDetail.value = true;
         }
         if (event.key === 'ArrowLeft') {
-          if (selected.value.length > 1 && current.value - 1 >= 0) {
+          // Shift <-: Remove last selected
+          if (shiftPressed.value && selected.value.length > 0) {
+            // eslint-disable-next-line unicorn/no-useless-spread
+            selected.value = [...selected.value.slice(0, -1)];
+            lastSelectedIndex.value -= 1;
             current.value -= 1;
+            // <-: Move left between selected photos in the details pane
+          } else if (selected.value.length > 1 && current.value - 1 >= 0) {
+            current.value -= 1;
+            // <-: Move to photo to the left
           } else if (selected.value.length === 1) {
             const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const prevPhoto = photos.value[idx - 1];
@@ -224,11 +246,12 @@
               selected.value = [prevPhoto];
               lastSelectedIndex.value = idx - 1;
             }
+            // <-: Select last photo in the grid
           } else if (selected.value.length === 0) {
-            const firstPhoto = photos.value[0];
-            if (firstPhoto) {
-              selected.value = [firstPhoto];
-              lastSelectedIndex.value = 0;
+            const lastPhoto = photos.value.at(-1);
+            if (lastPhoto !== undefined) {
+              selected.value = [lastPhoto];
+              lastSelectedIndex.value = photos.value.length - 1;
             }
           }
           showDetail.value = true;
@@ -236,7 +259,7 @@
         if (event.key === 'ArrowDown' && selected.value.length === 1) {
           const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const downPhoto = photos.value[idx + itemsPerRow.value];
-          if (downPhoto) {
+          if (downPhoto !== undefined) {
             selected.value = [downPhoto];
             lastSelectedIndex.value = idx + itemsPerRow.value;
           }
@@ -244,7 +267,7 @@
         if (event.key === 'ArrowUp' && selected.value.length === 1) {
           const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const upPhoto = photos.value[idx - itemsPerRow.value];
-          if (upPhoto) {
+          if (upPhoto !== undefined) {
             selected.value = [upPhoto];
             lastSelectedIndex.value = idx - itemsPerRow.value;
           }
@@ -280,6 +303,10 @@
             <v-list-item @click="setSortMode('rating_desc')"> Sort by rating (desc) </v-list-item>
             <v-list-item @click="setSortMode('date')">Sort by date</v-list-item>
             <v-list-item @click="setSortMode('date_desc')"> Sort by date (desc) </v-list-item>
+            <v-list-item @click="setSortMode('filedate')">Sort by file date</v-list-item>
+            <v-list-item @click="setSortMode('filedate_desc')">
+              Sort by file date (desc)
+            </v-list-item>
           </v-list>
         </v-menu>
         <div class="toolbar-controls">
@@ -380,7 +407,6 @@
           <v-icon>mdi-arrow-collapse-right</v-icon>
         </v-btn>
         <v-toolbar-title class="photo-name">&nbsp;{{ selected[current]?.name }}</v-toolbar-title>
-        <v-spacer />
         <v-btn
           v-if="selected.length > 0"
           variant="tonal"
@@ -472,7 +498,16 @@
 </style>
 
 <style>
+  .photo-name {
+    flex: 1;
+    min-width: 0;
+  }
+
   .photo-name > .v-toolbar-title__placeholder {
-    overflow: visible;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
   }
 </style>
