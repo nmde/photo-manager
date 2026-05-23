@@ -1,15 +1,12 @@
 <script setup lang="ts">
-  import type { LayerRec } from '@/classes/Layer';
   import type { PersonRec } from '@/classes/Person';
   import type { PersonCategoryRec } from '@/classes/PersonCategory';
   import type { Photo, PhotoData } from '@/classes/Photo';
-  import type { PlaceRec } from '@/classes/Place';
   import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
   import { VideoPlayer } from '@videojs-player/vue';
   import { useRules } from 'vuetify/labs/rules';
   import { get_people, get_people_categories } from '@/api/people';
   import { get_grouped_raw } from '@/api/photos';
-  import { get_layers, get_places } from '@/api/places';
   import { useFileStore } from '@/stores/fileStore';
   import 'video.js/dist/video-js.css';
 
@@ -49,8 +46,6 @@
   const setPhotoDialog = ref(false);
   const setPhotoTarget = ref<string[]>([]);
   const viewConfirmation = ref(false);
-  const placeList = ref<PlaceRec>({});
-  const layers = ref<LayerRec>({});
   const people = ref<PersonRec>({});
   const peopleCategories = ref<PersonCategoryRec>({});
   const validTags = ref<string | undefined>();
@@ -80,16 +75,8 @@
       .ok(c => (peopleCategories.value = c))
       .err(reportError)
       .send();
-    await get_places()
-      .ok(p => (placeList.value = p))
-      .err(reportError)
-      .send();
     await get_people()
       .ok(p => (people.value = p))
-      .err(reportError)
-      .send();
-    await get_layers()
-      .ok(l => (layers.value = l))
       .err(reportError)
       .send();
   }
@@ -201,12 +188,8 @@
       @change="tags => saveTags(tags)"
       @focused="val => emit('input-focused', val)"
     />
-    <sorted-combo
+    <location-input
       :id="photo.name"
-      color-key="layer"
-      :color-repo="layers"
-      :items="placeList"
-      label="Location"
       :loading="savingLocation"
       :value="location"
       @focused="val => emit('input-focused', val)"

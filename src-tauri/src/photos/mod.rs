@@ -277,7 +277,13 @@ impl Photo {
         let conn = conn.as_mut().unwrap();
         for target in targets {
             update(photos::table.filter(photos::name.eq(target.name)))
-                .set(photos::date.eq(value))
+                .set(
+                    photos::date.eq(if value.is_some() && value.as_ref().unwrap().len() > 0 {
+                        Some(value.clone().unwrap())
+                    } else {
+                        None
+                    }),
+                )
                 .execute(conn)
                 .await?;
         }

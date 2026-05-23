@@ -310,26 +310,14 @@
           </v-list>
         </v-menu>
         <div class="toolbar-controls">
-          <v-combobox
+          <SearchBar
             v-model="query"
-            aria-autocomplete="none"
-            chips
-            clearable
-            density="compact"
-            label="Search"
-            multiple
-            variant="outlined"
-            @update:focused="val => (inputFocus = val)"
-          >
-            <template #append>
-              <v-btn density="compact" icon :loading="searching" @click="searchGrid()">
-                <v-icon>mdi-magnify</v-icon>
-              </v-btn>
-              <v-btn density="compact" icon :loading="refreshing" @click="refreshGrid()">
-                <v-icon>mdi-refresh</v-icon>
-              </v-btn>
-            </template>
-          </v-combobox>
+            v-model:focused="inputFocus"
+            v-model:refreshing="refreshing"
+            v-model:searching="searching"
+            @refresh="refreshGrid()"
+            @search="searchGrid()"
+          />
           <template v-if="selected.length > 1">
             <v-menu>
               <template #activator="{ props }">

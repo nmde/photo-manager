@@ -5,6 +5,7 @@
     title: string;
     saveText?: string;
     reset: () => void;
+    size?: 'lg' | 'sm';
   }>();
 
   const saving = ref(false);
@@ -15,7 +16,7 @@
 </script>
 
 <template>
-  <v-dialog v-model="model" max-width="80vw">
+  <v-dialog v-model="model" :max-width="size === 'sm' ? '20vw' : '80vw'">
     <v-card :title="title">
       <v-form
         validate-on="input"

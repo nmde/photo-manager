@@ -9,6 +9,7 @@ export const useFileStore = defineStore('files', () => {
   const itemsPerRow = ref(4);
   const lastSetDate = ref(new Date());
   const globalError = ref<string>();
+  const searchHistory = ref<string[][]>([]);
 
   function toggleTheme() {
     theme.value = theme.value === 'Dark' ? 'Light' : 'Dark';
@@ -41,6 +42,19 @@ export const useFileStore = defineStore('files', () => {
     globalError.value = message;
   }
 
+  function pushHistory(q: string[]) {
+    const existing = searchHistory.value.findIndex(
+      e => e.length === q.length && e.every((v, i) => v === q[i]),
+    );
+    if (existing !== -1) {
+      searchHistory.value.splice(existing, 1);
+    }
+    searchHistory.value.unshift([...q]);
+    if (searchHistory.value.length > 5) {
+      searchHistory.value.pop();
+    }
+  }
+
   return {
     theme,
     query,
@@ -56,5 +70,7 @@ export const useFileStore = defineStore('files', () => {
     setItemsPerRow,
     setLastDate,
     reportError,
+    searchHistory,
+    pushHistory,
   };
 });
