@@ -61,13 +61,6 @@
     @update:focused="val => (focused = val)"
   >
     <template #append>
-      <v-menu v-if="searchHistory.length > 0">
-        <template #activator="{ props: menuProps }">
-          <v-btn v-bind="menuProps" density="compact" icon>
-            <v-icon>mdi-history</v-icon>
-          </v-btn>
-        </template>
-      </v-menu>
       <v-btn density="compact" icon :loading="searching" @click="search()">
         <v-icon>mdi-magnify</v-icon>
       </v-btn>
