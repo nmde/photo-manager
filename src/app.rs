@@ -1,3 +1,35 @@
+use std::path::Path;
+
+use anyhow::Result;
+
+use crate::{
+    components::{Component, core::body::Body},
+    styles::{Style, measurement::Measurement, tokens::COLOR_BACKGROUND},
+    window::Window,
+};
+
+pub fn create_app() -> Result<()> {
+    let window = Window::new(
+        "Photo Manager",
+        (1280, 600),
+        Path::new("icons/32x32.png").to_path_buf(),
+    );
+
+    let mut body = Body::new();
+    body.style(
+        Style::new()
+            .background_color(COLOR_BACKGROUND)
+            .width(Measurement::Percent(1.0))
+            .height(Measurement::Percent(1.0))
+            .build(),
+    );
+
+    window.build(body)?;
+
+    Ok(())
+}
+
+/*
 <script setup lang="ts">
   import { useFileStore } from './stores/fileStore';
 
@@ -57,3 +89,4 @@
     height: 100%;
   }
 </style>
+*/

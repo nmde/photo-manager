@@ -1,5 +1,4 @@
 use diesel::{Insertable, Queryable, Selectable};
-use serde::Serialize;
 
 use crate::schema::{
     layers, people, people_categories, photo_groups, photos, places, settings, shapes, tags,
@@ -22,7 +21,7 @@ pub struct Person {
     pub category: String,
 }
 
-#[derive(Insertable, Queryable, Selectable, Serialize)]
+#[derive(Insertable, Queryable, Selectable)]
 #[diesel(table_name = people_categories)]
 pub struct PersonCategory {
     pub id: String,
@@ -30,7 +29,7 @@ pub struct PersonCategory {
     pub color: String,
 }
 
-#[derive(Clone, Queryable, Selectable, Serialize)]
+#[derive(Clone, Queryable, Selectable)]
 #[diesel(table_name = photo_groups)]
 pub struct PhotoGroup {
     pub id: String,
@@ -70,14 +69,14 @@ pub struct Place {
     pub shape: Option<String>,
 }
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = settings)]
 pub struct Setting {
     pub setting: String,
     pub value: String,
 }
 
-#[derive(Clone, Insertable, Queryable, Selectable, Serialize)]
+#[derive(Clone, Insertable, Queryable, Selectable)]
 #[diesel(table_name = shapes)]
 pub struct Shape {
     pub id: String,
