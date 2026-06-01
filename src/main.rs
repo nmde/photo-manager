@@ -12,6 +12,7 @@ use crate::app::create_app;
 mod app;
 mod components;
 mod models;
+mod router;
 mod schema;
 mod styles;
 mod window;

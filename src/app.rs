@@ -1,92 +1,127 @@
-use std::path::Path;
+use std::{path::Path, sync::LazyLock};
 
 use anyhow::Result;
 
 use crate::{
-    components::{Component, core::body::Body},
-    styles::{Style, measurement::Measurement, tokens::COLOR_BACKGROUND},
+    components::{
+        Component,
+        core::{
+            body::Body,
+            div::Div,
+            router_view::RouterView,
+            transition::{Transition, TransitionMode},
+        },
+        md::{
+            icon::Icon,
+            layout::Layout,
+            list::{Divider, List, ListItem},
+            main::Main,
+            navigation_drawer::NavigationDrawer,
+            snackbar::Snackbar,
+            spacer::Spacer,
+        },
+    },
+    router::Router,
+    styles::{
+        Style,
+        measurement::Measurement,
+        tokens::{COLOR_BACKGROUND, COLOR_PRIMARY},
+    },
     window::Window,
 };
+
+#[derive(Eq, PartialEq)]
+pub enum Routes {
+    Index,
+    Calendar,
+    Locations,
+    People,
+    Settings,
+    Stats,
+    Tagger,
+    Tags,
+}
+
+pub static ROUTER: LazyLock<Router<Routes>> = LazyLock::new(|| Router::new(Routes::Index));
 
 pub fn create_app() -> Result<()> {
     let window = Window::new(
         "Photo Manager",
-        (1280, 600),
+        (1200, 900),
         Path::new("icons/32x32.png").to_path_buf(),
     );
 
-    let mut body = Body::new();
+    let mut body = Body::new(vec![
+        &Layout::new(vec![
+            NavigationDrawer::new(vec![
+                List::new(vec![
+                    ListItem::new()
+                        .prepend_icon(Icon::Image)
+                        .title("Photos")
+                        .to(Routes::Tagger),
+                    ListItem::new()
+                        .prepend_icon(Icon::MapMarker)
+                        .title("Locations")
+                        .to(Routes::Locations),
+                    ListItem::new()
+                        .prepend_icon(Icon::Calendar)
+                        .title("Calendar")
+                        .to(Routes::Calendar),
+                    &Divider::new(),
+                    ListItem::new()
+                        .prepend_icon(Icon::Tag)
+                        .title("Tags")
+                        .to(Routes::Tags),
+                    ListItem::new()
+                        .prepend_icon(Icon::Account)
+                        .title("People")
+                        .to(Routes::People),
+                    ListItem::new()
+                        .prepend_icon(Icon::ChartLine)
+                        .title("Statistics")
+                        .to(Routes::Stats),
+                ])
+                .style(&Style::new().height(Measurement::Calc(|viewport| {
+                    Measurement::Vh(1.0).resolve(viewport) - Measurement::Px(128).resolve(viewport)
+                })))
+                .color(COLOR_PRIMARY)
+                .nav(true),
+                &Spacer::new(),
+                List::new(vec![
+                    ListItem::new()
+                        .prepend_icon(Icon::Cog)
+                        .title("Settings")
+                        .to(Routes::Settings),
+                    ListItem::new()
+                        .prepend_icon(Icon::ExitToApp)
+                        .title("Close Project")
+                        .to(Routes::Index),
+                ])
+                .color(COLOR_PRIMARY)
+                .nav(true),
+            ])
+            .expand_on_hover(true)
+            .permanent(true)
+            .rail(true)
+            .cond(|| ROUTER.route != Routes::Index),
+            &Main::new(vec![RouterView::new().component(|component| {
+                let mut div = Div::new(vec![component]);
+                div.style(&Style::new().height(Measurement::Percent(1.0)));
+                let mut t = Transition::new(vec![&div]);
+                t.mode(TransitionMode::OutIn);
+                Box::new(t) as Box<dyn Component>
+            })]),
+        ]),
+        &Snackbar::new(vec![]),
+    ]);
     body.style(
         Style::new()
             .background_color(COLOR_BACKGROUND)
             .width(Measurement::Percent(1.0))
-            .height(Measurement::Percent(1.0))
-            .build(),
+            .height(Measurement::Percent(1.0)),
     );
 
     window.build(body)?;
 
     Ok(())
 }
-
-/*
-<script setup lang="ts">
-  import { useFileStore } from './stores/fileStore';
-
-  const route = useRoute();
-
-  const store = useFileStore();
-  const { theme, globalError } = storeToRefs(store);
-
-  const errorSnack = ref(false);
-
-  watch(globalError, () => {
-    errorSnack.value = true;
-  });
-</script>
-
-<template>
-  <v-app :theme="theme === 'Dark' ? 'Theme' : 'LightTheme'">
-    <v-layout>
-      <v-navigation-drawer v-if="route.path !== '/'" expand-on-hover permanent rail>
-        <v-list class="top-nav" color="primary" nav>
-          <v-list-item prepend-icon="mdi-image" title="Photos" to="/tagger" />
-          <v-list-item prepend-icon="mdi-map-marker" title="Locations" to="/locations" />
-          <v-list-item prepend-icon="mdi-calendar" title="Calendar" to="/calendar" />
-          <v-divider />
-          <v-list-item prepend-icon="mdi-tag" title="Tags" to="/tags" />
-          <v-list-item prepend-icon="mdi-account" title="People" to="/people" />
-          <v-list-item prepend-icon="mdi-chart-line" title="Statistics" to="/stats" />
-        </v-list>
-        <v-spacer />
-        <v-list color="primary" nav>
-          <v-list-item prepend-icon="mdi-cog" title="Settings" to="/settings" />
-          <v-list-item prepend-icon="mdi-exit-to-app" title="Close Project" to="/" />
-        </v-list>
-      </v-navigation-drawer>
-      <v-main>
-        <RouterView v-slot="{ Component }">
-          <Transition mode="out-in" name="route">
-            <div :key="$route.path" class="route-view">
-              <component :is="Component" />
-            </div>
-          </Transition>
-        </RouterView>
-      </v-main>
-    </v-layout>
-    <v-snackbar v-model="errorSnack" color="error">
-      {{ globalError }}
-    </v-snackbar>
-  </v-app>
-</template>
-
-<style scoped>
-  .top-nav {
-    height: calc(100vh - 128px);
-  }
-
-  .route-view {
-    height: 100%;
-  }
-</style>
-*/

@@ -1,18 +1,29 @@
 use crate::components::{Component, ComponentBase};
 
-pub struct Body {
-    base: ComponentBase,
+pub enum TransitionMode {
+    OutIn,
 }
 
-impl Body {
+pub struct Transition {
+    base: ComponentBase,
+    mode: Option<TransitionMode>,
+}
+
+impl Transition {
     pub fn new(children: Vec<&dyn Component>) -> Self {
         Self {
             base: ComponentBase::new(),
+            mode: None,
         }
+    }
+
+    pub fn mode(&mut self, mode: TransitionMode) -> &mut Self {
+        self.mode = Some(mode);
+        self
     }
 }
 
-impl Component for Body {
+impl Component for Transition {
     fn base(&self) -> &ComponentBase {
         &self.base
     }

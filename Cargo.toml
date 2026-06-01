@@ -21,7 +21,7 @@ fern = "0.7.1"
 log = "0.4.30"
 sdl3 = { version = "0.18.4", features = ["build-from-source-static", "ttf"] }
 sdl3-ttf-sys = { version = "0.6", features = ["no-sdlttf-harfbuzz"] }
-tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread", "sync"] }
 
 [dependencies.libsqlite3-sys]
 version = "0.36.0"

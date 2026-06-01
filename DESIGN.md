@@ -3,10 +3,10 @@ name: Photo Manager
 description: Desktop photo and video management for hobbyist photographers. The Observatory.
 colors:
   primary: "oklch(65% 0.14 245)"
-  background: "oklch(9% 0.003 245)"
-  surface: "oklch(14% 0.004 245)"
-  surface-raised: "oklch(21% 0.006 245)"
-  border: "oklch(30% 0.008 245)"
+  background: "oklch(18% 0.003 245)"
+  surface: "oklch(24% 0.004 245)"
+  surface-raised: "oklch(31% 0.006 245)"
+  border: "oklch(40% 0.008 245)"
   text-primary: "oklch(94% 0.006 245)"
   text-secondary: "oklch(58% 0.006 245)"
   error: "oklch(58% 0.13 14)"

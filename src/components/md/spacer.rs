@@ -1,10 +1,18 @@
 use crate::components::{Component, ComponentBase};
 
-pub struct NavigationDrawer {
+pub struct Spacer {
     base: ComponentBase,
 }
 
-impl Component for NavigationDrawer {
+impl Spacer {
+    pub fn new() -> Self {
+        Self {
+            base: ComponentBase::new(),
+        }
+    }
+}
+
+impl Component for Spacer {
     fn base(&self) -> &ComponentBase {
         &self.base
     }

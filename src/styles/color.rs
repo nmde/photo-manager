@@ -1,4 +1,7 @@
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::{
+    f32::consts::{FRAC_PI_2, PI},
+    fmt::{Display, Formatter},
+};
 
 // --- const math primitives ---
 
@@ -127,6 +130,21 @@ impl Color {
             b: (gamma_encode(b_lin) * 255.0 + 0.5) as u8,
             a: 255,
         }
+    }
+
+    pub fn black() -> Color {
+        Color {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        }
+    }
+}
+
+impl Display for Color {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "rgba({}, {}, {}, {})", self.r, self.g, self.b, self.a)
     }
 }
 

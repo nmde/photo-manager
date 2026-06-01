@@ -36,10 +36,6 @@ impl Style {
         self
     }
 
-    pub fn build(&self) -> &Self {
-        self
-    }
-
     /// Overrides this style with the given style
     /// For each style property, if the other style defines a Some value, it will override this style's property.
     pub fn merge(&self, other: &Style) -> Style {

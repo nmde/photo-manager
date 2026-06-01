@@ -1,10 +1,10 @@
 use crate::components::{Component, ComponentBase};
 
-pub struct Body {
+pub struct Snackbar {
     base: ComponentBase,
 }
 
-impl Body {
+impl Snackbar {
     pub fn new(children: Vec<&dyn Component>) -> Self {
         Self {
             base: ComponentBase::new(),
@@ -12,7 +12,7 @@ impl Body {
     }
 }
 
-impl Component for Body {
+impl Component for Snackbar {
     fn base(&self) -> &ComponentBase {
         &self.base
     }
