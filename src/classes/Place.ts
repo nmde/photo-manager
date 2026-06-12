@@ -66,6 +66,10 @@ export class Place extends SortableItem implements PlaceData {
     return this._category;
   }
 
+  public set category(value: PlaceData['category']) {
+    this._category = value;
+  }
+
   public static createPlaces(data: PlaceData[]) {
     const places: PlaceRec = {};
     for (const place of data.map(

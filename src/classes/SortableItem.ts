@@ -15,4 +15,8 @@ export class SortableItem {
   public get photo() {
     return this._photo;
   }
+
+  public set name(value: string) {
+    this._name = value;
+  }
 }

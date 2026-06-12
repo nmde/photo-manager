@@ -82,7 +82,7 @@
         </v-list-item>
       </template>
       <v-list-item v-else-if="item.type === 'at'" @click="atDialog = true">
-        Photo Location:
+        Location:
       </v-list-item>
     </template>
   </v-combobox>

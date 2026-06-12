@@ -225,12 +225,22 @@
       @focused="val => emit('input-focused', val)"
       @update="people => savePeople(people)"
     />
-    <v-rating
-      v-model="rating"
-      clearable
-      color="primary"
-      @update:model-value="rating => photo.setRating(Number(rating))"
-    />
+    <div
+      @focusin="emit('input-focused', true)"
+      @focusout="
+        event => {
+          if (!(event.currentTarget as HTMLElement | null)?.contains(event.relatedTarget as Node))
+            emit('input-focused', false);
+        }
+      "
+    >
+      <v-rating
+        v-model="rating"
+        clearable
+        color="primary"
+        @update:model-value="rating => photo.setRating(Number(rating))"
+      />
+    </div>
     <sorted-combo
       :id="photo.name"
       avatars

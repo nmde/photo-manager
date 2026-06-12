@@ -28,7 +28,7 @@ use walkdir::WalkDir;
 
 use crate::{
     models::{Layer, Person, Photo, Place, Tag},
-    people::{PEOPLE, PEOPLE_COUNTS},
+    people::{PEOPLE, PEOPLE_COUNTS, PHOTOGRAPHER_COUNTS},
     photos::{get_asset_path, PHOTOS, RAW, VALIDATION_CACHE, VIDEO},
     places::{LAYERS, LAYER_COUNTS, PLACES, PLACE_COUNTS},
     schema::{layers, people, photos, places, tags},
@@ -284,7 +284,6 @@ async fn create_photo(_photo: &Photo) -> Result<Photo> {
         let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
         debug!("Resolved photo date from file {filename}: {date_str}");
         photo.metadata_date = Some(date_str.clone());
-        photo.date = Some(date_str);
     }
 
     if file_location.is_some() {
@@ -609,6 +608,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     let mut place_counts = PLACE_COUNTS.lock().unwrap();
     let mut tag_counts = TAG_COUNTS.lock().unwrap();
     let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
+    let mut photographer_counts = PHOTOGRAPHER_COUNTS.lock().unwrap();
 
     *layers = HashMap::<String, Layer>::new();
     *places = HashMap::<String, Place>::new();
@@ -618,6 +618,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     *place_counts = HashMap::<String, usize>::new();
     *tag_counts = HashMap::<String, usize>::new();
     *people_counts = HashMap::<String, usize>::new();
+    *photographer_counts = HashMap::<String, usize>::new();
 
     for layer in layers_data {
         layer_counts.insert(layer.id.clone(), 0);
@@ -626,6 +627,9 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
 
     for place in places_data {
         place_counts.insert(place.id.clone(), 0);
+        if layer_counts.contains_key(&place.layer) {
+            *layer_counts.get_mut(&place.layer).unwrap() += 1;
+        }
         places.insert(place.id.clone(), place);
     }
 
@@ -657,6 +661,13 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
                 people_counts.insert(person.clone(), 1);
             }
         }
+        if let Some(photographer) = &photo.photographer {
+            if photographer_counts.contains_key(photographer) {
+                *photographer_counts.get_mut(photographer).unwrap() += 1;
+            } else {
+                photographer_counts.insert(photographer.clone(), 1);
+            }
+        }
         if photo.location.is_some() {
             let location = photo.location.as_ref().unwrap();
             if places.contains_key(location) {
@@ -665,11 +676,6 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
                     *place_counts.get_mut(location).unwrap() += 1;
                 } else {
                     place_counts.insert(location.clone(), 1);
-                }
-                if layer_counts.contains_key(&place.layer) {
-                    *layer_counts.get_mut(&place.layer).unwrap() += 1;
-                } else {
-                    layer_counts.insert(place.layer.clone(), 1);
                 }
             } else {
                 warn!(

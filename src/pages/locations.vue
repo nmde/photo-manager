@@ -155,13 +155,14 @@
   async function createPlace() {
     const id = uuid();
     const fields = placeFields.value as Required<PlaceFields>;
-    if (targetLayer.value !== undefined) {
+    const layer = targetLayer.value;
+    if (layer !== undefined) {
       await create_place(
         id,
         fields.name,
         fields.position.lat,
         fields.position.lng,
-        targetLayer.value,
+        layer,
         fields.category,
       );
       const place = new Place(
@@ -169,7 +170,7 @@
         fields.name,
         fields.position.lat,
         fields.position.lng,
-        targetLayer.value,
+        layer,
         fields.category,
         null,
         0,
@@ -179,7 +180,7 @@
         locToString(fields.position),
         id,
         fields.category,
-        layers.value[targetLayer.value]?.color,
+        layers.value[layer]?.color,
         fields.name,
       );
       placeFields.value = {};
@@ -313,11 +314,15 @@
   }
 
   function placesByLayer(layer: LayerData['id']) {
-    return Object.values(places.value).filter(p => p.layer === layer);
+    return Object.values(places.value)
+      .filter(p => p.layer === layer)
+      .toSorted((a, b) => a.name.localeCompare(b.name));
   }
 
   function shapesByLayer(layer: LayerData['id']) {
-    return Object.values(shapes.value).filter(p => p.layer === layer);
+    return Object.values(shapes.value)
+      .filter(p => p.layer === layer)
+      .toSorted((a, b) => a.name.localeCompare(b.name));
   }
 
   function startShape(type: ShapeType, layer: LayerData['id']) {
@@ -720,11 +725,11 @@
       label="Name"
       :rules="[rules.required('A place name is required.')]"
     />
-    Category:
     <v-select
       v-model="placeFields.category"
       color="primary"
       :items="categories"
+      label="Category"
       :rules="[rules.required('A category is required.')]"
     />
     <br />

@@ -13,7 +13,7 @@
   const { query, sortBy, itemsPerRow } = storeToRefs(store);
 
   const selected = shallowRef<Photo[]>([]);
-  const photos = shallowRef<Photo[]>([]);
+  const photos = ref<Photo[]>([]);
   const searching = ref(false);
   const sorting = ref(false);
   const current = ref(0);

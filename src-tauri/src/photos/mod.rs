@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 use crate::{
     app::{ensure_db, get_photo_targets, row_to_vec, vec_to_row, DATE_FORMAT, DB},
     models::{Photo, Tag},
-    people::PEOPLE_COUNTS,
+    people::{PEOPLE_COUNTS, PHOTOGRAPHER_COUNTS},
     places::PLACE_COUNTS,
     schema::photos,
     tags::{validate_tags, ValidationResult, TAGS, TAG_COUNTS},
@@ -182,16 +182,32 @@ impl Photo {
     pub async fn set_photographer(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
         let targets = get_photo_targets(&photo).await?;
+        let count = targets.len();
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
-        for target in targets {
-            update(photos::table.filter(photos::name.eq(target.name)))
+        for target in &targets {
+            update(photos::table.filter(photos::name.eq(target.name.clone())))
                 .set(photos::photographer.eq(value))
                 .execute(conn)
                 .await?;
         }
-        self.photographer = value.clone();
 
+        let mut photographer_counts = PHOTOGRAPHER_COUNTS.lock().unwrap();
+        if let Some(old) = &self.photographer {
+            if photographer_counts.contains_key(old) {
+                *photographer_counts.get_mut(old).unwrap() =
+                    photographer_counts[old].saturating_sub(count);
+            }
+        }
+        if let Some(new) = value {
+            if photographer_counts.contains_key(new) {
+                *photographer_counts.get_mut(new).unwrap() += count;
+            } else {
+                photographer_counts.insert(new.clone(), count);
+            }
+        }
+
+        self.photographer = value.clone();
         Ok(())
     }
 

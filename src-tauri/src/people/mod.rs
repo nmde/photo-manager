@@ -22,6 +22,8 @@ lazy_static! {
     pub static ref PEOPLE: Mutex<HashMap<String, Person>> = Mutex::new(HashMap::new());
     pub static ref PEOPLE_COUNTS: sync::Mutex<HashMap<String, usize>> =
         sync::Mutex::new(HashMap::new());
+    pub static ref PHOTOGRAPHER_COUNTS: sync::Mutex<HashMap<String, usize>> =
+        sync::Mutex::new(HashMap::new());
 }
 
 pub async fn create_person(id: &String, name: &String, category: &String) -> Result<()> {
@@ -119,17 +121,20 @@ pub struct PersonDto {
     pub photo: Option<String>,
     pub category: String,
     pub count: usize,
+    pub photographer_count: usize,
 }
 
 impl From<&Person> for PersonDto {
     fn from(value: &Person) -> Self {
         let counts_cache = PEOPLE_COUNTS.lock().unwrap();
+        let photographer_cache = PHOTOGRAPHER_COUNTS.lock().unwrap();
         Self {
             id: value.id.clone(),
             name: value.name.clone(),
             photo: value.photo.clone(),
             category: value.category.clone(),
             count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
+            photographer_count: photographer_cache.get(&value.id).unwrap_or(&0).clone(),
         }
     }
 }

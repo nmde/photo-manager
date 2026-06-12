@@ -180,6 +180,8 @@ pub async fn create_place(
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
     PLACES.lock().await.insert(id.clone(), new_place);
+    let mut layer_counts = LAYER_COUNTS.lock().unwrap();
+    *layer_counts.entry(layer.clone()).or_insert(0) += 1;
 
     Ok(())
 }
@@ -208,7 +210,13 @@ pub async fn delete_place(place: &String) -> Result<()> {
     delete(places::table.filter(places::id.eq(place)))
         .execute(conn)
         .await?;
-    PLACES.lock().await.remove(place);
+    let mut places = PLACES.lock().await;
+    if let Some(removed) = places.remove(place) {
+        let mut layer_counts = LAYER_COUNTS.lock().unwrap();
+        if let Some(count) = layer_counts.get_mut(&removed.layer) {
+            *count = count.saturating_sub(1);
+        }
+    }
 
     Ok(())
 }
