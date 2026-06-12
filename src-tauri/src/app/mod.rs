@@ -5,6 +5,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::{LazyLock, Mutex},
     time::Duration,
 };
 
@@ -17,13 +18,12 @@ use diesel::{
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use exif::In;
-use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use regex::Regex;
 use rusty_pool::{JoinHandle, ThreadPool};
 use serde::{Serialize, Serializer};
 use thiserror::Error;
-use tokio::{fs, sync::Mutex};
+use tokio::{fs, sync::Mutex as AsyncMutex};
 use walkdir::WalkDir;
 
 use crate::{
@@ -41,11 +41,10 @@ pub mod search;
 
 pub const DATE_FORMAT: &str = "%F";
 
-lazy_static! {
-    pub static ref DB: Mutex<Option<SyncConnectionWrapper<SqliteConnection>>> = Mutex::new(None);
-    pub static ref OPEN_FOLDER: Mutex<Option<PathBuf>> = Mutex::new(None);
-    pub static ref THUMBNAIL_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
-}
+pub static DB: LazyLock<AsyncMutex<Option<SyncConnectionWrapper<SqliteConnection>>>> =
+    LazyLock::new(|| AsyncMutex::new(None));
+pub static OPEN_FOLDER: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
+pub static THUMBNAIL_DIR: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 
 pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
     if row_text.is_none() {
@@ -177,7 +176,9 @@ fn degrees_to_dec(input: &String) -> Result<f32> {
     Ok(digits[0] + (digits[1] / 60.0) + (digits[2] / 3600.0))
 }
 
-async fn create_photo(_photo: &Photo) -> Result<Photo> {
+// Reads EXIF/filesystem metadata and returns a filled Photo. Purely synchronous
+// so it can run safely inside a thread pool without holding async mutex guards.
+fn prepare_photo(_photo: &Photo) -> Result<Photo> {
     let mut photo = _photo.clone();
     let filename = &photo.name;
     debug!("Creating new photo {filename}");
@@ -295,22 +296,24 @@ async fn create_photo(_photo: &Photo) -> Result<Photo> {
         photo.metadata_location = Some(format!("{0},{1}", file_location.0, file_location.1));
     }
 
-    {
-        let mut conn = DB.lock().await;
-        let conn = conn.as_mut().unwrap();
-        if insert_into(photos::table)
-            .values(photo.clone())
-            .execute(conn)
-            .await
-            .is_err()
-        {
-            error!(
-                "ERROR: Could not insert photo {} into database!",
-                &photo.name,
-            );
-        }
-    }
     Ok(photo)
+}
+
+async fn insert_photo(photo: &Photo) -> Result<()> {
+    let mut conn = DB.lock().await;
+    let conn = conn.as_mut().unwrap();
+    if insert_into(photos::table)
+        .values(photo.clone())
+        .execute(conn)
+        .await
+        .is_err()
+    {
+        error!(
+            "ERROR: Could not insert photo {} into database!",
+            &photo.name,
+        );
+    }
+    Ok(())
 }
 
 fn generate_thumbnail(filename: &String, thumbnail_dir: &PathBuf) -> Result<String> {
@@ -379,16 +382,24 @@ fn generate_thumbnail(filename: &String, thumbnail_dir: &PathBuf) -> Result<Stri
 }
 
 async fn load_photos() -> Result<LoadedPhotos> {
-    let path = OPEN_FOLDER.lock().await;
-    if path.is_none() {
-        return Err(anyhow!("No open folder found"));
-    }
-    let path = path.as_ref().unwrap();
-    let thumbnail_dir = THUMBNAIL_DIR.lock().await;
-    if thumbnail_dir.is_none() {
-        return Err(anyhow!("No thumbnail dir found"));
-    }
-    let thumbnail_dir = thumbnail_dir.as_ref().unwrap().clone();
+    let path = {
+        let guard = OPEN_FOLDER
+            .lock()
+            .map_err(|_| anyhow!("Lock is poisoned"))?;
+        if guard.is_none() {
+            return Err(anyhow!("No open folder found"));
+        }
+        guard.as_ref().unwrap().clone()
+    };
+    let thumbnail_dir = {
+        let guard = THUMBNAIL_DIR
+            .lock()
+            .map_err(|_| anyhow!("Lock is poisoned"))?;
+        if guard.is_none() {
+            return Err(anyhow!("No thumbnail dir found"));
+        }
+        guard.as_ref().unwrap().clone()
+    };
     info!("Loading photos from {}", path.display());
     ensure_db().await?;
     // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
@@ -495,7 +506,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
                 existing.remove(&filename.to_string());
             } else {
                 let moved_thumbnail_dir = thumbnail_dir.clone();
-                threads.push(pool.complete(async move {
+                threads.push(pool.evaluate(move || {
                     let mut photo = Photo::new(filename.clone());
                     if RAW.is_match(&filename) || VIDEO.is_match(&filename) {
                         let thumb_res = generate_thumbnail(&filename, &moved_thumbnail_dir);
@@ -508,7 +519,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
                             );
                         }
                     }
-                    Ok(create_photo(&photo).await?)
+                    prepare_photo(&photo)
                 }));
             }
         }
@@ -516,6 +527,7 @@ async fn load_photos() -> Result<LoadedPhotos> {
 
     for thread in threads {
         let photo = thread.await_complete()?;
+        insert_photo(&photo).await?;
         photos.insert(photo.name.clone(), photo.clone());
         new_photos.push(photo.name);
     }
@@ -594,8 +606,12 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     let people_data = people::table.load::<Person>(&mut conn).await?;
 
     *DB.lock().await = Some(conn);
-    *OPEN_FOLDER.lock().await = Some(path.to_path_buf());
-    *THUMBNAIL_DIR.lock().await = Some(thumbnail_dir);
+    *OPEN_FOLDER
+        .lock()
+        .map_err(|_| anyhow!("Lock is poisoned"))? = Some(path.to_path_buf());
+    *THUMBNAIL_DIR
+        .lock()
+        .map_err(|_| anyhow!("Lock is poisoned"))? = Some(thumbnail_dir);
 
     let photo_load = load_photos().await?;
 
@@ -671,7 +687,6 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
         if photo.location.is_some() {
             let location = photo.location.as_ref().unwrap();
             if places.contains_key(location) {
-                let place = places.get(location).unwrap();
                 if place_counts.contains_key(location) {
                     *place_counts.get_mut(location).unwrap() += 1;
                 } else {

@@ -1,12 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
+use tokio::sync::Mutex as AsyncMutex;
 
 use anyhow::Result;
 use diesel::{dsl::insert_into, query_dsl::methods::FilterDsl, update, ExpressionMethods};
 use diesel_async::RunQueryDsl;
-use lazy_static::lazy_static;
 use serde::Serialize;
 use strum::{Display, EnumString};
-use tokio::sync::Mutex;
 
 use crate::{
     app::{ensure_db, DB},
@@ -16,9 +15,8 @@ use crate::{
 
 pub mod api;
 
-lazy_static! {
-    pub static ref SETTINGS: Mutex::<HashMap<Settings, Setting>> = Mutex::new(HashMap::new());
-}
+pub static SETTINGS: LazyLock<AsyncMutex<HashMap<Settings, Setting>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
 
 #[derive(Display, EnumString, Eq, Hash, PartialEq)]
 pub enum Settings {

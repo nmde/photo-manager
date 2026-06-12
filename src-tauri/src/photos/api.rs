@@ -264,11 +264,7 @@ pub async fn get_grouped_raw(photo: String) -> Option<String> {
     debug!("Getting grouped raw thumbnail from base photo {photo}");
 
     let photos = PHOTOS.lock().await;
-    let target = photos.get(&photo);
-    if target.is_some() {
-        return target.unwrap().thumbnail.clone();
-    }
-    None
+    photos.get(&photo).and_then(|p| p.thumbnail.clone())
 }
 
 /// Gets photos in the given group

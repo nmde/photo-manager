@@ -169,12 +169,9 @@ fn parse_term(term: &str) -> Result<(SearchTerm, bool)> {
             SearchTerm::Rating(CompOp::Eq, t[7..].parse::<i32>()?),
             negated,
         ))
-    } else if up.starts_with("SORT:")
-        || up.starts_with("SORT=")
-    {
+    } else if up.starts_with("SORT:") || up.starts_with("SORT=") {
         Ok((SearchTerm::SortBy(Sort::from_str(&t[5..])?), negated))
-    } else if up.starts_with("ORDER:")
-        || up.starts_with("ORDER=") {
+    } else if up.starts_with("ORDER:") || up.starts_with("ORDER=") {
         Ok((SearchTerm::SortBy(Sort::from_str(&t[6..])?), negated))
     } else if up.starts_with("OF:") {
         let val = t[3..].to_string();
@@ -478,19 +475,19 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
         Sort::Name(dir) => {
             results.sort_by(|a, b| a.name.cmp(&b.name));
             dir
-        },
+        }
         Sort::Rating(dir) => {
             results.sort_by_cached_key(|p| p.rating);
             dir
-        },
+        }
         Sort::Date(dir) => {
             results.sort_by_cached_key(|p| p.date());
             dir
-        },
+        }
         Sort::FileDate(dir) => {
             results.sort_by_cached_key(|p| p.metadata_date());
             dir
-        },
+        }
     } {
         results.reverse();
     }

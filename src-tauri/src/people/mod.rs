@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync};
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
+use tokio::sync::Mutex as AsyncMutex;
 
 use anyhow::Result;
 use diesel::{
@@ -6,9 +10,7 @@ use diesel::{
     ExpressionMethods, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
-use lazy_static::lazy_static;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use crate::{
     app::{ensure_db, DB},
@@ -18,13 +20,12 @@ use crate::{
 
 pub mod api;
 
-lazy_static! {
-    pub static ref PEOPLE: Mutex<HashMap<String, Person>> = Mutex::new(HashMap::new());
-    pub static ref PEOPLE_COUNTS: sync::Mutex<HashMap<String, usize>> =
-        sync::Mutex::new(HashMap::new());
-    pub static ref PHOTOGRAPHER_COUNTS: sync::Mutex<HashMap<String, usize>> =
-        sync::Mutex::new(HashMap::new());
-}
+pub static PEOPLE: LazyLock<AsyncMutex<HashMap<String, Person>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static PEOPLE_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+pub static PHOTOGRAPHER_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub async fn create_person(id: &String, name: &String, category: &String) -> Result<()> {
     ensure_db().await?;

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync};
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
+use tokio::sync::Mutex as AsyncMutex;
 
 use anyhow::{anyhow, Result};
 use diesel::{
@@ -6,9 +10,7 @@ use diesel::{
     ExpressionMethods, QueryDsl, SqliteConnection,
 };
 use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, RunQueryDsl};
-use lazy_static::lazy_static;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use crate::{
     app::{ensure_db, row_to_vec, DB},
@@ -19,11 +21,10 @@ use crate::{
 
 pub mod api;
 
-lazy_static! {
-    pub static ref TAGS: Mutex<HashMap<String, Tag>> = Mutex::new(HashMap::new());
-    pub static ref TAG_COUNTS: sync::Mutex<HashMap<String, usize>> =
-        sync::Mutex::new(HashMap::new());
-}
+pub static TAGS: LazyLock<AsyncMutex<HashMap<String, Tag>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static TAG_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone, Serialize)]
 pub struct ValidationResult {

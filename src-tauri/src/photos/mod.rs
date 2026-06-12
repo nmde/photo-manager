@@ -1,18 +1,17 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync,
+    sync::{LazyLock, Mutex},
 };
+use tokio::sync::Mutex as AsyncMutex;
 
 use anyhow::Result;
 use chrono::NaiveDate;
 use diesel::{dsl::update, query_builder::AsChangeset, ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
-use lazy_static::lazy_static;
 use log::warn;
 use regex::Regex;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use crate::{
     app::{ensure_db, get_photo_targets, row_to_vec, vec_to_row, DATE_FORMAT, DB},
@@ -25,16 +24,14 @@ use crate::{
 
 pub mod api;
 
-lazy_static! {
-    pub static ref RAW: Regex = Regex::new(r"^.*\.(ORF|NRW|HEIC|TIFF|TIF)$").unwrap();
-    pub static ref VIDEO: Regex =
-        Regex::new(r"^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$").unwrap();
-    pub static ref PHOTOS: Mutex<HashMap<String, Photo>> =
-        Mutex::new(HashMap::new());
-    // Needs to be a sync mutex to be used in serialization
-    pub static ref VALIDATION_CACHE: sync::Mutex<HashMap<String, ValidationResult>> =
-        sync::Mutex::new(HashMap::new());
-}
+pub static RAW: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^.*\.(ORF|NRW|HEIC|TIFF|TIF)$").unwrap());
+pub static VIDEO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^.*\.(3GP|AVI|MOV|MP4|MTS|WAV|WMV|M4V|WEBM|FLV)$").unwrap());
+pub static PHOTOS: LazyLock<AsyncMutex<HashMap<String, Photo>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static VALIDATION_CACHE: LazyLock<Mutex<HashMap<String, ValidationResult>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(AsChangeset)]
 #[diesel(table_name = photos)]
