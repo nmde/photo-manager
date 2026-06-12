@@ -6,10 +6,10 @@ use crate::{
     models::Shape,
     places::{
         create_layer as _create_layer, create_place as _create_place,
-        create_shape as _create_shape, delete_layer as _delete_layer,
+        create_shape as _create_shape, create_trip as _create_trip, delete_layer as _delete_layer,
         delete_place as _delete_place, delete_shape as _delete_shape, get_layers as _get_layers,
-        get_places as _get_places, get_shapes as _get_shapes, LayerDto, PlaceDto, LAYERS, PLACES,
-        SHAPES,
+        get_places as _get_places, get_shapes as _get_shapes, get_trips as _get_trips, LayerDto,
+        PlaceDto, TripDto, LAYERS, PLACES, SHAPES,
     },
 };
 
@@ -38,6 +38,16 @@ pub async fn get_places() -> Result<Vec<PlaceDto>, ApiError> {
         .iter()
         .map(|x| PlaceDto::from(x))
         .collect::<Vec<PlaceDto>>())
+}
+
+#[tauri::command]
+pub async fn get_trips() -> Result<Vec<TripDto>, ApiError> {
+    Ok(_get_trips()
+        .await
+        .with_context(|| "Could not get trips".to_string())?
+        .iter()
+        .map(|x| TripDto::from(x))
+        .collect::<Vec<TripDto>>())
 }
 
 #[tauri::command]
@@ -317,6 +327,21 @@ pub async fn delete_shape(shape: String) -> Result<(), ApiError> {
     _delete_shape(&shape)
         .await
         .with_context(|| format!("Could not delete shape {0}", shape))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn create_trip(
+    id: String,
+    name: String,
+    shapes: Vec<String>,
+    date: Option<String>,
+) -> Result<(), ApiError> {
+    debug!("Creating trip {name}");
+    _create_trip(id, &name, shapes, date)
+        .await
+        .with_context(|| format!("Could not create trip {name}"))?;
 
     Ok(())
 }

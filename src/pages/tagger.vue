@@ -174,6 +174,8 @@
       query.value = ['has:people', `of:${route.query.person}`];
     } else if (route.query.tag) {
       query.value = ['has:tags', route.query.tag as string];
+    } else if (route.query.place) {
+      query.value = ['has:location', `at:${route.query.place}`];
     }
     window.addEventListener('keydown', event => {
       if (event.ctrlKey) {
@@ -186,7 +188,7 @@
         // Crtl a: Select all
         if (event.key === 'a' && event.ctrlKey) {
           event.preventDefault();
-          selected.value = photos.value;
+          selected.value = photos.value as Photo[];
         }
         // Crtl -: Zoom grid out
         if (event.key === '-' && event.ctrlKey) {
@@ -203,7 +205,7 @@
           if (shiftPressed.value && selected.value.length > 0) {
             const nextPhoto = photos.value[lastSelectedIndex.value + 1];
             if (nextPhoto !== undefined) {
-              selected.value = [...selected.value, nextPhoto];
+              selected.value = [...selected.value, nextPhoto] as Photo[];
               lastSelectedIndex.value += 1;
               current.value = selected.value.length - 1;
             }
@@ -215,14 +217,14 @@
             const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const nextPhoto = photos.value[idx + 1];
             if (nextPhoto !== undefined) {
-              selected.value = [nextPhoto];
+              selected.value = [nextPhoto as Photo];
               lastSelectedIndex.value = idx + 1;
             }
             // ->: Select first photo in the grid
           } else if (selected.value.length === 0) {
             const firstPhoto = photos.value[0];
             if (firstPhoto) {
-              selected.value = [firstPhoto];
+              selected.value = [firstPhoto as Photo];
               lastSelectedIndex.value = 0;
             }
           }
@@ -243,14 +245,14 @@
             const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
             const prevPhoto = photos.value[idx - 1];
             if (prevPhoto) {
-              selected.value = [prevPhoto];
+              selected.value = [prevPhoto as Photo];
               lastSelectedIndex.value = idx - 1;
             }
             // <-: Select last photo in the grid
           } else if (selected.value.length === 0) {
             const lastPhoto = photos.value.at(-1);
             if (lastPhoto !== undefined) {
-              selected.value = [lastPhoto];
+              selected.value = [lastPhoto as Photo];
               lastSelectedIndex.value = photos.value.length - 1;
             }
           }
@@ -260,7 +262,7 @@
           const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const downPhoto = photos.value[idx + itemsPerRow.value];
           if (downPhoto !== undefined) {
-            selected.value = [downPhoto];
+            selected.value = [downPhoto as Photo];
             lastSelectedIndex.value = idx + itemsPerRow.value;
           }
         }
@@ -268,7 +270,7 @@
           const idx = photos.value.findIndex(p => p.name === selected.value[0]?.name);
           const upPhoto = photos.value[idx - itemsPerRow.value];
           if (upPhoto !== undefined) {
-            selected.value = [upPhoto];
+            selected.value = [upPhoto as Photo];
             lastSelectedIndex.value = idx - itemsPerRow.value;
           }
         }
@@ -350,7 +352,7 @@
         :half-width="showDetail"
         :items-per-row="itemsPerRow"
         :loading="searching || refreshing"
-        :photos="photos"
+        :photos="photos as Photo[]"
         :selected="selected"
         @select="
           (photo, index) => {

@@ -39,7 +39,7 @@ CREATE TABLE
         "people" TEXT,
         "hide_thumbnail" INTEGER,
         "photographer" TEXT,
-        "metadata_date"	TEXT,
+        "metadata_date" TEXT,
         "metadata_location" TEXT,
         PRIMARY KEY ("name")
     );
@@ -88,4 +88,13 @@ CREATE TABLE
         "coreqs" TEXT,
         "incompatible" TEXT,
         PRIMARY KEY ("name")
+    );
+
+CREATE TABLE
+    IF NOT EXISTS "trips" (
+        "id" TEXT NOT NULL UNIQUE,
+        "name" TEXT NOT NULL,
+        "shapes" TEXT NOT NULL,
+        "date" TEXT,
+        PRIMARY KEY ("id")
     );

@@ -3,6 +3,7 @@ import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import { color } from 'd3';
 import { EventEmitter } from 'ee-ts';
 
+console.log(import.meta.env.VITE_GOOGLE_MAPS_KEY);
 setOptions({ key: import.meta.env.VITE_GOOGLE_MAPS_KEY as string });
 
 export type Position = {

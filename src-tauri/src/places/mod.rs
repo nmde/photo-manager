@@ -1,6 +1,11 @@
-use std::{collections::HashMap, sync};
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
+use tokio::sync::Mutex as AsyncMutex;
 
 use anyhow::Result;
+use chrono::NaiveDate;
 use diesel::{
     delete,
     dsl::{insert_into, update},
@@ -8,28 +13,29 @@ use diesel::{
     ExpressionMethods, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
-use lazy_static::lazy_static;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use crate::{
-    app::{ensure_db, DB},
-    models::{Layer, Photo, Place, Shape},
+    app::{ensure_db, DATE_FORMAT, DB},
+    models::{Layer, Photo, Place, Shape, Trip},
     photos::PHOTOS,
-    schema::{layers, photos, places, shapes},
+    schema::{layers, photos, places, shapes, trips},
 };
 
 pub mod api;
 
-lazy_static! {
-    pub static ref LAYERS: Mutex<HashMap<String, Layer>> = Mutex::new(HashMap::new());
-    pub static ref SHAPES: Mutex<HashMap<String, Shape>> = Mutex::new(HashMap::new());
-    pub static ref PLACES: Mutex<HashMap<String, Place>> = Mutex::new(HashMap::new());
-    pub static ref LAYER_COUNTS: sync::Mutex<HashMap<String, usize>> =
-        sync::Mutex::new(HashMap::new());
-    pub static ref PLACE_COUNTS: sync::Mutex<HashMap<String, usize>> =
-        sync::Mutex::new(HashMap::new());
-}
+pub static LAYERS: LazyLock<AsyncMutex<HashMap<String, Layer>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static SHAPES: LazyLock<AsyncMutex<HashMap<String, Shape>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static PLACES: LazyLock<AsyncMutex<HashMap<String, Place>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static TRIPS: LazyLock<AsyncMutex<HashMap<String, Trip>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+pub static LAYER_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+pub static PLACE_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(AsChangeset)]
 #[diesel(table_name = places)]
@@ -66,6 +72,16 @@ pub async fn get_places() -> Result<Vec<Place>> {
         .values()
         .map(|x| x.clone())
         .collect::<Vec<Place>>())
+}
+
+pub async fn get_trips() -> Result<Vec<Trip>> {
+    Ok(TRIPS
+        .lock()
+        .await
+        .to_owned()
+        .values()
+        .map(|x| x.clone())
+        .collect::<Vec<Trip>>())
 }
 
 pub async fn create_layer(id: &String, name: &String, color: &String) -> Result<()> {
@@ -437,5 +453,55 @@ impl Shape {
         self.name = name.clone();
 
         Ok(())
+    }
+}
+
+pub async fn create_trip(
+    id: String,
+    name: &String,
+    shapes: Vec<String>,
+    date: Option<String>,
+) -> Result<()> {
+    ensure_db().await?;
+
+    let new_trip = Trip {
+        name: name.clone(),
+        id,
+        shapes: shapes.join(","),
+        date,
+    };
+    insert_into(trips::table)
+        .values(new_trip)
+        .execute(DB.lock().await.as_mut().unwrap())
+        .await?;
+
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub struct TripDto {
+    id: String,
+    name: String,
+    shapes: Vec<String>,
+    date: Option<NaiveDate>,
+}
+
+impl From<&Trip> for TripDto {
+    fn from(value: &Trip) -> Self {
+        Self {
+            id: value.id.clone(),
+            name: value.name.clone(),
+            shapes: value.shapes.split(",").map(|s| s.to_string()).collect(),
+            date: value.date(),
+        }
+    }
+}
+
+impl Trip {
+    pub fn date(&self) -> Option<NaiveDate> {
+        if self.date.is_none() {
+            return None;
+        }
+        NaiveDate::parse_from_str(self.date.as_ref().unwrap(), DATE_FORMAT).ok()
     }
 }

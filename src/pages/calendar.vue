@@ -26,15 +26,35 @@
     return new Date(d.getTime() + userTimezoneOffset);
   }
 
+  const MAX_PHOTOS = 20;
+
   function getPhotosByDate(date: string) {
     const d = dateWithoutTimezone(date);
-    return photos.value.filter(
+    const filtered = photos.value.filter(
       photo =>
         photo.date !== null
         && photo.date.getFullYear() === d.getFullYear()
         && photo.date.getMonth() === d.getMonth()
         && photo.date.getDate() === d.getDate(),
     );
+    // Bin by rating to show random stuff still sorted by rating
+    const bins: [Photo[], Photo[], Photo[], Photo[], Photo[], Photo[]] = [[], [], [], [], [], []];
+    for (const photo of filtered) {
+      bins[photo.rating ?? 0]?.push(photo as Photo);
+    }
+    const sorted: Photo[] = [];
+    let bin = 5;
+    while (sorted.length < MAX_PHOTOS && bin >= 0) {
+      while (bins[bin]?.length === 0) {
+        bin -= 1;
+      }
+      const idx = Math.floor(Math.random() * (bins[bin]?.length ?? 0));
+      const p = bins[bin]?.splice(idx, 1)?.[0];
+      if (p !== undefined) {
+        sorted.push(p);
+      }
+    }
+    return sorted;
   }
 
   function getLocationsByDate(date: string) {
@@ -179,7 +199,7 @@
             <v-row>
               <v-col class="calendar-photos" cols="6">
                 <photo-icon
-                  v-for="photo in getPhotosByDate(dialogDate).slice(0, 20)"
+                  v-for="photo in getPhotosByDate(dialogDate).slice(0, MAX_PHOTOS)"
                   :key="photo.name"
                   hide-icons
                   :photo="photo as Photo"

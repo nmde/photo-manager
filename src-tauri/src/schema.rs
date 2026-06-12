@@ -92,6 +92,15 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    trips (id) {
+        id -> Text,
+        name -> Text,
+        shapes -> Nullable<Text>,
+        date -> Nullable<Text>,
+    }
+}
+
 diesel::allow_tables_to_appear_in_same_query!(
     layers,
     people,
@@ -102,4 +111,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     settings,
     shapes,
     tags,
+    trips,
 );

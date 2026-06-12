@@ -2,7 +2,7 @@ use diesel::{Insertable, Queryable, Selectable};
 use serde::Serialize;
 
 use crate::schema::{
-    layers, people, people_categories, photo_groups, photos, places, settings, shapes, tags,
+    layers, people, people_categories, photo_groups, photos, places, settings, shapes, tags, trips,
 };
 
 #[derive(Clone, Insertable, Queryable, Selectable)]
@@ -95,4 +95,13 @@ pub struct Tag {
     pub prereqs: Option<String>,
     pub coreqs: Option<String>,
     pub incompatible: Option<String>,
+}
+
+#[derive(Clone, Insertable, Queryable, Selectable)]
+#[diesel(table_name = trips)]
+pub struct Trip {
+    pub id: String,
+    pub name: String,
+    pub shapes: String,
+    pub date: Option<String>,
 }
