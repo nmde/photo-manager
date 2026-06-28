@@ -104,7 +104,7 @@ pub async fn get_tags() -> Result<Vec<TagDto>, ApiError> {
         .await
         .with_context(|| "Failed to get tags".to_string())?
         .iter()
-        .map(|x| TagDto::from(x))
+        .map(TagDto::from)
         .collect::<Vec<TagDto>>())
 }
 

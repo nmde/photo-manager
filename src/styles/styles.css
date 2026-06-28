@@ -86,3 +86,75 @@ body {
 .tag-graph-label--default {
   fill: var(--color-text-primary);
 }
+
+/* ── Obsidian-style overrides ─────────────────────────────── */
+
+/* Thin scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* Nav drawer — remove right border (belt-and-suspenders alongside SASS override) */
+.v-navigation-drawer {
+  border-inline-end: none !important;
+}
+
+/* Nav drawer background step: Lifted Slate separates it from the canvas */
+.v-navigation-drawer .v-list {
+  background: transparent;
+}
+
+/* Menus — border + focused shadow instead of Material elevation */
+.v-menu .v-overlay__content {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 24px oklch(4% 0 0 / 0.65) !important;
+  overflow: hidden;
+}
+
+/* Menu list items — compact, Obsidian density */
+.v-menu .v-list-item {
+  min-height: 32px !important;
+  padding-block: 2px !important;
+}
+
+/* Dialogs — deeper shadow + 1px border */
+.v-dialog .v-card {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 12px 48px oklch(4% 0 0 / 0.8) !important;
+  border-radius: 8px !important;
+}
+
+/* Snackbar — tight corners, no floating bubble */
+.v-snackbar__wrapper {
+  border-radius: 4px !important;
+}
+
+/* Input label — faster transition, no Material spring */
+.v-field__label {
+  transition-duration: 100ms !important;
+  transition-timing-function: var(--ease-standard) !important;
+}
+
+/* Input border color transition */
+.v-field__outline__start,
+.v-field__outline__end,
+.v-field__outline__notch {
+  transition: border-color 100ms var(--ease-standard) !important;
+}
+
+/* Text selection color */
+::selection {
+  background: oklch(65% 0.14 245 / 0.28);
+}

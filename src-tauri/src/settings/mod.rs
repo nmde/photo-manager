@@ -73,9 +73,8 @@ pub async fn get_setting(setting: Settings) -> Result<String> {
 
 pub async fn get_colors() -> Result<Vec<String>> {
     let set_colors = get_setting(Settings::Colors).await;
-    if set_colors.is_ok() {
+    if let Ok(set_colors) = set_colors {
         return Ok(set_colors
-            .unwrap()
             .split(",")
             .map(|c| c.to_string())
             .collect::<Vec<String>>());
@@ -93,17 +92,17 @@ pub async fn get_colors() -> Result<Vec<String>> {
 pub async fn promote_color(color: &String) -> Result<Vec<String>> {
     let mut colors = get_colors().await?;
     let idx = colors.iter().position(|c| c == color);
-    if idx.is_some() {
-        colors.remove(idx.unwrap());
+    if let Some(idx) = idx {
+        colors.remove(idx);
     }
     colors.insert(0, color.clone());
     set_setting(Settings::Colors, colors.join(",")).await?;
     Ok(colors)
 }
 
-pub async fn add_color(color: &String) -> Result<Vec<String>> {
+pub async fn add_color(color: &str) -> Result<Vec<String>> {
     let mut colors = get_colors().await?;
-    colors.insert(0, color.clone());
+    colors.insert(0, color.to_owned());
     set_setting(Settings::Colors, colors.join(",")).await?;
     Ok(colors)
 }

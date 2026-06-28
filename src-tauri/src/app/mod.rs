@@ -52,17 +52,18 @@ pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
     }
     let row_text = row_text.as_ref().unwrap();
     let mut re = vec![];
-    if row_text.len() > 0 {
+    if !row_text.is_empty() {
         re = row_text.split(",").map(str::to_string).collect();
     }
     re
 }
 
-pub fn vec_to_row(row_vec: &Vec<String>) -> Option<String> {
+pub fn vec_to_row(row_vec: &[String]) -> Option<String> {
     if row_vec.is_empty() {
-        return None;
+        None
+    } else {
+        Some(row_vec.join(","))
     }
-    return Some(row_vec.join(","));
 }
 
 #[derive(Debug, Error)]
@@ -101,7 +102,7 @@ pub struct LoadedPhotos {
     new_photos: Vec<String>,
 }
 
-fn clean_thumbnail_path(path: &String) -> String {
+fn clean_thumbnail_path(path: &str) -> String {
     path.chars()
         .map(|c| {
             if c.is_alphanumeric() {
@@ -160,7 +161,7 @@ pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
     Ok(targets)
 }
 
-fn degrees_to_dec(input: &String) -> Result<f32> {
+fn degrees_to_dec(input: &str) -> Result<f32> {
     let mut extracted = vec![];
     for digit in Regex::new(r"([0-9\.]+)").unwrap().find_iter(input) {
         extracted.push(digit.as_str());
@@ -187,38 +188,16 @@ fn prepare_photo(_photo: &Photo) -> Result<Photo> {
     let exif = exif::Reader::new().read_from_container(&mut file_reader);
     let mut file_date: Option<NaiveDateTime> = None;
     let mut file_location: Option<(f32, f32)> = None;
-    if exif.is_err() {
-        // If exif read fails, fall back to file metadata
-        // Take the min between file created and file modified, often in my project the modified is more accurate than created
-        let mut min_meta_time: Option<DateTime<Utc>> = None;
-        let metadata = file_open.metadata()?;
-        let created = metadata.created();
-        if created.is_ok() {
-            min_meta_time = Some(DateTime::<Utc>::from(created.as_ref().unwrap().clone()));
-        }
-        let modified = metadata.modified();
-        if modified.is_ok() {
-            let modified = DateTime::<Utc>::from(modified.as_ref().unwrap().clone());
-            if min_meta_time.is_none() {
-                min_meta_time = Some(modified);
-            } else if &modified < min_meta_time.as_ref().unwrap() {
-                min_meta_time = Some(modified);
-            }
-        }
-        if min_meta_time.is_some() {
-            file_date = Some(min_meta_time.unwrap().naive_utc());
-        }
-    } else {
-        let exif = exif.unwrap();
+    if let Ok(exif) = exif {
         let time_taken = exif.get_field(exif::Tag::DateTime, In::PRIMARY);
-        if time_taken.is_some() {
-            let value = &time_taken.unwrap().value;
+        if let Some(time_taken) = time_taken {
+            let value = &time_taken.value;
             let parsed = NaiveDateTime::parse_from_str(
                 &value.display_as(exif::Tag::DateTime).to_string(),
                 "%F %T",
             );
-            if parsed.is_ok() {
-                file_date = Some(parsed.unwrap());
+            if let Ok(parsed) = parsed {
+                file_date = Some(parsed);
             } else {
                 warn!(
                     "Exif date exists but failed to parse for {filename}: {}",
@@ -229,33 +208,12 @@ fn prepare_photo(_photo: &Photo) -> Result<Photo> {
 
         let lat = exif.get_field(exif::Tag::GPSLatitude, In::PRIMARY);
         let lng = exif.get_field(exif::Tag::GPSLongitude, In::PRIMARY);
-        if lat.is_some() && lng.is_some() {
+        if let (Some(lat), Some(lng)) = (lat, lng) {
             // degress, min, sec format
-            let lat_val = degrees_to_dec(
-                &lat.unwrap()
-                    .value
-                    .display_as(exif::Tag::GPSLatitude)
-                    .to_string(),
-            );
-            let lng_val = degrees_to_dec(
-                &lng.unwrap()
-                    .value
-                    .display_as(exif::Tag::GPSLongitude)
-                    .to_string(),
-            );
-            if lat_val.is_err() {
-                error!(
-                    "Could not parse exif lat for {filename}: {}",
-                    lat_val.err().unwrap()
-                );
-            } else if lng_val.is_err() {
-                error!(
-                    "Could not parse exif lng for {filename}: {}",
-                    lng_val.err().unwrap()
-                );
-            } else {
-                let mut lat_val = lat_val.unwrap();
-                let mut lng_val = lng_val.unwrap();
+            let lat_val = degrees_to_dec(&lat.value.display_as(exif::Tag::GPSLatitude).to_string());
+            let lng_val =
+                degrees_to_dec(&lng.value.display_as(exif::Tag::GPSLongitude).to_string());
+            if let (Ok(mut lat_val), Ok(mut lng_val)) = (lat_val, lng_val) {
                 if exif
                     .get_field(exif::Tag::GPSLatitudeRef, In::PRIMARY)
                     .unwrap()
@@ -277,18 +235,38 @@ fn prepare_photo(_photo: &Photo) -> Result<Photo> {
                     lng_val = -lng_val;
                 }
                 file_location = Some((lat_val, lng_val));
+            } else {
+                error!("Could not parse exif lat ad/or lng for {filename}");
             }
+        }
+    } else {
+        // If exif read fails, fall back to file metadata
+        // Take the min between file created and file modified, often in my project the modified is more accurate than created
+        let mut min_meta_time: Option<DateTime<Utc>> = None;
+        let metadata = file_open.metadata()?;
+        let created = metadata.created();
+        if let Ok(created) = created {
+            min_meta_time = Some(DateTime::<Utc>::from(created));
+        }
+        let modified = metadata.modified();
+        if let Ok(modified) = modified {
+            let modified = DateTime::<Utc>::from(modified);
+            if min_meta_time.is_none() || &modified < min_meta_time.as_ref().unwrap() {
+                min_meta_time = Some(modified);
+            }
+        }
+        if let Some(min_meta_time) = min_meta_time {
+            file_date = Some(min_meta_time.naive_utc());
         }
     }
 
-    if file_date.is_some() {
-        let date_str = file_date.as_ref().unwrap().format(DATE_FORMAT).to_string();
+    if let Some(file_date) = file_date {
+        let date_str = file_date.format(DATE_FORMAT).to_string();
         debug!("Resolved photo date from file {filename}: {date_str}");
         photo.metadata_date = Some(date_str.clone());
     }
 
-    if file_location.is_some() {
-        let file_location = file_location.unwrap();
+    if let Some(file_location) = file_location {
         debug!(
             "Resolved photo location from file {filename}: {0}, {1}",
             file_location.0, file_location.1
@@ -316,8 +294,8 @@ async fn insert_photo(photo: &Photo) -> Result<()> {
     Ok(())
 }
 
-fn generate_thumbnail(filename: &String, thumbnail_dir: &PathBuf) -> Result<String> {
-    let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(&filename));
+fn generate_thumbnail(filename: &String, thumbnail_dir: &Path) -> Result<String> {
+    let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(filename));
     let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
     let thumbnail_path = Path::new(&thumbnail_path_str);
     // TODO - A lot of thumbnails for HEIC files are not getting successfully set on the first pass here
@@ -325,57 +303,55 @@ fn generate_thumbnail(filename: &String, thumbnail_dir: &PathBuf) -> Result<Stri
         if !thumbnail_path.exists() {
             debug!("Generating thumbnail for raw {filename}");
             let output = Command::new("magick")
-                .args([&filename, &thumbnail_path_str])
+                .args([filename, &thumbnail_path_str])
                 .stderr(Stdio::piped())
                 .output();
-            if output.is_err() {
-                return Err(anyhow!(
-                    "ERROR: Could not generate thumbnail for {0}: {1}",
-                    &filename.to_string(),
-                    &output.err().unwrap().to_string()
-                ));
-            } else {
-                let stderr = output.unwrap().stderr;
-                if stderr.len() > 0 {
+            if let Ok(output) = output {
+                let stderr = output.stderr;
+                if !stderr.is_empty() {
                     return Err(anyhow!(
                         "magick error: {}",
                         String::from_utf8(stderr).ok().unwrap_or_default()
                     ));
                 }
-            }
-        }
-    } else if VIDEO.is_match(&filename.to_uppercase()) {
-        if !thumbnail_path.exists() {
-            debug!("Generating thumbnail for video {filename}");
-            let output = Command::new("ffmpeg")
-                .args([
-                    "-i",
-                    &filename.to_string(),
-                    "-ss",
-                    "00:00:00.00",
-                    "-frames:v",
-                    "1",
-                    "-update",
-                    "1",
-                    &thumbnail_path_str,
-                ])
-                .stderr(Stdio::piped())
-                .output();
-            if output.is_err() {
+            } else {
                 return Err(anyhow!(
                     "ERROR: Could not generate thumbnail for {0}: {1}",
                     &filename.to_string(),
                     &output.err().unwrap().to_string()
                 ));
-            } else {
-                let stderr = output.unwrap().stderr;
-                if stderr.len() > 0 {
-                    return Err(anyhow!(
-                        "ffmpeg error: {}",
-                        String::from_utf8(stderr).ok().unwrap_or_default()
-                    ));
-                }
             }
+        }
+    } else if VIDEO.is_match(&filename.to_uppercase()) && !thumbnail_path.exists() {
+        debug!("Generating thumbnail for video {filename}");
+        let output = Command::new("ffmpeg")
+            .args([
+                "-i",
+                &filename.to_string(),
+                "-ss",
+                "00:00:00.00",
+                "-frames:v",
+                "1",
+                "-update",
+                "1",
+                &thumbnail_path_str,
+            ])
+            .stderr(Stdio::piped())
+            .output();
+        if let Ok(output) = output {
+            let stderr = output.stderr;
+            if !stderr.is_empty() {
+                return Err(anyhow!(
+                    "ffmpeg error: {}",
+                    String::from_utf8(stderr).ok().unwrap_or_default()
+                ));
+            }
+        } else {
+            return Err(anyhow!(
+                "ERROR: Could not generate thumbnail for {0}: {1}",
+                &filename.to_string(),
+                &output.err().unwrap().to_string()
+            ));
         }
     }
     Ok(get_asset_path(&thumbnail_path_str))
@@ -510,8 +486,8 @@ async fn load_photos() -> Result<LoadedPhotos> {
                     let mut photo = Photo::new(filename.clone());
                     if RAW.is_match(&filename) || VIDEO.is_match(&filename) {
                         let thumb_res = generate_thumbnail(&filename, &moved_thumbnail_dir);
-                        if thumb_res.is_ok() {
-                            photo.thumbnail = Some(thumb_res.unwrap());
+                        if let Ok(thumb_res) = thumb_res {
+                            photo.thumbnail = Some(thumb_res);
                         } else {
                             error!(
                                 "Failed to generate thumbnail for {filename}: {}",
@@ -550,14 +526,14 @@ async fn load_photos() -> Result<LoadedPhotos> {
     *PHOTOS.lock().await = photos;
 
     Ok(LoadedPhotos {
-        removed: existing.keys().cloned().map(String::from).collect(),
+        removed: existing.keys().cloned().collect(),
         new_photos,
     })
 }
 
 /// Sets the working folder path & initializes the SQLite database connection.
 /// Returns initial information from the database.
-pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos> {
+pub async fn initialize(path: &String, app_dir: &Path) -> Result<LoadedPhotos> {
     // Establish a sync connection just to apply migrations
     let path = Path::new(path);
     let db_path = path.join("photos.db");
@@ -591,13 +567,11 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
     debug!("Loaded async database connection from {db_path}");
 
     let thumbnail_dir = app_dir.join("thumbnails");
-    if !thumbnail_dir.exists() {
-        if fs::create_dir_all(&thumbnail_dir).await.is_err() {
-            return Err(anyhow!(
-                "Failed to create thumbnail directory: {}",
-                thumbnail_dir.to_str().unwrap()
-            ));
-        }
+    if !thumbnail_dir.exists() && fs::create_dir_all(&thumbnail_dir).await.is_err() {
+        return Err(anyhow!(
+            "Failed to create thumbnail directory: {}",
+            thumbnail_dir.to_str().unwrap()
+        ));
     }
 
     let layers_data = layers::table.load::<Layer>(&mut conn).await?;
@@ -684,8 +658,7 @@ pub async fn initialize(path: &String, app_dir: &PathBuf) -> Result<LoadedPhotos
                 photographer_counts.insert(photographer.clone(), 1);
             }
         }
-        if photo.location.is_some() {
-            let location = photo.location.as_ref().unwrap();
+        if let Some(location) = &photo.location {
             if places.contains_key(location) {
                 if place_counts.contains_key(location) {
                     *place_counts.get_mut(location).unwrap() += 1;

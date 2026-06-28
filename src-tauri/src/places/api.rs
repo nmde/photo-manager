@@ -19,7 +19,7 @@ pub async fn get_layers() -> Result<Vec<LayerDto>, ApiError> {
         .await
         .with_context(|| "Could not get layers".to_string())?
         .iter()
-        .map(|x| LayerDto::from(x))
+        .map(LayerDto::from)
         .collect::<Vec<LayerDto>>())
 }
 
@@ -36,7 +36,7 @@ pub async fn get_places() -> Result<Vec<PlaceDto>, ApiError> {
         .await
         .with_context(|| "Could not get places".to_string())?
         .iter()
-        .map(|x| PlaceDto::from(x))
+        .map(PlaceDto::from)
         .collect::<Vec<PlaceDto>>())
 }
 
@@ -46,7 +46,7 @@ pub async fn get_trips() -> Result<Vec<TripDto>, ApiError> {
         .await
         .with_context(|| "Could not get trips".to_string())?
         .iter()
-        .map(|x| TripDto::from(x))
+        .map(TripDto::from)
         .collect::<Vec<TripDto>>())
 }
 

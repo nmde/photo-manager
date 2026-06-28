@@ -50,7 +50,7 @@ pub async fn get_layers() -> Result<Vec<Layer>> {
         .await
         .to_owned()
         .values()
-        .map(|x| x.clone())
+        .cloned()
         .collect::<Vec<Layer>>())
 }
 
@@ -60,7 +60,7 @@ pub async fn get_shapes() -> Result<Vec<Shape>> {
         .await
         .to_owned()
         .values()
-        .map(|x| x.clone())
+        .cloned()
         .collect::<Vec<Shape>>())
 }
 
@@ -70,7 +70,7 @@ pub async fn get_places() -> Result<Vec<Place>> {
         .await
         .to_owned()
         .values()
-        .map(|x| x.clone())
+        .cloned()
         .collect::<Vec<Place>>())
 }
 
@@ -80,23 +80,23 @@ pub async fn get_trips() -> Result<Vec<Trip>> {
         .await
         .to_owned()
         .values()
-        .map(|x| x.clone())
+        .cloned()
         .collect::<Vec<Trip>>())
 }
 
-pub async fn create_layer(id: &String, name: &String, color: &String) -> Result<()> {
+pub async fn create_layer(id: &str, name: &str, color: &str) -> Result<()> {
     ensure_db().await?;
     let new_layer = Layer {
-        id: id.clone(),
-        name: name.clone(),
-        color: color.clone(),
+        id: id.to_owned(),
+        name: name.to_owned(),
+        color: color.to_owned(),
     };
     insert_into(layers::table)
         .values(new_layer.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
-    LAYERS.lock().await.insert(id.clone(), new_layer);
-    LAYER_COUNTS.lock().unwrap().insert(id.clone(), 0);
+    LAYERS.lock().await.insert(id.to_string(), new_layer);
+    LAYER_COUNTS.lock().unwrap().insert(id.to_string(), 0);
 
     Ok(())
 }
@@ -174,21 +174,21 @@ pub async fn delete_layer(
 
 pub async fn create_place(
     id: String,
-    name: &String,
+    name: &str,
     lat: f32,
     lng: f32,
-    layer: &String,
-    category: &String,
+    layer: &str,
+    category: &str,
 ) -> Result<()> {
     ensure_db().await?;
 
     let new_place = Place {
         id: id.clone(),
-        name: name.clone(),
+        name: name.to_owned(),
         lat,
         lng,
-        layer: layer.clone(),
-        category: category.clone(),
+        layer: layer.to_owned(),
+        category: category.to_owned(),
         shape: None,
     };
     insert_into(places::table)
@@ -197,7 +197,7 @@ pub async fn create_place(
         .await?;
     PLACES.lock().await.insert(id.clone(), new_place);
     let mut layer_counts = LAYER_COUNTS.lock().unwrap();
-    *layer_counts.entry(layer.clone()).or_insert(0) += 1;
+    *layer_counts.entry(layer.to_string()).or_insert(0) += 1;
 
     Ok(())
 }
@@ -238,26 +238,26 @@ pub async fn delete_place(place: &String) -> Result<()> {
 }
 
 pub async fn create_shape(
-    id: &String,
-    shape_type: &String,
-    points: &String,
-    layer: &String,
-    name: &String,
+    id: &str,
+    shape_type: &str,
+    points: &str,
+    layer: &str,
+    name: &str,
 ) -> Result<()> {
     ensure_db().await?;
 
     let new_shape = Shape {
-        id: id.clone(),
-        shape_type: shape_type.clone(),
-        points: points.clone(),
-        layer: layer.clone(),
-        name: name.clone(),
+        id: id.to_owned(),
+        shape_type: shape_type.to_owned(),
+        points: points.to_owned(),
+        layer: layer.to_owned(),
+        name: name.to_owned(),
     };
     insert_into(shapes::table)
         .values(new_shape.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
-    SHAPES.lock().await.insert(id.clone(), new_shape);
+    SHAPES.lock().await.insert(id.to_string(), new_shape);
 
     Ok(())
 }
@@ -330,7 +330,7 @@ impl From<&Layer> for LayerDto {
             id: value.id.clone(),
             name: value.name.clone(),
             color: value.color.clone(),
-            count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
+            count: counts_cache.get(&value.id).copied().unwrap_or(0),
         }
     }
 }
@@ -416,7 +416,7 @@ impl From<&Place> for PlaceDto {
             layer: value.layer.clone(),
             category: value.category.clone(),
             shape: value.shape.clone(),
-            count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
+            count: counts_cache.get(&value.id).copied().unwrap_or(0),
         }
     }
 }
@@ -458,14 +458,14 @@ impl Shape {
 
 pub async fn create_trip(
     id: String,
-    name: &String,
+    name: &str,
     shapes: Vec<String>,
     date: Option<String>,
 ) -> Result<()> {
     ensure_db().await?;
 
     let new_trip = Trip {
-        name: name.clone(),
+        name: name.to_owned(),
         id,
         shapes: shapes.join(","),
         date,
@@ -499,9 +499,6 @@ impl From<&Trip> for TripDto {
 
 impl Trip {
     pub fn date(&self) -> Option<NaiveDate> {
-        if self.date.is_none() {
-            return None;
-        }
-        NaiveDate::parse_from_str(self.date.as_ref().unwrap(), DATE_FORMAT).ok()
+        NaiveDate::parse_from_str(self.date.as_ref()?, DATE_FORMAT).ok()
     }
 }

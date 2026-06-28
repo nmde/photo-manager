@@ -106,7 +106,7 @@ pub async fn get_people() -> Result<Vec<PersonDto>, ApiError> {
         .await
         .with_context(|| "Could not get people".to_string())?
         .iter()
-        .map(|x| PersonDto::from(x))
+        .map(PersonDto::from)
         .collect::<Vec<PersonDto>>())
 }
 

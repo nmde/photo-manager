@@ -90,10 +90,7 @@ impl Photo {
     }
 
     pub fn date(&self) -> Option<NaiveDate> {
-        if self.date.is_none() {
-            return None;
-        }
-        NaiveDate::parse_from_str(self.date.as_ref().unwrap(), DATE_FORMAT).ok()
+        NaiveDate::parse_from_str(self.date.as_ref()?, DATE_FORMAT).ok()
     }
 
     pub fn is_raw(&self) -> bool {
@@ -119,29 +116,15 @@ impl Photo {
     }
 
     pub fn metadata_date(&self) -> Option<NaiveDate> {
-        if self.metadata_date.is_none() {
-            return None;
-        }
-        NaiveDate::parse_from_str(self.metadata_date.as_ref().unwrap(), DATE_FORMAT).ok()
+        NaiveDate::parse_from_str(self.metadata_date.as_ref()?, DATE_FORMAT).ok()
     }
 
     pub fn metadata_location(&self) -> Option<(f32, f32)> {
-        if self.metadata_location.is_none() {
-            return None;
-        }
         let split = self
             .metadata_location
-            .as_ref()
-            .unwrap()
+            .as_ref()?
             .split(",")
-            .filter_map(|x| {
-                let parsed = x.parse::<f32>();
-                if parsed.is_ok() {
-                    Some(parsed.unwrap())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|x| x.parse::<f32>().ok())
             .collect::<Vec<f32>>();
         if split.len() != 2 {
             warn!("Malformed photo metadata location for {}", self.name);
@@ -178,7 +161,7 @@ impl Photo {
 
     pub async fn set_photographer(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let targets = get_photo_targets(&photo).await?;
+        let targets = get_photo_targets(photo).await?;
         let count = targets.len();
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -210,11 +193,11 @@ impl Photo {
 
     pub async fn set_photo_people(&self, photo: &String, value: &Vec<String>) -> Result<()> {
         ensure_db().await?;
-        let mut targets = get_photo_targets(&photo).await?;
+        let mut targets = get_photo_targets(photo).await?;
         let existing_people = targets[0].people();
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
-        let joined = vec_to_row(&value);
+        let joined = vec_to_row(value);
         for target in &mut targets {
             update(photos::table.filter(photos::name.eq(target.name.clone())))
                 .set(photos::people.eq(joined.clone()))
@@ -228,10 +211,8 @@ impl Photo {
 
         let count = targets.len();
         for person in &existing_people {
-            if !value.contains(person) {
-                if people_counts.contains_key(person) {
-                    *people_counts.get_mut(person).unwrap() -= count;
-                }
+            if !value.contains(person) && people_counts.contains_key(person) {
+                *people_counts.get_mut(person).unwrap() -= count;
             }
         }
         for person in value {
@@ -249,7 +230,7 @@ impl Photo {
 
     pub async fn set_photo_location(&self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let mut targets = get_photo_targets(&photo).await?;
+        let mut targets = get_photo_targets(photo).await?;
         let existing_place = targets[0].location.clone();
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
@@ -265,8 +246,7 @@ impl Photo {
         let mut place_counts = PLACE_COUNTS.lock().unwrap();
 
         let count = targets.len();
-        if existing_place.is_some() {
-            let existing_place = existing_place.unwrap();
+        if let Some(existing_place) = existing_place {
             if place_counts.contains_key(&existing_place) {
                 *place_counts.get_mut(&existing_place).unwrap() -= count;
             }
@@ -285,13 +265,13 @@ impl Photo {
 
     pub async fn set_photo_date(&mut self, photo: &String, value: &Option<String>) -> Result<()> {
         ensure_db().await?;
-        let targets = get_photo_targets(&photo).await?;
+        let targets = get_photo_targets(photo).await?;
         let mut conn = DB.lock().await;
         let conn = conn.as_mut().unwrap();
         for target in targets {
             update(photos::table.filter(photos::name.eq(target.name)))
                 .set(
-                    photos::date.eq(if value.is_some() && value.as_ref().unwrap().len() > 0 {
+                    photos::date.eq(if value.is_some() && !value.as_ref().unwrap().is_empty() {
                         Some(value.clone().unwrap())
                     } else {
                         None
@@ -310,7 +290,7 @@ impl Photo {
         if value.is_none() {
             let mut conn = DB.lock().await;
             let conn = conn.as_mut().unwrap();
-            let mut targets = get_photo_targets(&photo).await?;
+            let mut targets = get_photo_targets(photo).await?;
             for target in &mut targets {
                 update(photos::table.filter(photos::name.eq(target.name.clone())))
                     .set(photos::photo_group.eq::<Option<String>>(None))
@@ -320,7 +300,7 @@ impl Photo {
             }
         } else {
             let value = value.as_ref().unwrap();
-            let mut targets = get_photo_targets(&photo).await?;
+            let mut targets = get_photo_targets(photo).await?;
             let existing_people = targets[0].people();
             let existing_tags = targets[0].tags();
             let existing_place = targets[0].location.clone();
@@ -387,10 +367,8 @@ impl Photo {
 
             let count = targets.len();
             for person in &existing_people {
-                if !people_vec.contains(person) {
-                    if people_counts.contains_key(person) {
-                        *people_counts.get_mut(person).unwrap() -= count;
-                    }
+                if !people_vec.contains(person) && people_counts.contains_key(person) {
+                    *people_counts.get_mut(person).unwrap() -= count;
                 }
             }
             for person in &people_vec {
@@ -402,14 +380,12 @@ impl Photo {
                     }
                 }
             }
-            if existing_place.is_some() {
-                let existing_place = existing_place.as_ref().unwrap();
+            if let Some(existing_place) = &existing_place {
                 if place_counts.contains_key(existing_place) {
                     *place_counts.get_mut(existing_place).unwrap() -= count;
                 }
             }
-            if collected_location.is_some() {
-                let collected_location = collected_location.unwrap();
+            if let Some(collected_location) = collected_location {
                 if place_counts.contains_key(&collected_location) {
                     *place_counts.get_mut(&collected_location).unwrap() += count;
                 } else {
@@ -417,10 +393,8 @@ impl Photo {
                 }
             }
             for tag in &existing_tags {
-                if !tags_vec.contains(tag) {
-                    if tag_counts.contains_key(tag) {
-                        *tag_counts.get_mut(tag).unwrap() -= count;
-                    }
+                if !tags_vec.contains(tag) && tag_counts.contains_key(tag) {
+                    *tag_counts.get_mut(tag).unwrap() -= count;
                 }
             }
             for tag in &tags_vec {
@@ -484,8 +458,8 @@ impl Photo {
         value: &Vec<String>,
     ) -> Result<ValidationResult> {
         ensure_db().await?;
-        let validation = validate_tags(&value).await?;
-        let mut targets = get_photo_targets(&photo).await?;
+        let validation = validate_tags(value).await?;
+        let mut targets = get_photo_targets(photo).await?;
         let existing_tags = targets[0].tags();
         let mut tags = TAGS.lock().await;
         let mut conn = DB.lock().await;
@@ -520,10 +494,8 @@ impl Photo {
         let mut tag_counts = TAG_COUNTS.lock().unwrap();
         let count = targets.len();
         for tag in &existing_tags {
-            if !value.contains(tag) {
-                if tag_counts.contains_key(tag) {
-                    *tag_counts.get_mut(tag).unwrap() -= count;
-                }
+            if !value.contains(tag) && tag_counts.contains_key(tag) {
+                *tag_counts.get_mut(tag).unwrap() -= count;
             }
         }
         for tag in value {

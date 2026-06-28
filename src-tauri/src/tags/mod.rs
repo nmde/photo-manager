@@ -55,8 +55,7 @@ async fn ensure_tag(
         .filter(tags::name.eq(tag))
         .load::<Tag>(conn)
         .await?
-        .len()
-        == 0
+        .is_empty()
     {
         insert_into(tags::table)
             .values(Tag::new(tag))
@@ -67,7 +66,7 @@ async fn ensure_tag(
 }
 
 pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
-    if tags.len() == 0 {
+    if tags.is_empty() {
         Ok(ValidationResult {
             is_valid: true,
             message: None,
@@ -85,43 +84,43 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
                 for prereq in &tag_data.prereqs() {
                     if !tags.contains(prereq) {
                         valid = false;
-                        missing_prereqs.push_str(&prereq);
+                        missing_prereqs.push_str(prereq);
                         missing_prereqs.push_str(", ");
                     }
                 }
                 for coreq in &tag_data.coreqs() {
                     if !tags.contains(coreq) {
                         valid = false;
-                        missing_coreqs.push_str(&coreq);
+                        missing_coreqs.push_str(coreq);
                         missing_coreqs.push_str(", ");
                     }
                 }
                 for incompatible in &tag_data.incompatible() {
                     if tags.contains(incompatible) {
                         valid = false;
-                        incompatibles.push_str(&incompatible);
+                        incompatibles.push_str(incompatible);
                         incompatibles.push_str(", ");
                     }
                 }
             }
         }
 
-        if missing_prereqs.len() > 0 {
+        if !missing_prereqs.is_empty() {
             message.push_str("Missing prerequisite tag(s): ");
             message.push_str(&missing_prereqs);
         }
-        if missing_coreqs.len() > 0 {
+        if !missing_coreqs.is_empty() {
             message.push_str("Missing corequisite tag(s): ");
             message.push_str(&missing_coreqs);
         }
-        if incompatibles.len() > 0 {
+        if !incompatibles.is_empty() {
             message.push_str("Incompatible tag(s) present: ");
             message.push_str(&incompatibles);
         }
 
         Ok(ValidationResult {
             is_valid: valid,
-            message: if message.len() > 0 {
+            message: if !message.is_empty() {
                 Some(message)
             } else {
                 None
@@ -131,13 +130,7 @@ pub async fn validate_tags(tags: &Vec<String>) -> Result<ValidationResult> {
 }
 
 pub async fn get_tags() -> Result<Vec<Tag>> {
-    Ok(TAGS
-        .lock()
-        .await
-        .clone()
-        .values()
-        .map(|x| x.clone())
-        .collect::<Vec<Tag>>())
+    Ok(TAGS.lock().await.values().cloned().collect::<Vec<Tag>>())
 }
 
 pub async fn validate_photo(photo: &String) -> Result<ValidationResult> {
@@ -147,13 +140,13 @@ pub async fn validate_photo(photo: &String) -> Result<ValidationResult> {
     }
     let target = photos.get(photo).unwrap();
 
-    Ok(validate_tags(&target.tags()).await?)
+    validate_tags(&target.tags()).await
 }
 
 impl Tag {
-    pub fn new(name: &String) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
-            name: name.clone(),
+            name: name.to_owned(),
             color: None,
             prereqs: None,
             coreqs: None,
@@ -191,7 +184,7 @@ impl Tag {
         &mut self,
         category: TagRelationship,
         tag: &String,
-        value: &Vec<String>,
+        value: &[String],
     ) -> Result<()> {
         ensure_db().await?;
         let joined = value.join(",");
@@ -244,7 +237,7 @@ impl From<&Tag> for TagDto {
             prereqs: value.prereqs(),
             coreqs: value.coreqs(),
             incompatible: value.incompatible(),
-            count: counts_cache.get(&value.name).unwrap_or(&0).clone(),
+            count: counts_cache.get(&value.name).copied().unwrap_or(0),
         }
     }
 }

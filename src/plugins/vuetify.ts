@@ -4,6 +4,33 @@ import '@mdi/font/css/materialdesignicons.css';
 import 'vuetify/styles';
 
 export const vuetify = createVuetify({
+  defaults: {
+    global: {
+      ripple: false,
+    },
+    VCard: {
+      elevation: 0,
+      rounded: 'md',
+    },
+    VSheet: {
+      elevation: 0,
+    },
+    VToolbar: {
+      elevation: 0,
+    },
+    VNavigationDrawer: {
+      elevation: 0,
+    },
+    VMenu: {
+      elevation: 0,
+    },
+    VBtn: {
+      elevation: 0,
+    },
+    VSnackbar: {
+      elevation: 0,
+    },
+  },
   theme: {
     defaultTheme: 'Theme',
     themes: {

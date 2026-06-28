@@ -34,7 +34,7 @@
 
   function resize() {
     scrollerHeight.value = window.innerHeight - 64;
-    scrollerWidth.value = window.innerWidth - (props.halfWidth ? 22 : 40);
+    scrollerWidth.value = window.innerWidth - (props.halfWidth ? 22 : 36);
   }
 
   onMounted(() => {

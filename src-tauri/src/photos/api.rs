@@ -273,6 +273,6 @@ pub async fn get_group(group: String) -> Result<Vec<PhotoDto>, ApiError> {
     Ok(_get_group(&group)
         .await?
         .iter()
-        .map(|photo| PhotoDto::from(photo))
+        .map(PhotoDto::from)
         .collect())
 }

@@ -132,8 +132,8 @@ fn parse_term(term: &str) -> Result<(SearchTerm, bool)> {
         Ok((SearchTerm::Only(t[5..].to_string()), negated))
     } else if up.starts_with("BY:") {
         Ok((SearchTerm::By(t[3..].to_string()), negated))
-    } else if up.starts_with("HAS:") {
-        match &up[4..] {
+    } else if let Some(qualifier) = up.strip_prefix("HAS:") {
+        match qualifier {
             "RATING" => Ok((SearchTerm::Has(HasTerm::Rating), negated)),
             "PHOTOGRAPHER" => Ok((SearchTerm::Has(HasTerm::Photographer), negated)),
             "DATE" => Ok((SearchTerm::Has(HasTerm::Date), negated)),
@@ -201,8 +201,8 @@ fn parse_term(term: &str) -> Result<(SearchTerm, bool)> {
             SearchTerm::Date(CompOp::Eq, NaiveDate::parse_from_str(&t[5..], DATE_FORMAT)?),
             negated,
         ))
-    } else if up.starts_with("IS:") {
-        match &up[3..] {
+    } else if let Some(qualifier) = up.strip_prefix("IS:") {
+        match qualifier {
             "VIDEO" => Ok((SearchTerm::Is(IsTerm::Video), negated)),
             "RAW" => Ok((SearchTerm::Is(IsTerm::Raw), negated)),
             s => Err(anyhow!("Unknown IS: qualifier: {s}")),
@@ -404,8 +404,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
             if photo.is_raw() && raw_name_map.contains(&photo.name) {
                 return false;
             }
-            if photo.photo_group.is_some() {
-                let group = photo.photo_group.as_ref().unwrap();
+            if let Some(group) = &photo.photo_group {
                 if encountered_groups.contains(group) {
                     return false;
                 }
@@ -417,7 +416,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                 meets_terms = meets_terms
                     && match &term.0 {
                         SearchTerm::Of(person) => {
-                            let mut found = photo_people.contains(&person);
+                            let mut found = photo_people.contains(person);
                             if !found {
                                 let name = person.to_uppercase();
                                 found = photo_people.iter().any(|id| {
@@ -432,8 +431,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                             found ^ negated
                         }
                         SearchTerm::Date(op, date) => {
-                            if photo_date.is_some() {
-                                let pd = photo_date.as_ref().unwrap();
+                            if let Some(pd) = &photo_date {
                                 (match op {
                                     CompOp::Eq => pd == date,
                                     CompOp::Ge => pd >= date,
@@ -451,7 +449,7 @@ pub async fn search_photos(query: &Vec<String>, sort: Sort) -> Result<Vec<Photo>
                                 IsTerm::Raw => photo.is_raw(),
                             }) ^ negated
                         }
-                        SearchTerm::Tag(tag) => photo_tags.contains(&tag) ^ negated,
+                        SearchTerm::Tag(tag) => photo_tags.contains(tag) ^ negated,
                         _ => {
                             warn!("Unexpected term: {}", term.0);
                             true

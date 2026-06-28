@@ -30,7 +30,7 @@ pub async fn photo_grid(query: Vec<String>, sort: String) -> Result<Vec<PhotoDto
     Ok(search_photos(&query, Sort::from_str(&sort)?)
         .await?
         .iter()
-        .map(|x| PhotoDto::from(x))
+        .map(PhotoDto::from)
         .collect::<Vec<PhotoDto>>())
 }
 
@@ -51,5 +51,5 @@ pub async fn refresh() -> Result<Vec<String>, ApiError> {
 
     Ok(_refresh()
         .await
-        .with_context(|| format!("Failed to refresh photos"))?)
+        .with_context(|| "Failed to refresh photos")?)
 }

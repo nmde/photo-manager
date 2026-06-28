@@ -27,31 +27,31 @@ pub static PEOPLE_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
 pub static PHOTOGRAPHER_COUNTS: LazyLock<Mutex<HashMap<String, usize>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub async fn create_person(id: &String, name: &String, category: &String) -> Result<()> {
+pub async fn create_person(id: &str, name: &str, category: &str) -> Result<()> {
     ensure_db().await?;
 
     let new_person = Person {
-        id: id.clone(),
-        name: name.clone(),
+        id: id.to_owned(),
+        name: name.to_owned(),
         photo: None,
-        category: category.clone(),
+        category: category.to_owned(),
     };
     insert_into(people::table)
         .values(new_person.clone())
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
-    PEOPLE.lock().await.insert(id.clone(), new_person);
+    PEOPLE.lock().await.insert(id.to_string(), new_person);
 
     Ok(())
 }
 
-pub async fn create_person_category(id: &String, name: &String, color: &String) -> Result<()> {
+pub async fn create_person_category(id: &str, name: &str, color: &str) -> Result<()> {
     ensure_db().await?;
     insert_into(people_categories::table)
         .values(PersonCategory {
-            id: id.clone(),
-            name: name.clone(),
-            color: color.clone(),
+            id: id.to_owned(),
+            name: name.to_owned(),
+            color: color.to_owned(),
         })
         .execute(DB.lock().await.as_mut().unwrap())
         .await?;
@@ -65,7 +65,7 @@ pub async fn get_people() -> Result<Vec<Person>> {
         .await
         .to_owned()
         .values()
-        .map(|p| p.clone())
+        .cloned()
         .collect::<Vec<Person>>())
 }
 
@@ -134,8 +134,8 @@ impl From<&Person> for PersonDto {
             name: value.name.clone(),
             photo: value.photo.clone(),
             category: value.category.clone(),
-            count: counts_cache.get(&value.id).unwrap_or(&0).clone(),
-            photographer_count: photographer_cache.get(&value.id).unwrap_or(&0).clone(),
+            count: counts_cache.get(&value.id).copied().unwrap_or(0),
+            photographer_count: photographer_cache.get(&value.id).copied().unwrap_or(0),
         }
     }
 }

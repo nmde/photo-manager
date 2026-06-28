@@ -405,10 +405,6 @@
         lng: split[1] ?? 0,
       };
       map.createMarker(locToString(queryLoc.value), 'focus');
-    } else {
-      navigator.geolocation.getCurrentPosition(position => {
-        map.setCenter(position.coords.latitude, position.coords.longitude);
-      });
     }
 
     map.on('click', pos => {
@@ -957,7 +953,7 @@
   /* Floating layers card (top-left) */
   .layers-float {
     position: absolute;
-    top: var(--space-md);
+    top: calc(40px + var(--space-md));
     left: var(--space-md);
     z-index: 10;
     width: 288px;

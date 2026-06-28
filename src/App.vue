@@ -16,7 +16,7 @@
 <template>
   <v-app :theme="theme === 'Dark' ? 'Theme' : 'LightTheme'">
     <v-layout>
-      <v-navigation-drawer v-if="route.path !== '/'" expand-on-hover permanent rail>
+      <v-navigation-drawer v-if="route.path !== '/'" color="secondary" expand-on-hover permanent rail>
         <v-list class="top-nav" color="primary" nav>
           <v-list-item prepend-icon="mdi-image" title="Photos" to="/tagger" />
           <v-list-item prepend-icon="mdi-map-marker" title="Locations" to="/locations" />
