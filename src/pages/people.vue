@@ -1,45 +1,51 @@
 <script setup lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { v4 as uuid } from 'uuid';
-  import type { Person } from '../classes/Person';
-  import type { PersonCategory } from '../classes/PersonCategory';
-  import { computed, onMounted, ref } from 'vue';
-  import { useRouter } from 'vue-router';
-  import { fileStore } from '../stores/fileStore';
+  import { useRules } from 'vuetify/labs/rules';
+  import {
+    create_person,
+    create_person_category,
+    get_people,
+    get_people_categories,
+  } from '@/api/people';
+  import { Person, type PersonRec } from '@/classes/Person';
+  import { PersonCategory, type PersonCategoryRec } from '@/classes/PersonCategory';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const { reportError } = useFileStore();
   const router = useRouter();
-
-  const { peopleCategories, addPersonCategory } = fileStore;
+  const rules = useRules();
 
   const editing = ref(false);
-  const editTarget = ref<Person | undefined>();
+  const editTarget = ref<Person>();
   const addDialog = ref(false);
-  const addName = ref('');
-  const addNotes = ref('');
-  const addCategory = ref('');
-
   const addCategoryDialog = ref(false);
-  const addCategoryName = ref('');
-  const addCategoryColor = ref('');
+  const localCategories = ref<PersonCategoryRec>({});
+  const localPeople = ref<PersonRec>({});
+  const missingCategoryColor = ref(false);
+  const loadingCategory = ref(false);
+  const loadingPerson = ref(false);
 
-  const localCategories = ref<Record<string, PersonCategory>>({});
-  const localPeople = ref<Record<string, Person[]>>({});
-  const categoryList = computed(() =>
-    Object.values(localCategories.value).map(c => ({
-      color: c.color,
-      title: c.name,
-      value: c.id,
-    })),
-  );
+  type AddPersonFields = {
+    name?: string;
+    category?: string;
+  };
+  const addPersonFields = ref<AddPersonFields>({});
+
+  type AddCategoryFields = {
+    name?: string;
+    color?: string;
+  };
+  const addCategoryFields = ref<AddCategoryFields>({});
 
   const personCardWidth = 64;
   const personCardHeight = 212;
   const peopleRows = computed(() => {
     const re: Record<string, Person[][]> = {};
-    for (const [c, category] of Object.entries(localPeople.value)) {
+    const sortedPeople = Object.values(localPeople.value).toSorted((a, b) => b.count - a.count);
+    for (const c in localCategories.value) {
       re[c] = [[]];
       let x = 0;
-      for (const person of category) {
+      for (const person of sortedPeople.filter(p => p.category === c)) {
         re[c].at(-1)?.push(person);
         x += 1;
         if (x > window.innerWidth / personCardWidth) {
@@ -51,15 +57,42 @@
     return re;
   });
 
-  onMounted(() => {
-    localCategories.value = peopleCategories;
+  async function savePerson() {
+    const fields = addPersonFields.value as Required<AddPersonFields>;
+    loadingPerson.value = true;
+    if (editing.value && editTarget.value) {
+      if (fields.name !== editTarget.value.name) {
+        await editTarget.value.setName(fields.name);
+      }
+      if (fields.category !== editTarget.value.category) {
+        await editTarget.value.setCategory(fields.category);
+      }
+      localPeople.value[editTarget.value.id] = editTarget.value;
+    } else {
+      const id = uuid();
+      await create_person(id, fields.name, fields.category);
+      localPeople.value[id] = new Person(id, fields.name, null, fields.category, 0, 0);
+    }
+    loadingPerson.value = false;
+  }
+
+  onMounted(async () => {
+    await get_people_categories()
+      .ok(c => (localCategories.value = c))
+      .err(reportError)
+      .send();
+    await get_people()
+      .ok(p => (localPeople.value = p))
+      .err(reportError)
+      .send();
   });
 </script>
 
 <template>
-  <v-main>
+  <v-toolbar color="primary">
+    <v-btn :loading="loadingCategory" @click="addCategoryDialog = true">Add Category</v-btn>
     <v-btn
-      color="primary"
+      :loading="loadingPerson"
       @click="
         () => {
           editing = false;
@@ -69,161 +102,111 @@
     >
       Add Person
     </v-btn>
-    <v-btn color="secondary" @click="addCategoryDialog = true">Add Category</v-btn>
-    <v-expansion-panels>
-      <v-expansion-panel v-for="category in localCategories" :key="category.id">
-        <v-expansion-panel-title :color="category.color">{{
-          category.name
-        }}</v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <v-virtual-scroll
-            :height="640"
-            :item-height="personCardHeight"
-            :items="peopleRows[category.id]"
-          >
-            <template #default="{ item }">
-              <div class="people-grid">
-                <v-card v-for="person in item" :key="person.id" class="person-card">
-                  <template v-if="person.photo.length > 0" #prepend>
-                    <v-avatar size="128">
-                      <v-img :src="person.photo" />
-                    </v-avatar>
-                  </template>
-                  <v-card-title>
-                    {{ person.name }}
-                    <v-menu>
-                      <template #activator="{ props }">
-                        <v-btn flat icon v-bind="props">
-                          <v-icon>mdi-menu</v-icon>
-                        </v-btn>
-                      </template>
-                      <v-list>
-                        <v-list-item
-                          @click="
-                            () => {
-                              editing = true;
-                              editTarget = person;
-                              addName = person.name;
-                              addNotes = person.notes;
-                              addCategory = person.category;
-                              addDialog = true;
-                            }
-                          "
-                        >
-                          Edit
-                        </v-list-item>
-                        <v-list-item
-                          @click="
-                            () => {
-                              router.push(`/tagger?person=${person.id}`);
-                            }
-                          "
-                        >
-                          View Photos
-                        </v-list-item>
-                        <v-list-item
-                          @click="
-                            () => {
-                              router.push(`/tagger?photographer=${person.id}`);
-                            }
-                          "
-                        >
-                          View Photos Taken By
-                        </v-list-item>
-                      </v-list>
-                    </v-menu>
-                  </v-card-title>
-                  <v-card-text>
-                    Photo count: {{ person.count }}
-                    <br />
-                    Photos taken: {{ person.photographerCount }}
-                    <br />
-                    <p class="notes">{{ person.notes }}</p>
-                  </v-card-text>
-                </v-card>
-              </div>
-            </template>
-          </v-virtual-scroll>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
-    <v-dialog v-model="addCategoryDialog">
-      <v-card>
-        <v-card-title>Add Category</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="addCategoryName" label="Name" />
-          <color-options @select="color => (addCategoryColor = color)" />
-        </v-card-text>
-        <v-card-actions>
-          <v-btn @click="addCategoryDialog = false">Cancel</v-btn>
-          <v-btn
-            color="primary"
-            @click="
-              async () => {
-                const c = await addPersonCategory(addCategoryName, addCategoryColor);
-                localCategories[c.id] = c;
-                localPeople[c.id] = [];
-                addCategoryDialog = false;
-                addCategoryName = '';
-                addCategoryColor = '';
-              }
-            "
-          >
-            Save
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-    <v-dialog v-model="addDialog">
-      <v-card>
-        <v-card-title>Add Person</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="addName" label="Name" />
-          <v-select v-model="addCategory" :items="categoryList" label="Category">
-            <template #item="{ props, item }">
-              <v-list-item v-bind="props" :base-color="item.raw.color" />
-            </template>
-          </v-select>
-          <v-textarea v-model="addNotes" label="Notes" />
-        </v-card-text>
-        <v-card-actions>
-          <v-btn @click="addDialog = false">Cancel</v-btn>
-          <v-btn
-            color="primary"
-            @click="
-              async () => {
-                if (editing) {
-                  if (addName !== editTarget?.name) {
-                    await editTarget?.setName(addName);
-                  }
-                  if (addNotes !== editTarget?.notes) {
-                    await editTarget?.setNotes(addNotes);
-                  }
-                  if (addCategory !== editTarget?.category) {
-                    await editTarget?.setCategory(addCategory);
-                  }
-                } else {
-                  await invoke('create_person', {
-                    id: uuid(),
-                    name: addName,
-                    photo: '',
-                    notes: addNotes,
-                    category: addCategory,
-                  });
-                }
-                addDialog = false;
-                addName = '';
-                addNotes = '';
-                addCategory = '';
-              }
-            "
-          >
-            Save
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </v-main>
+  </v-toolbar>
+  <v-expansion-panels>
+    <v-expansion-panel v-for="category in localCategories" :key="category.id">
+      <v-expansion-panel-title :color="category.color">{{ category.name }}</v-expansion-panel-title>
+      <v-expansion-panel-text>
+        <v-virtual-scroll
+          :height="640"
+          :item-height="personCardHeight"
+          :items="peopleRows[category.id]"
+        >
+          <template #default="{ item }">
+            <div class="people-grid">
+              <v-card v-for="person in item" :key="person.id" class="person-card">
+                <template v-if="person.photo !== null" #prepend>
+                  <v-avatar size="128">
+                    <v-img :src="person.photo" />
+                  </v-avatar>
+                </template>
+                <v-card-title>
+                  {{ person.name }}
+                  <v-menu>
+                    <template #activator="{ props }">
+                      <v-btn flat icon v-bind="props">
+                        <v-icon>mdi-pencil</v-icon>
+                      </v-btn>
+                    </template>
+                    <v-list>
+                      <v-list-item
+                        @click="
+                          () => {
+                            editing = true;
+                            editTarget = person;
+                            addPersonFields = person;
+                            addDialog = true;
+                          }
+                        "
+                      >
+                        Edit
+                      </v-list-item>
+                      <v-list-item @click="router.push(`/tagger?person=${person.id}`)">
+                        View Photos
+                      </v-list-item>
+                      <v-list-item @click="router.push(`/tagger?photographer=${person.id}`)">
+                        View Photos Taken By
+                      </v-list-item>
+                    </v-list>
+                  </v-menu>
+                </v-card-title>
+                <v-card-text> Photo count: {{ person.count }} </v-card-text>
+              </v-card>
+            </div>
+          </template>
+        </v-virtual-scroll>
+      </v-expansion-panel-text>
+    </v-expansion-panel>
+  </v-expansion-panels>
+  <form-dialog
+    v-model="addCategoryDialog"
+    :reset="() => (addCategoryFields = {})"
+    title="Add Category"
+    @submit="
+      async () => {
+        missingCategoryColor = addCategoryFields.color === undefined;
+        if (!missingCategoryColor) {
+          const id = uuid();
+          const fields = addCategoryFields as Required<AddCategoryFields>;
+          loadingCategory = true;
+          await create_person_category(id, fields.name, fields.color);
+          localCategories[id] = new PersonCategory(id, fields.name, fields.color);
+          loadingCategory = false;
+        }
+      }
+    "
+  >
+    <v-text-field
+      v-model="addCategoryFields.name"
+      label="Name"
+      :rules="[rules.required('A name is required.')]"
+    />
+    <color-options
+      :error="missingCategoryColor"
+      :value="addCategoryFields.color"
+      @select="color => (addCategoryFields.color = color ?? undefined)"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="addDialog"
+    :reset="() => (addPersonFields = {})"
+    :title="`${editing ? 'Edit' : 'Add'} Person`"
+    @submit="async () => savePerson()"
+  >
+    <v-text-field v-model="addPersonFields.name" color="primary" label="Name" />
+    <v-select
+      v-model="addPersonFields.category"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(localCategories)"
+      label="Category"
+      :rules="[rules.required('A category is required.')]"
+    >
+      <template #item="{ props, item }">
+        <v-list-item v-bind="props" :base-color="item.color" />
+      </template>
+    </v-select>
+  </form-dialog>
 </template>
 
 <style scoped>
@@ -233,7 +216,7 @@
   }
 
   .person-card {
-    margin: 12px;
+    margin: var(--space-sm);
   }
 
   .notes {

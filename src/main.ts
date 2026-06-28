@@ -1,23 +1,14 @@
-/**
- * main.ts
- *
- * Bootstraps Vuetify and other plugins then mounts the App`
- */
+import { createApp } from 'vue';
+import { registerPlugins } from '@/plugins';
+import App from './App.vue';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import './styles/tokens.css';
+import './styles/styles.css';
 
-// Plugins
-import { registerPlugins } from '@/plugins'
+const app = createApp(App);
 
-// Components
-import App from './App.vue'
+registerPlugins(app);
 
-// Composables
-import { createApp } from 'vue'
-
-// Styles
-import 'unfonts.css'
-
-const app = createApp(App)
-
-registerPlugins(app)
-
-app.mount('#app')
+app.mount('#app');

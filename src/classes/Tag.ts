@@ -1,35 +1,31 @@
-import { invoke } from '@tauri-apps/api/core';
+import type { Nullable } from '@/types';
+import { set_tag_color, set_tag_coreqs, set_tag_incompatible, set_tag_prereqs } from '@/api/tags';
+import { SortableItem } from './SortableItem';
 
 export type TagData = {
-  id: string;
   name: string;
-  color: string;
+  color: Nullable<string>;
   prereqs: string[];
   coreqs: string[];
   incompatible: string[];
   count: number;
 };
 
+export type TagRec = Record<TagData['name'], Tag>;
+
 /**
  * Table to store information about tags.
  */
-export class Tag {
+export class Tag extends SortableItem implements TagData {
   public constructor(
-    private _id: string,
-    private _name: string,
-    private _color: string,
-    private _prereqs: string[],
-    private _coreqs: string[],
-    private _incompatible: string[],
-    public count: number,
-  ) {}
-
-  public get id() {
-    return this._id;
-  }
-
-  public get name() {
-    return this._name;
+    public readonly _name: TagData['name'],
+    public _color: TagData['color'],
+    public _prereqs: TagData['prereqs'],
+    public _coreqs: TagData['coreqs'],
+    public _incompatible: TagData['incompatible'],
+    public count: TagData['count'],
+  ) {
+    super(_name, count, _name, null);
   }
 
   public get color() {
@@ -48,42 +44,40 @@ export class Tag {
     return this._incompatible;
   }
 
-  public static createTags(data: TagData[]) {
-    return data.map(
-      ({ id, name, color, prereqs, coreqs, incompatible, count }) =>
-        new Tag(id, name, color, prereqs, coreqs, incompatible, count),
-    );
-  }
+  public static createTags = (data: TagData[]) => {
+    const tags: TagRec = {};
+    for (const tag of data) {
+      tags[tag.name] = new Tag(
+        tag.name,
+        tag.color,
+        tag.prereqs,
+        tag.coreqs,
+        tag.incompatible,
+        tag.count,
+      );
+    }
+    return tags;
+  };
 
-  public async setColor(color: string) {
+  public static default = (name?: TagData['name']) => new Tag(name ?? '', '', [], [], [], 0);
+
+  public async setColor(color: TagData['color']) {
     this._color = color;
-    await invoke('set_tag_color', {
-      tag: this.name,
-      value: color,
-    });
+    await set_tag_color(this.name, color);
   }
 
-  public async setPrereqs(tags: string[]) {
+  public async setPrereqs(tags: TagData['prereqs']) {
     this._prereqs = tags;
-    await invoke('set_tag_prereqs', {
-      tag: this.name,
-      value: this._prereqs,
-    });
+    await set_tag_prereqs(this.name, tags);
   }
 
-  public async setCoreqs(tags: string[]) {
+  public async setCoreqs(tags: TagData['coreqs']) {
     this._coreqs = tags;
-    await invoke('set_tag_coreqs', {
-      tag: this.name,
-      value: this._coreqs,
-    });
+    await set_tag_coreqs(this.name, tags);
   }
 
-  public async setIncompatible(tags: string[]) {
+  public async setIncompatible(tags: TagData['incompatible']) {
     this._incompatible = tags;
-    await invoke('set_tag_incompatible', {
-      tag: this.name,
-      value: this._incompatible,
-    });
+    await set_tag_incompatible(this.name, tags);
   }
 }

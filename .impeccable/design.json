@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-09T00:00:00Z",
+  "title": "Design System: Photo Manager",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Observatory Slate",
+        "canonical": "oklch(63% 0.09 245)",
+        "tonalRamp": [
+          "oklch(12% 0.09 245)",
+          "oklch(22% 0.09 245)",
+          "oklch(32% 0.09 245)",
+          "oklch(42% 0.09 245)",
+          "oklch(52% 0.09 245)",
+          "oklch(63% 0.09 245)",
+          "oklch(73% 0.09 245)",
+          "oklch(85% 0.09 245)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Deep Space",
+        "canonical": "oklch(9% 0.003 245)",
+        "tonalRamp": [
+          "oklch(5% 0.003 245)",
+          "oklch(9% 0.003 245)",
+          "oklch(14% 0.003 245)",
+          "oklch(18% 0.003 245)",
+          "oklch(25% 0.003 245)",
+          "oklch(40% 0.003 245)",
+          "oklch(63% 0.005 245)",
+          "oklch(91% 0.005 245)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "oklch(14% 0.003 245)",
+        "tonalRamp": [
+          "oklch(5% 0.003 245)",
+          "oklch(9% 0.003 245)",
+          "oklch(14% 0.003 245)",
+          "oklch(18% 0.003 245)",
+          "oklch(25% 0.003 245)",
+          "oklch(40% 0.003 245)",
+          "oklch(63% 0.005 245)",
+          "oklch(91% 0.005 245)"
+        ]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Lifted Slate",
+        "canonical": "oklch(18% 0.003 245)",
+        "tonalRamp": [
+          "oklch(5% 0.003 245)",
+          "oklch(9% 0.003 245)",
+          "oklch(14% 0.003 245)",
+          "oklch(18% 0.003 245)",
+          "oklch(25% 0.003 245)",
+          "oklch(40% 0.003 245)",
+          "oklch(63% 0.005 245)",
+          "oklch(91% 0.005 245)"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Cold White",
+        "canonical": "oklch(91% 0.005 245)",
+        "tonalRamp": [
+          "oklch(5% 0.003 245)",
+          "oklch(9% 0.003 245)",
+          "oklch(14% 0.003 245)",
+          "oklch(18% 0.003 245)",
+          "oklch(25% 0.003 245)",
+          "oklch(40% 0.003 245)",
+          "oklch(63% 0.005 245)",
+          "oklch(91% 0.005 245)"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Dim Ash",
+        "canonical": "oklch(63% 0.005 245)",
+        "tonalRamp": [
+          "oklch(5% 0.003 245)",
+          "oklch(9% 0.003 245)",
+          "oklch(14% 0.003 245)",
+          "oklch(18% 0.003 245)",
+          "oklch(25% 0.003 245)",
+          "oklch(40% 0.003 245)",
+          "oklch(63% 0.005 245)",
+          "oklch(91% 0.005 245)"
+        ]
+      },
+      "error": {
+        "role": "error",
+        "displayName": "Signal Red",
+        "canonical": "oklch(58% 0.13 14)",
+        "tonalRamp": [
+          "oklch(15% 0.13 14)",
+          "oklch(25% 0.13 14)",
+          "oklch(35% 0.13 14)",
+          "oklch(45% 0.13 14)",
+          "oklch(58% 0.13 14)",
+          "oklch(68% 0.13 14)",
+          "oklch(78% 0.10 14)",
+          "oklch(88% 0.06 14)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Section headers, dialog titles, page-level identifiers. One per major surface." },
+      "title":    { "displayName": "Title",    "purpose": "Subsection labels, toolbar component names, named groupings." },
+      "body":     { "displayName": "Body",     "purpose": "All descriptive text, list item labels, metadata. Cap at 65ch in flowing contexts." },
+      "label":    { "displayName": "Label",    "purpose": "Chips, tag badges, icon button labels, counters. Minimum size in the system." }
+    },
+    "shadows": [
+      {
+        "name": "ambient-dialog",
+        "value": "0 8px 32px oklch(5% 0 0 / 0.6)",
+        "purpose": "Floating dialogs and menus only. Diffuse dark shadow signals modal elevation. Not used on cards or surface panels."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "Default easing for all state transitions. Exit animations only."
+      },
+      {
+        "name": "duration-fast",
+        "value": "100ms",
+        "purpose": "Micro-interactions: icon hover, photo name reveal, button state."
+      },
+      {
+        "name": "duration-standard",
+        "value": "150ms",
+        "purpose": "Layout transitions: split-pane width change, panel open/close."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action in dialogs and the landing page. Observatory Slate on Deep Space.",
+      "html": "<button class=\"ds-btn-primary\">Open Folder</button>",
+      "css": ".ds-btn-primary { background: oklch(63% 0.09 245); color: oklch(9% 0.003 245); padding: 8px 20px; border: none; border-radius: 4px; font-family: Roboto, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: background 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-primary:hover { background: oklch(70% 0.09 245); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(63% 0.09 245); outline-offset: 2px; } .ds-btn-primary:active { background: oklch(55% 0.09 245); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Cancel and secondary actions in dialog action rows.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: oklch(91% 0.005 245); padding: 8px 20px; border: none; border-radius: 4px; font-family: Roboto, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: background 100ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-ghost:hover { background: oklch(91% 0.005 245 / 0.08); } .ds-btn-ghost:focus-visible { outline: 2px solid oklch(63% 0.09 245); outline-offset: 2px; }"
+    },
+    {
+      "name": "Navigation Rail Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Primary app navigation. Rail collapses to icons at rest, expands on hover.",
+      "html": "<div class=\"ds-nav-item ds-nav-item--active\"><svg class=\"ds-nav-icon\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path d=\"M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z\" fill=\"currentColor\"/></svg><span class=\"ds-nav-label\">Photos</span></div>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: background 100ms cubic-bezier(0.2, 0, 0, 1); color: oklch(63% 0.005 245); } .ds-nav-item:hover { background: oklch(91% 0.005 245 / 0.08); color: oklch(91% 0.005 245); } .ds-nav-item--active { background: oklch(63% 0.09 245); color: oklch(9% 0.003 245); } .ds-nav-item--active:hover { background: oklch(70% 0.09 245); } .ds-nav-icon { fill: currentColor; flex-shrink: 0; } .ds-nav-label { font-family: Roboto, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.015em; white-space: nowrap; }"
+    },
+    {
+      "name": "Photo Grid Tile",
+      "kind": "card",
+      "refersTo": null,
+      "description": "A single photo in the virtual-scrolled grid. Square, cover-fit, hover reveals filename.",
+      "html": "<div class=\"ds-photo-tile\"><img class=\"ds-photo-img\" src=\"https://picsum.photos/200\" alt=\"landscape-001.jpg\" /><div class=\"ds-photo-overlay\"><span class=\"ds-photo-name\">landscape-001.jpg</span><div class=\"ds-photo-icons\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\"><path d=\"M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z\" fill=\"currentColor\"/></svg></div></div></div>",
+      "css": ".ds-photo-tile { position: relative; overflow: hidden; background: oklch(14% 0.003 245); cursor: pointer; width: 200px; height: 200px; } .ds-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; } .ds-photo-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 8px; background: linear-gradient(transparent, oklch(5% 0.003 245 / 0.75)); } .ds-photo-name { display: block; opacity: 0; color: oklch(91% 0.005 245); font-family: Roboto, sans-serif; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity 100ms cubic-bezier(0.2, 0, 0, 1); } .ds-photo-tile:hover .ds-photo-name { opacity: 1; } .ds-photo-icons { display: flex; gap: 4px; color: oklch(91% 0.005 245); margin-top: 2px; }"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "chip-tag",
+      "description": "Applied tag badge. User color overrides the default surface background via CSS custom property.",
+      "html": "<span class=\"ds-chip-tag\">landscape</span> <span class=\"ds-chip-tag\" style=\"--chip-bg: #c17f34;\">golden-hour</span>",
+      "css": ".ds-chip-tag { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; background: var(--chip-bg, oklch(18% 0.003 245)); color: oklch(91% 0.005 245); font-family: Roboto, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Outlined combobox in the main toolbar. Active filter tokens appear as chips inside the field.",
+      "html": "<div class=\"ds-input-search\"><input class=\"ds-input-search__field\" placeholder=\"Search photos...\" type=\"text\" /><button class=\"ds-input-search__btn\" aria-label=\"Search\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\"><path d=\"M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z\" fill=\"currentColor\"/></svg></button></div>",
+      "css": ".ds-input-search { display: flex; align-items: center; border: 1px solid oklch(30% 0.003 245); border-radius: 4px; background: oklch(14% 0.003 245); padding: 4px 8px; gap: 4px; transition: border-color 150ms cubic-bezier(0.2, 0, 0, 1); min-width: 240px; } .ds-input-search:focus-within { border-color: oklch(63% 0.09 245); } .ds-input-search__field { flex: 1; border: none; background: transparent; color: oklch(91% 0.005 245); font-family: Roboto, sans-serif; font-size: 14px; outline: none; } .ds-input-search__field::placeholder { color: oklch(63% 0.005 245); } .ds-input-search__btn { background: none; border: none; cursor: pointer; color: oklch(63% 0.005 245); padding: 4px; display: flex; align-items: center; transition: color 100ms cubic-bezier(0.2, 0, 0, 1); } .ds-input-search__btn:hover { color: oklch(91% 0.005 245); }"
+    },
+    {
+      "name": "Dialog Card",
+      "kind": "card",
+      "refersTo": null,
+      "description": "Modal form container. Lifted Slate background, ambient shadow. Title + content + action row.",
+      "html": "<div class=\"ds-dialog\"><div class=\"ds-dialog__title\">Add Tags</div><div class=\"ds-dialog__content\">Apply tags to the selected 12 photos.</div><div class=\"ds-dialog__actions\"><button class=\"ds-btn-ghost\">Cancel</button><button class=\"ds-btn-primary\">Apply Changes</button></div></div>",
+      "css": ".ds-dialog { background: oklch(18% 0.003 245); border-radius: 8px; max-width: 80vw; min-width: 320px; box-shadow: 0 8px 32px oklch(5% 0 0 / 0.6); overflow: hidden; } .ds-dialog__title { padding: 16px 24px; font-family: Roboto, sans-serif; font-size: 20px; font-weight: 500; color: oklch(91% 0.005 245); } .ds-dialog__content { padding: 0 24px 16px; font-family: Roboto, sans-serif; font-size: 14px; color: oklch(82% 0.005 245); line-height: 1.5; } .ds-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 16px; border-top: 1px solid oklch(25% 0.003 245); } .ds-btn-ghost { background: transparent; color: oklch(91% 0.005 245); padding: 8px 20px; border: none; border-radius: 4px; font-family: Roboto, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: background 100ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-ghost:hover { background: oklch(91% 0.005 245 / 0.08); } .ds-btn-primary { background: oklch(63% 0.09 245); color: oklch(9% 0.003 245); padding: 8px 20px; border: none; border-radius: 4px; font-family: Roboto, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: background 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-primary:hover { background: oklch(70% 0.09 245); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Observatory",
+    "overview": "The interface exists to serve the photograph. Like an observatory dome, everything in the environment is dark by design — not as aesthetic statement, but because the work demands it. The canvas recedes so what you're examining stands forward. Controls are present but never intrusive: a rail of icons at the periphery, a toolbar holding only what the current task requires, a detail panel that opens when called and collapses when dismissed.\n\nThe design vocabulary is minimal and systematic. No decorative surfaces. No color used for atmosphere. Hierarchy comes from position and weight: the photo grid is the center of mass, and the chrome around it compresses toward the edges. When a photo is open in the detail pane, the grid shrinks to a column — the UI physically yields.\n\nThis system rejects the consumer warmth of Google Photos, the busy panel density of Adobe's tools, and the personality-free legibility of stock Material Design. It is a single-surface desktop tool built for someone who knows what they're doing and wants the interface to respect that.",
+    "keyCharacteristics": [
+      "Dark-first: the background is the canvas, not a style choice",
+      "Functional restraint: every element has exactly one job",
+      "Quiet hierarchy: structure through layout and weight, never color saturation",
+      "The photo leads: chrome compresses when content is active",
+      "Keyboard-reachable: all primary actions accessible without a mouse"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "The primary accent appears on ≤15% of any given screen. Its rarity is the point: when Observatory Slate appears, it means something is active or selected. Ambient saturation destroys that signal.", "section": "colors" },
+      { "name": "The No Raw Black Rule", "body": "Never use #000 or #fff. Every neutral is tinted toward the primary hue (chroma 0.003–0.005). The effect is imperceptible but prevents the cheapness of a raw terminal palette.", "section": "colors" },
+      { "name": "The User Chaos Rule", "body": "Tags carry user-assigned colors. These are content, not system design. The system does not govern them — it accommodates them.", "section": "colors" },
+      { "name": "The Flat Scale Rule", "body": "There is no display tier. The maximum headline size is 20px. If something needs to feel large, it does so through whitespace and position, not a large font. Resist adding a hero size to any app screen.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Shadows appear only in modal contexts (dialogs, menus). A card that lifts on hover is a consumer UI pattern — prohibited here.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Observatory Slate only for active/selected states, primary actions, and focused input borders.",
+      "Do let photos fill their tiles completely. Aspect-ratio 1/1, cover fit.",
+      "Do use font-weight (400 vs. 500) as the primary hierarchy tool within a size step.",
+      "Do let the nav rail communicate active state via the primary color chip.",
+      "Do use the toolbar to compress controls — no floating action buttons.",
+      "Do use tonal surface steps to separate layers instead of shadows.",
+      "Do maintain WCAG AA contrast (4.5:1 body, 3:1 large text) across all combinations."
+    ],
+    "donts": [
+      "Don't use green (#4caf50) as the primary accent. It was replaced.",
+      "Don't use card grids where every card is the same size with icon + heading + text.",
+      "Don't apply border-left or border-right greater than 1px as a colored accent stripe.",
+      "Don't use gradient text or background-clip: text with a gradient fill.",
+      "Don't use floating action buttons. All primary actions live in the toolbar or dialog rows.",
+      "Don't design for infinite scroll or content discovery feeds.",
+      "Don't use pastel accents or soft consumer-app aesthetics.",
+      "Don't add modal dialogs as the first response to any user action.",
+      "Don't use decorative glassmorphism.",
+      "Don't let the UI compete with the photo."
+    ]
+  }
+}

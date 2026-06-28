@@ -1,71 +1,80 @@
-import { invoke } from '@tauri-apps/api/core';
+import type { GroupData } from './Group';
+import type { PersonData } from './Person';
+import type { PlaceData } from './Place';
+import type { TagData } from './Tag';
+import type { Nullable } from '@/types';
+import {
+  set_photo_date,
+  set_photo_desc,
+  set_photo_group,
+  set_photo_hide_thumbnail,
+  set_photo_is_duplicate,
+  set_photo_location,
+  set_photo_people,
+  set_photo_rating,
+  set_photo_tags,
+  set_photo_title,
+  set_photographer,
+} from '@/api/photos';
+import { validate_photo, type ValidationResult } from '@/api/tags';
 
 export type PhotoData = {
-  id: string;
   name: string;
-  path: string;
-  title: string;
-  description: string;
-  tags: string[];
-  is_duplicate: number;
-  rating: number;
-  location: string;
-  thumbnail: string;
-  video: number;
-  photo_group: string;
-  date: [number, number];
-  raw: number;
-  people: string[];
-  hide_thumbnail: number;
-  photographer: string;
-  camera: string;
-  valid_tags: boolean;
-  validation_msg: string;
+  asset_path: string;
+  title: Nullable<string>;
+  description: Nullable<string>;
+  tags: TagData['name'][];
+  is_duplicate: boolean;
+  rating: Nullable<number>;
+  is_video: boolean;
+  location: Nullable<PlaceData['id']>;
+  thumbnail: Nullable<string>;
+  photo_group: Nullable<GroupData['id']>;
+  date: Nullable<string>;
+  is_raw: boolean;
+  people: PersonData['id'][];
+  hide_thumbnail: boolean;
+  photographer: Nullable<PersonData['id']>;
+  valid_tags: ValidationResult;
+  metadata_date: Nullable<string>;
+  metadata_location: Nullable<[number, number]>;
+  grouped_raw: Nullable<string>;
 };
 
+// The _variables here have to be public or eslint complains about them being used in vue components
 export class Photo {
-  private _date: Date;
-
-  public hasDate = false;
+  // TODO should implement PhotoData but I don't feel like resolving the date type conflict
+  public _date: Nullable<Date> = null;
+  public _metaDate: Nullable<Date> = null;
 
   public constructor(
-    private _id: string,
-    private _name: string,
-    private _path: string,
-    private _title: string,
-    private _description: string,
-    private _location: string,
-    private _tags: string[],
-    private _isDuplicate: boolean,
-    private _thumbnail: string,
-    private _rating: number,
-    private _video: boolean,
-    private photoGroup: string,
-    date: [number, number],
-    private _raw: boolean,
-    private _people: string[],
-    private _hideThumbnail: boolean,
-    private _photographer: string,
-    private _camera: string,
-    public valid: boolean,
-    public validationMessage: string,
+    public readonly name: PhotoData['name'],
+    public readonly asset_path: PhotoData['asset_path'],
+    public _title: PhotoData['title'],
+    public _description: PhotoData['description'],
+    public _location: PhotoData['location'],
+    public _tags: PhotoData['tags'],
+    public _isDuplicate: PhotoData['is_duplicate'],
+    public readonly thumbnail: PhotoData['thumbnail'],
+    public _rating: PhotoData['rating'],
+    public readonly is_video: PhotoData['is_video'],
+    public _photoGroup: PhotoData['photo_group'],
+    date: PhotoData['date'],
+    public readonly is_raw: PhotoData['is_raw'],
+    public _people: PhotoData['people'],
+    public _hideThumbnail: PhotoData['hide_thumbnail'],
+    private _photographer: PhotoData['photographer'],
+    public valid_tags: PhotoData['valid_tags'],
+    public readonly metadata_date: PhotoData['metadata_date'],
+    public readonly metadata_location: PhotoData['metadata_location'],
+    public readonly grouped_raw: PhotoData['grouped_raw'],
   ) {
-    const d = new Date(date[0], 0, 0);
-    d.setDate(d.getDate() + date[1]);
-    this._date = d;
-    this.hasDate = date[0] !== 1969 && date[1] !== 365; // TODO: There's probably a better way to do this
-  }
-
-  public get id() {
-    return this._id;
-  }
-
-  public get name() {
-    return this._name;
-  }
-
-  public get path() {
-    return this._path;
+    if (date !== null && date.length > 0) {
+      this._date = this.parseDate(date);
+    }
+    if (metadata_date !== null && metadata_date.length > 0) {
+      this._metaDate = this.parseDate(metadata_date);
+    }
   }
 
   public get title() {
@@ -77,11 +86,7 @@ export class Photo {
   }
 
   public get group() {
-    return this.photoGroup.length === 0 ? undefined : this.photoGroup;
-  }
-
-  public get hasLocation() {
-    return typeof this._location === 'string' && this._location.length > 0;
+    return this._photoGroup;
   }
 
   public get location() {
@@ -96,37 +101,16 @@ export class Photo {
     return this._isDuplicate;
   }
 
-  public get thumbnail() {
-    return this._thumbnail;
-  }
-
   public get rating() {
-    if (this.hasRating) {
-      return this._rating;
-    }
-  }
-
-  public get video() {
-    return this._video;
+    return this._rating;
   }
 
   public get hideThumbnail() {
     return this._hideThumbnail;
   }
 
-  /**
-   * If the photo has a rating.
-   */
-  public get hasRating() {
-    return typeof this._rating === 'number' && this._rating > 0;
-  }
-
   public get date() {
     return this._date;
-  }
-
-  public get raw() {
-    return this._raw;
   }
 
   public get people() {
@@ -137,16 +121,15 @@ export class Photo {
     return this._photographer;
   }
 
-  public get camera() {
-    return this._camera;
+  public get metaDate() {
+    return this._metaDate;
   }
 
-  public static createPhotos(data: PhotoData[]) {
-    return data.map(
+  public static createPhotos = (data: PhotoData[]) =>
+    data.map(
       ({
-        id,
         name,
-        path,
+        asset_path,
         title,
         description,
         tags,
@@ -154,168 +137,129 @@ export class Photo {
         rating,
         location,
         thumbnail,
-        video,
+        is_video,
         photo_group,
         date,
-        raw,
+        is_raw,
         people,
         hide_thumbnail,
         photographer,
-        camera,
         valid_tags,
-        validation_msg,
+        metadata_date,
+        metadata_location,
+        grouped_raw,
       }) =>
         new Photo(
-          id,
           name,
-          path,
+          asset_path,
           title,
           description,
           location,
           tags,
-          is_duplicate === 1,
+          is_duplicate,
           thumbnail,
           rating,
-          video === 1,
+          is_video,
           photo_group,
           date,
-          raw === 1,
+          is_raw,
           people,
-          hide_thumbnail === 1,
+          hide_thumbnail,
           photographer,
-          camera,
           valid_tags,
-          validation_msg,
+          metadata_date,
+          metadata_location,
+          grouped_raw,
         ),
     );
-  }
 
-  public async setTitle(value: string) {
+  public static default = () =>
+    new Photo(
+      '',
+      '',
+      null,
+      null,
+      null,
+      [],
+      false,
+      null,
+      null,
+      false,
+      null,
+      null,
+      false,
+      [],
+      false,
+      null,
+      { is_valid: true, message: null },
+      null,
+      null,
+      null,
+    );
+
+  public async setTitle(value: PhotoData['title']) {
     this._title = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'title',
-      value,
-    });
+    await set_photo_title(this.name, value);
   }
 
-  public async setDescription(value: string) {
+  public async setDescription(value: PhotoData['description']) {
     this._description = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'description',
-      value,
-    });
+    await set_photo_desc(this.name, value);
   }
 
-  public async setLocation(value: string) {
+  public async setLocation(value: PhotoData['location']) {
     this._location = value;
-    await invoke('set_photo_location', {
-      photo: this._id,
-      value,
-    });
+    await set_photo_location(this.name, value);
   }
 
-  public async setTags(value: string[]) {
+  public async setTags(value: PhotoData['tags']) {
     this._tags = value;
-    return await invoke<{ is_valid: boolean; message: string }>('set_photo_tags', {
-      photo: this._id,
-      value,
-    });
+    await set_photo_tags(this.name, value)
+      .ok(async () => {
+        await validate_photo(this.name)
+          .ok(async validation => {
+            this.setValidation(validation);
+          })
+          .err(reportError)
+          .send();
+      })
+      .err(reportError)
+      .send();
   }
 
-  public async setDuplicate(value: boolean) {
+  public async setDuplicate(value: PhotoData['is_duplicate']) {
     this._isDuplicate = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'isDuplicate',
-      value,
-    });
+    await set_photo_is_duplicate(this.name, value);
   }
 
-  public async setRating(rating: number) {
+  public async setRating(rating: PhotoData['rating']) {
     this._rating = rating;
-    await invoke('set_photo_rating', {
-      photo: this._id,
-      rating,
-    });
+    await set_photo_rating(this.name, rating);
   }
 
-  public async setThumbnail(value: string) {
-    this._thumbnail = value;
-    await invoke('set_photo_str', {
-      photo: this._id,
-      property: 'thumbnail',
-      value,
-    });
+  public async setDate(value: Nullable<Date>) {
+    this._date = value;
+    await set_photo_date(this.name, value ? value.toISOString().slice(0, 10) : '');
   }
 
-  public async setGroup(group: string) {
-    this.photoGroup = group;
-    await invoke('set_photo_group', {
-      photo: this._id,
-      value: group,
-    });
-  }
-
-  public async setDate(value: string) {
-    this._date = new Date(value);
-    this.hasDate = true;
-    await invoke('set_photo_date', {
-      photo: this._id,
-      value,
-    });
-  }
-
-  public async setRaw(value: boolean) {
-    this._raw = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'raw',
-      value,
-    });
-  }
-
-  public async setPeople(people: string[]) {
+  public async setPeople(people: PhotoData['people']) {
     this._people = people;
-    await invoke('set_photo_people', {
-      photo: this._id,
-      value: this._people,
-    });
+    await set_photo_people(this.name, people);
   }
 
-  public async setHideThumbnail(value: boolean) {
+  public async setHideThumbnail(value: PhotoData['hide_thumbnail']) {
     this._hideThumbnail = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'hideThumbnail',
-      value,
-    });
+    await set_photo_hide_thumbnail(this.name, value);
   }
 
-  public async setPhotographer(value: string) {
+  public async setPhotographer(value: PhotoData['photographer']) {
     this._photographer = value;
-    await invoke('set_photographer', {
-      photo: this._id,
-      value,
-    });
+    await set_photographer(this.name, value);
   }
 
-  public async setVideo(value: boolean) {
-    this._video = value;
-    await invoke('set_photo_bool', {
-      photo: this._id,
-      property: 'video',
-      value,
-    });
-  }
-
-  public async setCamera(value: string) {
-    this._camera = value;
-    await invoke('set_photo_camera', {
-      photo: this._id,
-      value,
-    });
+  public async setGroup(value: PhotoData['photo_group']) {
+    this._photoGroup = value;
+    await set_photo_group(this.name, value);
   }
 
   /**
@@ -323,7 +267,20 @@ export class Photo {
    * @param tag - The tag to check for.
    * @returns If this photo has the specified tag.
    */
-  public hasTag(tag: string) {
+  public hasTag(tag: TagData['name']) {
     return this.tags.includes(tag);
+  }
+
+  public setValidation(validation: ValidationResult) {
+    this.valid_tags = validation;
+  }
+
+  private parseDate(str: string) {
+    const split = str.split('-').map(part => Number.parseInt(part));
+    if (split.length !== 3) {
+      throw new Error('Malformed date string');
+    }
+    const split2 = split as [number, number, number];
+    return new Date(split2[0], split2[1] - 1, split2[2]);
   }
 }

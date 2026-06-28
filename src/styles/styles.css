@@ -1,0 +1,160 @@
+html {
+  overflow: hidden;
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--text-tracking-body);
+  font-kerning: normal;
+}
+
+.v-toolbar-title__placeholder {
+  font-weight: var(--text-weight-semibold);
+  letter-spacing: var(--text-tracking-tight);
+}
+
+.v-navigation-drawer .v-list-item-title {
+  font-weight: var(--text-weight-medium);
+  letter-spacing: var(--text-tracking-body);
+}
+
+.v-chip .v-chip__content {
+  letter-spacing: var(--text-tracking-label);
+}
+
+/* Route crossfade */
+.route-enter-active {
+  transition: opacity var(--duration-standard) var(--ease-out-expo);
+}
+.route-leave-active {
+  transition: opacity 80ms var(--ease-standard);
+}
+.route-enter-from,
+.route-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.toolbar-controls {
+  display: flex;
+  height: 100%;
+  width: -webkit-fill-available;
+  align-items: center;
+}
+
+.toolbar-controls > * {
+  padding-top: 20px;
+}
+
+.fill-height {
+  height: 100%;
+}
+
+.tag-graph-node {
+  stroke-width: 1;
+}
+
+.tag-graph-link {
+  stroke-width: 1;
+}
+
+.tag-graph-link--default {
+  stroke: var(--color-surface-raised);
+}
+
+.tag-graph-node--default {
+  fill: var(--color-surface-raised);
+  stroke: var(--color-surface-raised);
+}
+
+.tag-graph-label {
+  font-size: 10px;
+  stroke: var(--color-background);
+  paint-order: stroke;
+  cursor: pointer;
+}
+
+.tag-graph-label--default {
+  fill: var(--color-text-primary);
+}
+
+/* ── Obsidian-style overrides ─────────────────────────────── */
+
+/* Thin scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* Nav drawer — remove right border (belt-and-suspenders alongside SASS override) */
+.v-navigation-drawer {
+  border-inline-end: none !important;
+}
+
+/* Nav drawer background step: Lifted Slate separates it from the canvas */
+.v-navigation-drawer .v-list {
+  background: transparent;
+}
+
+/* Menus — border + focused shadow instead of Material elevation */
+.v-menu .v-overlay__content {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 24px oklch(4% 0 0 / 0.65) !important;
+  overflow: hidden;
+}
+
+/* Menu list items — compact, Obsidian density */
+.v-menu .v-list-item {
+  min-height: 32px !important;
+  padding-block: 2px !important;
+}
+
+/* Dialogs — deeper shadow + 1px border */
+.v-dialog .v-card {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 12px 48px oklch(4% 0 0 / 0.8) !important;
+  border-radius: 8px !important;
+}
+
+/* Snackbar — tight corners, no floating bubble */
+.v-snackbar__wrapper {
+  border-radius: 4px !important;
+}
+
+/* Input label — faster transition, no Material spring */
+.v-field__label {
+  transition-duration: 100ms !important;
+  transition-timing-function: var(--ease-standard) !important;
+}
+
+/* Input border color transition */
+.v-field__outline__start,
+.v-field__outline__end,
+.v-field__outline__notch {
+  transition: border-color 100ms var(--ease-standard) !important;
+}
+
+/* Text selection color */
+::selection {
+  background: oklch(65% 0.14 245 / 0.28);
+}

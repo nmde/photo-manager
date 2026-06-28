@@ -1,0 +1,9 @@
+DROP TABLE layers;
+DROP TABLE people;
+DROP TABLE people_categories;
+DROP TABLE photos;
+DROP TABLE photo_groups;
+DROP TABLE places;
+DROP TABLE settings;
+DROP TABLE shapes;
+DROP TABLE tags;

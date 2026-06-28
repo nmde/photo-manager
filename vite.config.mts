@@ -1,18 +1,14 @@
-// Plugins
-import AutoImport from 'unplugin-auto-import/vite'
-import Components from 'unplugin-vue-components/vite'
-import Fonts from 'unplugin-fonts/vite'
-import Layouts from 'vite-plugin-vue-layouts-next'
-import Vue from '@vitejs/plugin-vue'
-import VueRouter from 'unplugin-vue-router/vite'
-import { VueRouterAutoImports } from 'unplugin-vue-router'
-import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
-
-// Utilities
-import { defineConfig } from 'vite'
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath, URL } from 'node:url';
+import Vue from '@vitejs/plugin-vue';
+import AutoImport from 'unplugin-auto-import/vite';
+import Components from 'unplugin-vue-components/vite';
+import { defineConfig } from 'vite';
+import Layouts from 'vite-plugin-vue-layouts-next';
+import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
+import VueRouter from 'vue-router/vite';
 
 // https://vitejs.dev/config/
+// eslint-disable-next-line no-restricted-exports
 export default defineConfig({
   plugins: [
     VueRouter({
@@ -22,7 +18,7 @@ export default defineConfig({
     AutoImport({
       imports: [
         'vue',
-        VueRouterAutoImports,
+        'vue-router',
         {
           pinia: ['defineStore', 'storeToRefs'],
         },
@@ -46,44 +42,20 @@ export default defineConfig({
         configFile: 'src/styles/settings.scss',
       },
     }),
-    Fonts({
-      fontsource: {
-        families: [
-          {
-            name: 'Roboto',
-            weights: [100, 300, 400, 500, 700, 900],
-            styles: ['normal', 'italic'],
-          },
-        ],
-      },
-    }),
   ],
   optimizeDeps: {
-    exclude: [
-      'vuetify',
-      'vue-router',
-      'unplugin-vue-router/runtime',
-      'unplugin-vue-router/data-loaders',
-      'unplugin-vue-router/data-loaders/basic',
-    ],
+    exclude: ['vuetify', 'vue-router'],
   },
   define: { 'process.env': {} },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('src', import.meta.url)),
     },
-    extensions: [
-      '.js',
-      '.json',
-      '.jsx',
-      '.mjs',
-      '.ts',
-      '.tsx',
-      '.vue',
-    ],
+    extensions: ['.js', '.json', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
   },
   server: {
     port: 3000,
+    strictPort: true,
   },
   css: {
     preprocessorOptions: {
@@ -95,4 +67,4 @@ export default defineConfig({
       },
     },
   },
-})
+});

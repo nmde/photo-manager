@@ -25,3 +25,7 @@ pnpm-debug.log*
 
 src/components/plugins/local
 target/
+.env
+src-tauri/photos.db
+src-tauri/photo_manager.log
+photo_manager.log

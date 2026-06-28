@@ -2,7 +2,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../.output",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:3000"
   },
   "bundle": {
@@ -18,7 +18,7 @@
   },
   "productName": "photo-manager",
   "mainBinaryName": "photo-manager",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "identifier": "net.nmde.photo-manager",
   "plugins": {},
   "app": {

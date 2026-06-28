@@ -1,40 +1,29 @@
-import { invoke } from '@tauri-apps/api/core';
+import type { PersonCategoryData } from './PersonCategory';
+import type { Nullable } from '@/types';
+import { set_person_category, set_person_name, set_person_photo } from '@/api/people';
+import { SortableItem } from './SortableItem';
 
 export type PersonData = {
   id: string;
   name: string;
-  photo: string;
-  notes: string;
-  category: string;
+  photo: Nullable<string>;
+  category: PersonCategoryData['id'];
   photographer_count: number;
-  photo_count: number;
+  count: number;
 };
 
-export class Person {
+export type PersonRec = Record<PersonData['id'], Person>;
+
+export class Person extends SortableItem implements PersonData {
   public constructor(
-    private _id: string,
-    private _name: string,
-    private _photo: string,
-    private _notes: string,
-    private _category: string,
-    public photographerCount: number,
-    public count: number,
-  ) {}
-
-  public get id() {
-    return this._id;
-  }
-
-  public get name() {
-    return this._name;
-  }
-
-  public get photo() {
-    return this._photo;
-  }
-
-  public get notes() {
-    return this._notes;
+    public readonly id: PersonData['id'],
+    _name: PersonData['name'],
+    _photo: PersonData['photo'],
+    private _category: PersonData['category'],
+    public photographer_count: PersonData['photographer_count'],
+    public photo_count: PersonData['count'],
+  ) {
+    super(id, photo_count, _name, _photo);
   }
 
   public get category() {
@@ -42,49 +31,32 @@ export class Person {
   }
 
   public static createPeople(people: PersonData[]) {
-    const mapped: Record<string, Person> = {};
-    for (const person of people.map(
-      ({ id, name, photo, notes, category, photographer_count, photo_count }) =>
-        new Person(id, name, photo, notes, category, photographer_count, photo_count),
-    )) {
-      mapped[person.id] = person;
+    const mapped: PersonRec = {};
+    for (const person of people) {
+      mapped[person.id] = new Person(
+        person.id,
+        person.name,
+        person.photo,
+        person.category,
+        person.photographer_count,
+        person.count,
+      );
     }
     return mapped;
   }
 
-  public async setName(name: string) {
+  public async setName(name: PersonData['name']) {
     this._name = name;
-    await invoke('set_person_str', {
-      person: this._id,
-      property: 'name',
-      value: name,
-    });
+    await set_person_name(this.id, name);
   }
 
-  public async setNotes(notes: string) {
-    this._notes = notes;
-    await invoke('set_person_str', {
-      person: this._id,
-      property: 'notes',
-      value: notes,
-    });
-  }
-
-  public async setCategory(category: string) {
+  public async setCategory(category: PersonData['category']) {
     this._category = category;
-    await invoke('set_person_str', {
-      person: this._id,
-      property: 'category',
-      value: category,
-    });
+    await set_person_category(this.id, category);
   }
 
-  public async setPhoto(photo: string) {
+  public async setPhoto(photo: PersonData['photo']) {
     this._photo = photo;
-    await invoke('set_person_str', {
-      person: this._id,
-      property: 'photo',
-      value: photo,
-    });
+    await set_person_photo(this.id, photo);
   }
 }

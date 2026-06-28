@@ -1,271 +1,255 @@
 <script setup lang="ts">
-  import type { Place } from '../classes/Place';
-  import { invoke } from '@tauri-apps/api/core';
-  import { useRouter } from 'vue-router';
-  import { Photo, type PhotoData } from '../classes/Photo';
-  import { fileStore, formatDate, moods } from '../stores/fileStore';
+  import type { LayerRec } from '@/classes/Layer';
+  import type { Photo } from '@/classes/Photo';
+  import type { Place, PlaceRec } from '@/classes/Place';
+  import { photo_grid } from '@/api/app';
+  import { get_layers, get_places } from '@/api/places';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const store = useFileStore();
   const router = useRouter();
 
   const jumpDate = ref<Date>(new Date());
-  const date = ref<Date[]>([new Date()]);
+  const viewDate = ref(new Date());
   const dayDialog = ref(false);
-  const dialogDate = ref<Date>(new Date());
+  const dialogDate = ref<string>('');
+  const places = ref<PlaceRec>({});
+  const layers = ref<LayerRec>({});
+  const photos = ref<Photo[]>([]);
 
-  const { calendarViewDate, setCalendarViewDate, journals } = fileStore;
+  const { reportError, setCalendarViewDate } = store;
+  const { calendarViewDate } = storeToRefs(store);
 
-  type Event = {
-    start: Date;
-    end: Date;
-    allDay: boolean;
-    photos: Photo[];
-  };
-
-  const events = ref<Event[]>([]);
-
-  let eventMap: Record<
-    string,
-    {
-      date: Date;
-      photos: Photo[];
-    }
-  > = {};
-  async function buildEventMap() {
-    eventMap = {};
-    if (date.value[0]) {
-      const year = date.value[0].getFullYear();
-      const month = date.value[0].getMonth() + 1;
-      for (const photo of Photo.createPhotos(
-        (
-          await invoke<{ photos: PhotoData[] }>('photo_grid', {
-            query: [
-              'has:date',
-              `date>=${year}-${month.toString().padStart(2, '0')}-01`,
-              `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(
-                year,
-                month,
-                0,
-              ).getDate()}`,
-            ],
-            sort: 'rating_desc',
-          })
-        ).photos,
-      )) {
-        console.log(photo.date);
-        const k = photo.date.toISOString();
-        if (!eventMap[k]) {
-          eventMap[k] = { date: photo.date, photos: [] };
-        }
-        eventMap[k].photos.push(photo);
-      }
-      for (let i = 1; i <= new Date(year, month, 0).getDate(); i += 1) {
-        const d = new Date(year, month, i);
-        const k = d.toISOString();
-        if (!eventMap[k]) {
-          eventMap[k] = {
-            date: d,
-            photos: [],
-          };
-        }
-      }
-    }
-    events.value = Object.values(eventMap).map(ev => ({
-      start: ev.date,
-      end: ev.date,
-      allDay: true,
-      photos: ev.photos,
-    }));
-    console.log(eventMap);
+  function dateWithoutTimezone(value: string) {
+    const d = new Date(value);
+    const userTimezoneOffset = d.getTimezoneOffset() * 60_000;
+    return new Date(d.getTime() + userTimezoneOffset);
   }
 
-  function getLocationsByDate(date: Date) {
+  const MAX_PHOTOS = 20;
+
+  function getPhotosByDate(date: string) {
+    const d = dateWithoutTimezone(date);
+    const filtered = photos.value.filter(
+      photo =>
+        photo.date !== null
+        && photo.date.getFullYear() === d.getFullYear()
+        && photo.date.getMonth() === d.getMonth()
+        && photo.date.getDate() === d.getDate(),
+    );
+    // Bin by rating to show random stuff still sorted by rating
+    const bins: [Photo[], Photo[], Photo[], Photo[], Photo[], Photo[]] = [[], [], [], [], [], []];
+    for (const photo of filtered) {
+      bins[photo.rating ?? 0]?.push(photo as Photo);
+    }
+    const sorted: Photo[] = [];
+    let bin = 5;
+    while (sorted.length < MAX_PHOTOS && bin >= 0) {
+      while (bins[bin]?.length === 0) {
+        bin -= 1;
+      }
+      const idx = Math.floor(Math.random() * (bins[bin]?.length ?? 0));
+      const p = bins[bin]?.splice(idx, 1)?.[0];
+      if (p !== undefined) {
+        sorted.push(p);
+      }
+    }
+    return sorted;
+  }
+
+  function getLocationsByDate(date: string) {
     const locations: Place[] = [];
-    const photos = eventMap[date.toISOString()]?.photos;
-    if (photos) {
-      for (const photo of photos) {
-        if (photo.hasLocation) {
-          const place = places[photo.location];
-          if (place && !locations.some(p => p.id === place.id)) {
-            locations.push(place);
-          }
+    for (const photo of getPhotosByDate(date)) {
+      if (photo.location !== null) {
+        const place = places.value[photo.location];
+        if (place && !locations.some(p => p.id === place.id)) {
+          locations.push(place);
         }
       }
     }
     return locations;
   }
 
-  function getAvgRatingByDate(date: Date) {
+  function getAvgRatingByDate(date: string) {
     let sum = 0;
     let count = 0;
-    const photos = eventMap[date.toISOString()]?.photos;
-    if (photos) {
-      for (const photo of photos) {
-        if (photo.rating) {
-          sum += photo.rating;
-          count += 1;
-        }
+    for (const photo of getPhotosByDate(date)) {
+      if (photo.rating) {
+        sum += photo.rating;
+        count += 1;
       }
     }
     return sum / count;
   }
 
+  async function setDate(date: Date) {
+    viewDate.value = date;
+    setCalendarViewDate(date);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    await photo_grid(
+      [
+        'has:date',
+        `date>=${year}-${month.toString().padStart(2, '0')}-01`,
+        `date<=${year}-${month.toString().padStart(2, '0')}-${new Date(year, month, 0).getDate()}`,
+      ],
+      'rating_desc',
+    )
+      .ok(p => (photos.value = p))
+      .err(reportError)
+      .send();
+  }
+
   onMounted(async () => {
-    date.value[0] = calendarViewDate;
-    await buildEventMap();
+    await setDate(calendarViewDate.value);
+    await get_places()
+      .ok(p => (places.value = p))
+      .err(reportError)
+      .send();
+    await get_layers()
+      .ok(l => (layers.value = l))
+      .err(reportError)
+      .send();
   });
 </script>
 
 <template>
-  <v-main class="main">
-    <v-container fluid>
-      <v-row>
-        <v-col>
-          <v-date-input
-            v-model="jumpDate"
-            label="Jump to"
-            @update:model-value="
-              async () => {
-                date[0] = jumpDate;
-                setCalendarViewDate(date[0]);
-                await buildEventMap();
-              }
-            "
-          />
-          <v-calendar
-            v-model="date"
-            :events="events"
-            hide-week-number
-            type="month"
-            @update:model-value="
-              async () => {
-                const d = date[0];
-                if (d) {
-                  setCalendarViewDate(d);
-                  await buildEventMap();
-                  console.log(events);
+  <div class="calendar-page">
+    <v-toolbar color="primary">
+      <div class="toolbar-controls">
+        <v-date-input
+          v-model="jumpDate"
+          label="Jump to"
+          @update:model-value="async () => await setDate(jumpDate)"
+        />
+      </div>
+      <template #extension>
+        <v-btn class="me-4" variant="outlined"> Today </v-btn>
+        <v-btn
+          icon
+          @click="
+            () => {
+              setDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1));
+            }
+          "
+        >
+          <v-icon>mdi-arrow-left</v-icon>
+        </v-btn>
+        <v-btn
+          icon
+          @click="
+            () => {
+              setDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1));
+            }
+          "
+        >
+          <v-icon>mdi-arrow-right</v-icon>
+        </v-btn>
+        <v-toolbar-title>
+          {{
+            [
+              'January',
+              'February',
+              'March',
+              'April',
+              'May',
+              'June',
+              'July',
+              'August',
+              'September',
+              'October',
+              'November',
+              'December',
+            ][viewDate.getMonth()]
+          }}
+          {{ viewDate.getFullYear() }}
+        </v-toolbar-title>
+      </template>
+    </v-toolbar>
+    <div class="calendar">
+      <v-calendar
+        v-model="viewDate"
+        hide-week-number
+        type="month"
+        @update:model-value="async () => await setDate(viewDate)"
+      >
+        <template #day="{ date }">
+          <div class="calendar-photos">
+            <photo-icon
+              v-for="photo in getPhotosByDate(date).slice(0, 2)"
+              :key="photo.name"
+              hide-icons
+              :photo="photo as Photo"
+              :size="100"
+              @select="
+                () => {
+                  dialogDate = date;
+                  dayDialog = true;
                 }
-              }
-            "
-          >
-            <template #day-event="{ day, event }">
-              <div
-                v-if="journals[formatDate(day?.date ?? new Date())]"
-                :class="{ 'event-bg': true, 'event-bg-half': ((event as Event).photos?.length ?? 0) < 3 }"
-                :style="{
-                  backgroundColor:
-                    moods[journals[formatDate(day?.date ?? new Date())]?.mood ?? 0]?.color,
-                }"
-                @click="
-                  () => {
-                    dialogDate = day?.date ?? new Date();
-                    dayDialog = true;
-                  }
-                "
-              />
-              <div class="calendar-photos">
-                <photo-icon
-                  v-for="photo in (event as Event)?.photos.slice(0, 4)"
-                  :key="photo.id"
-                  hide-icons
-                  :photo="photo"
-                  :size="100"
-                  @select="
-                    () => {
-                      dialogDate = day?.date ?? new Date();
-                      dayDialog = true;
-                    }
-                  "
-                />
-              </div>
-              <div
-                v-if="(event as Event).photos.length === 0 && !journals[formatDate(day?.date ?? new Date())]"
-                class="focus"
-                @click="
-                  () => {
-                    dialogDate = day?.date ?? new Date();
-                    dayDialog = true;
-                  }
-                "
-              />
-            </template>
-          </v-calendar>
-        </v-col>
-      </v-row>
-    </v-container>
+              "
+            />
+          </div>
+        </template>
+      </v-calendar>
+    </div>
     <v-dialog v-model="dayDialog">
-      <v-card>
-        <v-card-title>
-          {{ dialogDate.toDateString() }}
-          <mood-icon
-            v-if="journals[formatDate(dialogDate)]"
-            :mood="journals[formatDate(dialogDate)]?.mood ?? 0"
-          />
-        </v-card-title>
+      <v-card :title="dialogDate">
         <v-card-text>
           <v-container>
             <v-row>
               <v-col class="calendar-photos" cols="6">
                 <photo-icon
-                  v-for="photo in eventMap[dialogDate.toISOString()]?.photos.slice(0, 20)"
-                  :key="photo.id"
+                  v-for="photo in getPhotosByDate(dialogDate).slice(0, MAX_PHOTOS)"
+                  :key="photo.name"
                   hide-icons
-                  :photo="photo"
+                  :photo="photo as Photo"
                   :size="100"
                   @select="
                     () => {
-                      router.push(`/tagger?date=${dialogDate.toISOString()}`);
+                      router.push(`/tagger?date=${dialogDate}`);
                     }
                   "
                 />
               </v-col>
               <v-col cols="6">
-                <div v-if="(eventMap[dialogDate.toISOString()]?.photos.length ?? 0) > 0">
+                <div v-if="getPhotosByDate(dialogDate).length > 0">
                   <br />
-                  Total photos: {{ eventMap[dialogDate.toISOString()]?.photos.length }}
+                  Total photos: {{ getPhotosByDate(dialogDate).length }}
                   <br />
                   Average rating: {{ getAvgRatingByDate(dialogDate) }}
                 </div>
+                <v-chip
+                  v-for="place in getLocationsByDate(dialogDate)"
+                  :key="place.id"
+                  :color="layers[place.layer]?.color"
+                >
+                  {{ place.name }}
+                </v-chip>
               </v-col>
             </v-row>
           </v-container>
         </v-card-text>
-        <v-card-actions>
-          <v-btn
-            color="primary"
-            @click="
-              () => {
-                router.push(`/journal?date=${dialogDate.toISOString()}`);
-              }
-            "
-          >
-            Open In Journal
-          </v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-main>
+  </div>
 </template>
 
 <style scoped>
-  .focus {
-    height: 200px;
-    width: 200px;
-    display: block;
+  .calendar-page {
+    height: 100vh;
+    overflow-y: scroll;
   }
 
-  .event-bg {
-    width: 100%;
-    height: 214px;
-    position: absolute;
-    opacity: 0.5;
-  }
-
-  .event-bg-half {
-    height: 118px;
+  .calendar {
+    margin: 16px;
   }
 
   .calendar-photos {
     display: flex;
     flex-wrap: wrap;
+  }
+
+  .toolbar-controls {
+    margin-left: 18px;
   }
 </style>

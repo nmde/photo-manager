@@ -1,37 +1,39 @@
 <script setup lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { v4 as uuid } from 'uuid';
-  import { computed, onMounted, ref } from 'vue';
-  import { useRouter } from 'vue-router';
-  import { Layer, type LayerData } from '../classes/Layer';
-  import { icons, locToString, Map, type PlaceType, type Position } from '../classes/Map';
-  import { Place, type PlaceData } from '../classes/Place';
-  import { Shape, type ShapeData, type ShapeType } from '../classes/Shape';
+  import { useRules } from 'vuetify/labs/rules';
+  import {
+    create_layer,
+    create_place,
+    create_shape,
+    delete_place,
+    delete_shape,
+    get_layers,
+    get_places,
+    get_shapes,
+    set_place_layer,
+    set_shape_layer,
+  } from '@/api/places';
+  import { Layer, type LayerData, type LayerRec } from '@/classes/Layer';
+  import { icons, locToString, Map, type PlaceType, type Position } from '@/classes/Map';
+  import { Place, type PlaceRec } from '@/classes/Place';
+  import { Shape, type ShapeRec, type ShapeType } from '@/classes/Shape';
+  import { useFileStore } from '@/stores/fileStore';
 
+  const store = useFileStore();
+  const { reportError } = store;
   const router = useRouter();
+  const route = useRoute();
+  const rules = useRules();
 
-  const layerDialog = ref(false);
-  const layerName = ref('');
   const createDialog = ref(false);
-  const position = ref<Position>({ lat: 0, lng: 0 });
-  const mapEl = ref(null);
-  const newPlaceMapEl = ref(null);
-  const placeName = ref('');
-  const placeCategory = ref<keyof typeof icons>('hospital');
+  const mapEl = useTemplateRef('mapEl');
+  const newPlaceMapEl = useTemplateRef('newPlaceMapEl');
   const mapInitialized = ref(false);
-  const layers = ref<Record<string, Layer>>({});
-  const layerEntryList = ref<
-    {
-      title: string;
-      value: string;
-    }[]
-  >([]);
-  const targetLayer = ref('');
+  const layers = ref<LayerRec>({});
+  const targetLayer = ref<string>();
   const drawMode = ref(false);
   const tmpShape = ref<Position[]>([]);
   const tmpShapeType = ref<ShapeType>('line');
-  const placeMap = ref<Record<string, Place[]>>({});
-  const shapeMap = ref<Record<string, Shape[]>>({});
   const shapeName = ref('');
   const shapeDialog = ref(false);
   const targetPlace = ref('');
@@ -40,34 +42,72 @@
   const hideMarkers = ref(false);
   const hideLabels = ref(false);
   const changeLayerDialog = ref(false);
-  const layerChangeTarget = ref('');
-  const changeShapeLayerDialog = ref(false);
-  const totalArea = ref(0);
-  const places = ref<Record<string, Place>>({});
-  const shapes = ref<Record<string, Shape>>({});
+  const changeTarget = ref<'Place' | 'Shape'>('Place');
+  const places = ref<PlaceRec>({});
+  const shapes = ref<ShapeRec>({});
+  const fromPhotoLoc = ref(false);
+  const queryLoc = ref<Position>({ lat: 0, lng: 0 });
+  const layerDialog = ref(false);
+  const missingLayerColor = ref(false);
+  const missingNewPlaceLoc = ref(false);
+  const layersPanelOpen = ref(true);
+  const openLayerIds = ref<string[]>([]);
+  const editingItemId = ref<string | null>(null);
+
+  type PlaceFields = {
+    name?: string;
+    category?: PlaceType;
+    position?: { lat: number; lng: number };
+  };
+  const placeFields = ref<PlaceFields>({});
+
+  type LayerFields = { name?: string; color?: string };
+  const layerFields = ref<LayerFields>({});
 
   const categories = computed(() => Object.keys(icons));
+
+  const sortedLayers = computed(() =>
+    Object.values(layers.value).toSorted((a, b) => a.name.localeCompare(b.name)),
+  );
 
   const map = new Map();
   const newPlaceMap = new Map();
   let lastChangedIndex = -1;
 
-  function openCreateDialog(layer: string) {
-    targetLayer.value = layer;
+  function openCreateDialog(layer?: string) {
+    targetLayer.value = layer ?? '';
     createDialog.value = true;
     if (mapInitialized.value) {
       newPlaceMap.clearMarkers();
     } else {
       setTimeout(async () => {
         await newPlaceMap.initialize(newPlaceMapEl.value as unknown as HTMLElement);
+        const { center, zoom } = map.getCenter();
+        newPlaceMap.setCenter(center?.lat() ?? 0, center?.lng() ?? 0, zoom);
+
+        let existingMarker: string | undefined = undefined;
+        if (fromPhotoLoc.value) {
+          existingMarker = newPlaceMap.createMarker(
+            locToString(queryLoc.value),
+            '0',
+            placeFields.value.category,
+            layers.value[targetLayer.value ?? '']?.color,
+            placeFields.value.name,
+          );
+          placeFields.value.position = queryLoc.value;
+        }
+
         newPlaceMap.on('dblclick', pos => {
-          position.value = pos;
-          newPlaceMap.createMarker(
+          if (existingMarker !== undefined) {
+            newPlaceMap.removeMarker(existingMarker);
+          }
+          placeFields.value.position = pos;
+          existingMarker = newPlaceMap.createMarker(
             locToString(pos),
             '0',
-            placeCategory.value,
-            layers.value[targetLayer.value]?.color,
-            placeName.value,
+            placeFields.value.category,
+            layers.value[targetLayer.value ?? '']?.color,
+            placeFields.value.name,
           );
         });
       }, 500);
@@ -76,94 +116,267 @@
 
   function setShapeColor(shape: Shape, color: string) {
     map.removeShape(shape.id);
-    map.createShape(shape.type, shape.points, color, shape.id, false);
+    map.createShape(shape.type, shape.shape, color, shape.id, false);
   }
 
   function setPlaceColor(place: Place, color: string) {
     map.removeMarker(place.id);
     map.createMarker(place.pos, place.id, place.category, color, place.name, place.count);
     // update color of linked polygons
-    const s = shapes.value[place.shape];
-    if (place.shape.length > 0 && s) {
-      setShapeColor(s, color);
+    if (place.shape !== null) {
+      const s = shapes.value[place.shape];
+      if (place.shape.length > 0 && s) {
+        setShapeColor(s, color);
+      }
     }
   }
 
-  async function deleteShapeFunc(layer_id: string, id: string) {
-    await deleteShape(id);
-    map.removeShape(id);
-    shapeMap.value[layer_id]?.splice(
-      shapeMap.value[layer_id].findIndex(p => p.id === id),
-      1,
-    );
+  async function setLayerColor(layer: Layer, color: string) {
+    await layers.value[layer.id]?.setColor(color);
+    for (const place of placesByLayer(layer.id)) {
+      setPlaceColor(place, color);
+    }
+    for (const shape of shapesByLayer(layer.id)) {
+      setShapeColor(shape, color);
+    }
   }
 
-  async function createLayer(name: string) {
-    const id = uuid();
-    await invoke('create_layer', {
-      id,
-      name,
-      color: '#ff0000',
-    });
-    const layer = new Layer(id, name, '#ff0000');
-    layers.value[id] = layer;
-    return layer;
+  async function deleteShape(id: string) {
+    await delete_shape(id);
+    map.removeShape(id);
+    delete shapes.value[id];
   }
 
   async function createShape(type: ShapeType, points: Position[], layer: string, name: string) {
     const id = uuid();
-    await invoke('create_shape', {
-      id,
-      shapeType: type,
-      points: JSON.stringify(points),
-      layer,
-      name,
-    });
+    await create_shape(id, type, JSON.stringify(points), layer, name);
     const shape = new Shape(id, type, JSON.stringify(points), layer, name);
     shapes.value[id] = shape;
     return shape;
   }
 
-  async function createPlace(name: string, position: Position, layer: string, category: PlaceType) {
+  async function createPlace() {
     const id = uuid();
-    await invoke('create_place', {
-      id,
-      name,
-      lat: position.lat,
-      lng: position.lng,
-      layer,
-      category,
+    const fields = placeFields.value as Required<PlaceFields>;
+    const layer = targetLayer.value;
+    if (layer !== undefined) {
+      await create_place(
+        id,
+        fields.name,
+        fields.position.lat,
+        fields.position.lng,
+        layer,
+        fields.category,
+      );
+      const place = new Place(
+        id,
+        fields.name,
+        fields.position.lat,
+        fields.position.lng,
+        layer,
+        fields.category,
+        null,
+        0,
+      );
+      places.value[id] = place;
+      map.createMarker(
+        locToString(fields.position),
+        id,
+        fields.category,
+        layers.value[layer]?.color,
+        fields.name,
+      );
+      placeFields.value = {};
+    }
+  }
+
+  async function deletePlace(place: Place) {
+    await delete_place(place.id);
+    if (place.shape !== null) {
+      await deleteShape(place.shape);
+    }
+    delete places.value[place.id];
+    map.removeMarker(place.id);
+  }
+
+  function editPlaceShape(place: Place) {
+    if (place.shape !== null) {
+      const shape = shapes.value[place.shape];
+      map.removeShape(place.shape);
+      targetLayer.value = place.layer;
+      if (shape) {
+        tmpShape.value = shape.shape;
+        editingShape.value = true;
+        targetShape.value = shape.id;
+        tmpShapeType.value = shape.type;
+        map.createShape(
+          shape.type,
+          shape.shape,
+          layers.value[shape.layer]?.color ?? '',
+          shape.id,
+          true,
+        );
+        drawMode.value = true;
+      }
+    }
+  }
+
+  function moveIcon(place: Place) {
+    targetLayer.value = place.layer;
+    map.removeMarker(place.id);
+    editingShape.value = true;
+    const listener = map.on('dblclick', async pos => {
+      map.createMarker(
+        locToString(pos),
+        place.id,
+        place.category,
+        layers.value[place.layer]?.color,
+        place.name,
+        place.count,
+      );
+      map.off('dblclick', listener);
+      await places.value[place.id]?.setPosition(pos);
     });
-    const place = new Place(id, name, position.lat, position.lng, layer, category, '', '', '', 0);
-    places.value[id] = place;
-    return place;
+  }
+
+  async function saveShape() {
+    if (targetLayer.value !== undefined) {
+      if (editingShape.value) {
+        await shapes.value[targetShape.value]?.setPoints(tmpShape.value);
+        map.removeShape(targetShape.value);
+        map.createShape(
+          shapes.value[targetShape.value]?.type ?? 'line',
+          tmpShape.value,
+          layers.value[targetLayer.value]?.color ?? '',
+          targetShape.value,
+        );
+      } else {
+        const s = await createShape(
+          tmpShapeType.value,
+          tmpShape.value,
+          targetLayer.value,
+          shapeName.value,
+        );
+        if (targetPlace.value.length > 0) {
+          await places.value[targetPlace.value]?.setShape(s.id);
+        } else {
+          shapes.value[s.id] = s;
+        }
+        map.removeShape(`${prevShape}`);
+        map.createShape(
+          tmpShapeType.value,
+          tmpShape.value,
+          layers.value[targetLayer.value]?.color ?? '',
+          s.id,
+        );
+      }
+    }
+    prevShape = 0;
+    drawMode.value = false;
+  }
+
+  async function splitShape() {
+    if (
+      lastChangedIndex > 0
+      && lastChangedIndex < tmpShape.value.length - 1
+      && targetLayer.value !== undefined
+    ) {
+      const split1 = tmpShape.value.slice(0, lastChangedIndex);
+      const split2 = tmpShape.value.slice(lastChangedIndex + 1);
+      await shapes.value[targetShape.value]?.setPoints(split1);
+      map.removeShape(targetShape.value);
+      map.createShape(
+        shapes.value[targetShape.value]?.type ?? 'line',
+        split1,
+        layers.value[targetLayer.value]?.color ?? '',
+        targetShape.value,
+      );
+      const newShape = await createShape(
+        tmpShapeType.value,
+        split2,
+        targetLayer.value,
+        `${shapes.value[targetShape.value]?.name} - Split`,
+      );
+      shapes.value[newShape.id] = newShape;
+      map.createShape(
+        tmpShapeType.value,
+        split2,
+        layers.value[targetLayer.value]?.color ?? '',
+        newShape.id,
+      );
+      drawMode.value = false;
+    }
+  }
+
+  async function createLayer() {
+    const fields = layerFields.value as Required<LayerFields>;
+    const id = uuid();
+    await create_layer(id, fields.name, fields.color);
+    layers.value[id] = new Layer(id, fields.name, fields.color, 0);
+    layerFields.value = {};
+  }
+
+  function placesByLayer(layer: LayerData['id']) {
+    return Object.values(places.value)
+      .filter(p => p.layer === layer)
+      .toSorted((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function shapesByLayer(layer: LayerData['id']) {
+    return Object.values(shapes.value)
+      .filter(p => p.layer === layer)
+      .toSorted((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function startShape(type: ShapeType, layer: LayerData['id']) {
+    tmpShapeType.value = type;
+    targetLayer.value = layer;
+    targetPlace.value = '';
+    shapeName.value = '';
+    shapeDialog.value = true;
+    editingShape.value = false;
+  }
+
+  const tripDialog = ref(false);
+  const tripInfo = ref<{
+    name?: string;
+    shapes?: string[];
+    date?: Date;
+  }>({});
+
+  function openTripDialog(layer: LayerData['id']) {
+    targetLayer.value = layer;
+    tripDialog.value = true;
+  }
+
+  function toggleLayer(id: string) {
+    const idx = openLayerIds.value.indexOf(id);
+    if (idx === -1) openLayerIds.value.push(id);
+    else openLayerIds.value.splice(idx, 1);
   }
 
   let prevShape = 0;
   onMounted(async () => {
-    layers.value = Layer.createLayers(await invoke<LayerData[]>('get_layers'));
-    places.value = Place.createPlaces(await invoke<Record<string, PlaceData>>('get_places'));
-    shapes.value = Shape.createShapes(await invoke<ShapeData[]>('get_shapes'));
-    placeMap.value = {};
-    shapeMap.value = {};
-    totalArea.value = 0;
-    for (const id in layers.value) {
-      placeMap.value[id] = [];
-      shapeMap.value[id] = [];
-      layerEntryList.value.push({
-        title: layers.value[id]?.name ?? '',
-        value: id,
-      });
+    await get_layers()
+      .ok(l => (layers.value = l))
+      .err(reportError)
+      .send();
+    await get_places()
+      .ok(p => (places.value = p))
+      .err(reportError)
+      .send();
+    await get_shapes()
+      .ok(s => (shapes.value = s))
+      .err(reportError)
+      .send();
+    if (mapEl.value) {
+      await map.initialize(mapEl.value);
     }
-    await map.initialize(mapEl.value as unknown as HTMLElement);
     const linkedShapes: string[] = [];
     for (const id in layers.value) {
       for (const place of Object.values(places.value).filter(place => place.layer === id)) {
-        if (!placeMap.value[place.layer]) {
-          placeMap.value[place.layer] = [];
-        }
-        placeMap.value[place.layer]?.push(place);
-        if (place.shape.length > 0) {
+        places.value[place.id] = place;
+        if (place.shape !== null) {
           linkedShapes.push(place.shape);
         }
         map.createMarker(
@@ -177,17 +390,25 @@
       }
       for (const shape of Object.values(shapes.value).filter(shape => shape.layer === id)) {
         if (!linkedShapes.includes(shape.id)) {
-          if (!shapeMap.value[shape.layer]) {
-            shapeMap.value[shape.layer] = [];
-          }
-          shapeMap.value[shape.layer]?.push(shape);
+          shapes.value[shape.id] = shape;
         }
-        totalArea.value += shape.area;
-        map.createShape(shape.type, shape.points, layers.value[shape.layer]?.color ?? '', shape.id);
+        map.createShape(shape.type, shape.shape, layers.value[shape.layer]?.color ?? '', shape.id);
       }
     }
+
+    if (typeof route.query.center === 'string') {
+      const split = route.query.center.split(',').map(Number);
+      map.setCenter(split[0] ?? 0, split[1] ?? 0);
+      fromPhotoLoc.value = true;
+      queryLoc.value = {
+        lat: split[0] ?? 0,
+        lng: split[1] ?? 0,
+      };
+      map.createMarker(locToString(queryLoc.value), 'focus');
+    }
+
     map.on('click', pos => {
-      if (drawMode.value) {
+      if (drawMode.value && targetLayer.value !== undefined) {
         tmpShape.value.push(pos);
         let nextId = (prevShape + 1).toString();
         if (editingShape.value) {
@@ -206,6 +427,7 @@
         );
       }
     });
+
     map.on('shapeUpdate', pos => {
       if (drawMode.value) {
         for (const [i, item] of pos.getArray().entries()) {
@@ -217,6 +439,7 @@
         }
       }
     });
+
     map.on(
       'markerClicked',
       place =>
@@ -228,201 +451,76 @@
 </script>
 
 <template>
-  <v-main class="main">
-    <v-btn color="primary" @click="layerDialog = true">Add Layer</v-btn>
-    <v-container fluid>
-      <v-row>
-        <v-col cols="4">
-          <v-expansion-panels>
-            <v-expansion-panel v-for="layer in layers" :key="layer.id">
-              <v-expansion-panel-title>
-                {{ layer.name }} ({{ placeMap[layer.id]?.length }})
-              </v-expansion-panel-title>
-              <v-expansion-panel-text>
-                {{ layer.name }}
-                <v-menu :disabled="drawMode">
-                  <template #activator="{ props }">
-                    <v-btn flat icon v-bind="props">
-                      <v-icon>mdi-plus</v-icon>
-                    </v-btn>
-                  </template>
-                  <v-list>
-                    <v-list-item @click="openCreateDialog(layer.id)">Add Place</v-list-item>
-                    <v-list-item
-                      @click="
-                        () => {
-                          tmpShapeType = 'line';
-                          targetLayer = layer.id;
-                          targetPlace = '';
-                          shapeName = '';
-                          shapeDialog = true;
-                          editingShape = false;
-                        }
-                      "
-                    >
-                      Add Line
-                    </v-list-item>
-                    <v-list-item
-                      @click="
-                        () => {
-                          tmpShapeType = 'polygon';
-                          targetLayer = layer.id;
-                          targetPlace = '';
-                          shapeName = '';
-                          shapeDialog = true;
-                          editingShape = false;
-                        }
-                      "
-                    >
-                      Add Polygon
-                    </v-list-item>
-                  </v-list>
-                </v-menu>
-                <color-picker
-                  :color="layer.color"
-                  @update="
-                    async color => {
-                      // don't know why this line is needed, but it is otherwise shapes in edit mode won't have the right color and new shapes won't either
-                      const l = layers[layer.id];
-                      await layers[layer.id]?.setColor(color);
-                      // update color of places, lines, and shapes
-                      placeMap[layer.id]?.forEach(place => {
-                        setPlaceColor(place, color);
-                      });
-                      shapeMap[layer.id]?.forEach(shape => {
-                        setShapeColor(shape, color);
-                      });
-                    }
-                  "
-                />
-                <v-expansion-panels>
-                  <v-expansion-panel v-for="place in placeMap[layer.id]" :key="place.id">
-                    <v-expansion-panel-title>{{ place.name }}</v-expansion-panel-title>
-                    <v-expansion-panel-text>
-                      <v-btn
-                        v-if="place.shape.length === 0"
-                        color="primary"
-                        @click="
-                          () => {
-                            tmpShape = [];
-                            drawMode = true;
-                            editingShape = false;
-                            tmpShapeType = 'polygon';
-                            targetLayer = layer.id;
-                            targetPlace = place.id;
-                          }
-                        "
-                      >
-                        Draw Polygon
-                      </v-btn>
-                      <div v-if="place.shape.length > 0">
-                        <v-btn
-                          @click="
-                            () => {
-                              const shape = shapes[place.shape];
-                              map.removeShape(place.shape);
-                              targetLayer = layer.id;
-                              if (shape) {
-                                tmpShape = shape.points;
-                                editingShape = true;
-                                targetShape = shape.id;
-                                tmpShapeType = shape.type;
-                                map.createShape(
-                                  shape.type,
-                                  shape.points,
-                                  layers[shape.layer]?.color ?? '',
-                                  shape.id,
-                                  true,
-                                );
-                                drawMode = true;
-                              }
-                            }
-                          "
-                        >
-                          Edit Polygon
-                        </v-btn>
-                        Area: {{ shapes[place.shape]?.area }}
-                      </div>
-                      <v-menu>
-                        <template #activator="{ props }">
-                          <v-btn flat icon v-bind="props">
-                            <v-icon>mdi-menu</v-icon>
-                          </v-btn>
-                        </template>
-                        <v-list>
-                          <v-list-item
-                            @click="
-                              () => {
-                                map.setCenter(place.posObj.lat, place.posObj.lng);
-                              }
-                            "
-                          >
-                            Find On Map
-                          </v-list-item>
-                          <v-list-item
-                            @click="
-                              async () => {
-                                await deletePlace(place.id);
-                                if (place.shape.length > 0) {
-                                  deleteShapeFunc(layer.id, place.shape);
-                                }
-                                placeMap[layer.id]?.splice(
-                                  placeMap[layer.id]?.findIndex(p => p.id === place.id) ?? -1,
-                                  1,
-                                );
-                                map.removeMarker(place.id);
-                              }
-                            "
-                          >
-                            Delete Place
-                          </v-list-item>
-                          <v-list-item
-                            @click="
-                              () => {
-                                targetPlace = place.id;
-                                changeLayerDialog = true;
-                              }
-                            "
-                          >
-                            Change Layer
-                          </v-list-item>
-                          <v-list-item
-                            @click="
-                              () => {
-                                targetLayer = place.layer;
-                                map.removeMarker(place.id);
-                                editingShape = true;
-                                const listener = map.on('dblclick', async pos => {
-                                  map.createMarker(
-                                    locToString(pos),
-                                    place.id,
-                                    place.category,
-                                    layers[targetLayer]?.color,
-                                    place.name,
-                                    place.count,
-                                  );
-                                  map.off('dblclick', listener);
-                                  await places[place.id]?.setPosition(pos);
-                                });
-                              }
-                            "
-                          >
-                            Move Icon
-                          </v-list-item>
-                          <v-list-item
-                            @click="
-                              () => {
-                                router.push(`/tagger?place=${place.id}`);
-                              }
-                            "
-                          >
-                            View Photos
-                          </v-list-item>
-                        </v-list>
-                      </v-menu>
+  <div class="locations-page">
+    <div class="map-fill">
+      <div ref="mapEl" class="map" />
+    </div>
+
+    <div v-if="fromPhotoLoc" class="photo-loc-bar">
+      <span class="photo-loc-text">{{ route.query.center }}</span>
+      <v-btn color="primary" density="compact" size="small" @click="openCreateDialog()">
+        Create Place Here
+      </v-btn>
+    </div>
+
+    <div class="layers-float">
+      <button class="layers-header" type="button" @click="layersPanelOpen = !layersPanelOpen">
+        <v-icon size="16">mdi-layers</v-icon>
+        <span class="layers-title">Layers</span>
+        <v-icon size="14">{{ layersPanelOpen ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+      </button>
+      <v-expand-transition>
+        <div v-if="layersPanelOpen" class="layers-body">
+          <div class="layers-create-row">
+            <v-btn
+              color="primary"
+              density="compact"
+              size="small"
+              variant="flat"
+              @click="layerDialog = true"
+            >
+              <v-icon size="14" start>mdi-plus</v-icon>
+              Create Layer
+            </v-btn>
+          </div>
+          <div v-for="layer in sortedLayers" :key="layer.id" class="layer-group">
+            <div class="layer-row" @click="toggleLayer(layer.id)">
+              <span class="layer-dot" :style="{ background: layer.color }" />
+              <span class="layer-name">{{ layer.name }}</span>
+              <span class="layer-count">{{ layer.count }}</span>
+              <v-menu :disabled="drawMode">
+                <template #activator="{ props }">
+                  <button class="layer-add-btn" type="button" v-bind="props" @click.stop>
+                    <v-icon size="14">mdi-plus</v-icon>
+                  </button>
+                </template>
+                <v-list density="compact">
+                  <v-list-item @click="openCreateDialog(layer.id)">Add Place</v-list-item>
+                  <v-list-item @click="startShape('line', layer.id)">Add Line</v-list-item>
+                  <v-list-item @click="startShape('polygon', layer.id)">Add Polygon</v-list-item>
+                  <v-list-item @click="openTripDialog(layer.id)">Add Trip</v-list-item>
+                </v-list>
+              </v-menu>
+              <v-icon class="layer-chevron" size="14">
+                {{ openLayerIds.includes(layer.id) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+              </v-icon>
+            </div>
+            <v-expand-transition>
+              <div v-if="openLayerIds.includes(layer.id)" class="layer-items">
+                <div
+                  v-for="place in placesByLayer(layer.id)"
+                  :key="place.id"
+                  class="item-row"
+                  :class="{ 'item-row--editing': editingItemId === place.id }"
+                >
+                  <template v-if="editingItemId === place.id">
+                    <div class="item-edit-form">
                       <v-text-field
                         v-model="place.name"
+                        density="compact"
+                        hide-details
                         label="Name"
+                        variant="outlined"
                         @update:model-value="
                           async () => {
                             await places[place.id]?.setName(place.name);
@@ -431,7 +529,11 @@
                       />
                       <v-select
                         v-model="place.category"
+                        density="compact"
+                        hide-details
                         :items="categories"
+                        label="Category"
+                        variant="outlined"
                         @update:model-value="
                           async () => {
                             await places[place.id]?.setCategory(place.category);
@@ -447,390 +549,638 @@
                           }
                         "
                       />
-                      <tag-input
-                        label="Tags"
-                        :value="place.tags"
-                        @change="async tags => await places[place.id]?.setTags(tags)"
-                      />
-                      <autosave-text
-                        label="Notes"
-                        :value="place.notes"
-                        @save="
-                          async notes => {
-                            await places[place.id]?.setNotes(notes);
-                          }
-                        "
-                      />
-                    </v-expansion-panel-text>
-                  </v-expansion-panel>
-                  <v-expansion-panel v-for="shape in shapeMap[layer.id]" :key="shape.id">
-                    <v-expansion-panel-title>{{ shape.name }}</v-expansion-panel-title>
-                    <v-expansion-panel-text>
+                      <button class="edit-done-btn" type="button" @click="editingItemId = null">
+                        <v-icon size="14">mdi-check</v-icon>
+                      </button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <v-icon class="item-icon" size="14">{{ icons[place.category] }}</v-icon>
+                    <span class="item-name">{{ place.name }}</span>
+                    <v-menu>
+                      <template #activator="{ props }">
+                        <button class="item-menu-btn" type="button" v-bind="props">
+                          <v-icon size="14">mdi-dots-horizontal</v-icon>
+                        </button>
+                      </template>
+                      <v-list density="compact">
+                        <v-list-item @click="editingItemId = place.id">Edit</v-list-item>
+                        <v-list-item
+                          v-if="place.shape === null"
+                          @click="
+                            () => {
+                              tmpShape = [];
+                              drawMode = true;
+                              editingShape = false;
+                              shapeName = `${place.name} Polygon`;
+                              tmpShapeType = 'polygon';
+                              targetLayer = layer.id;
+                              targetPlace = place.id;
+                            }
+                          "
+                        >
+                          Draw Polygon
+                        </v-list-item>
+                        <v-list-item v-else @click="editPlaceShape(place)">
+                          Edit Polygon
+                        </v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              map.setCenter(place.posObj.lat, place.posObj.lng);
+                            }
+                          "
+                        >
+                          Find On Map
+                        </v-list-item>
+                        <v-list-item @click="deletePlace(place)">Delete</v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              targetPlace = place.id;
+                              changeTarget = 'Place';
+                              changeLayerDialog = true;
+                            }
+                          "
+                        >
+                          Change Layer
+                        </v-list-item>
+                        <v-list-item @click="moveIcon(place)">Move Icon</v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              router.push(`/tagger?place=${place.id}`);
+                            }
+                          "
+                        >
+                          View Photos
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </template>
+                </div>
+                <div
+                  v-for="shape in shapesByLayer(layer.id)"
+                  :key="shape.id"
+                  class="item-row"
+                  :class="{ 'item-row--editing': editingItemId === shape.id }"
+                >
+                  <template v-if="editingItemId === shape.id">
+                    <div class="item-edit-form">
                       <v-text-field
                         v-model="shape.name"
+                        density="compact"
+                        hide-details
                         label="Name"
+                        variant="outlined"
                         @update:model-value="
                           async () => {
                             await shapes[shape.id]?.setName(shape.name);
                           }
                         "
                       />
-                      <v-btn
-                        @click="
-                          () => {
-                            map.removeShape(shape.id);
-                            targetLayer = layer.id;
-                            tmpShape = shape.points;
-                            editingShape = true;
-                            targetShape = shape.id;
-                            tmpShapeType = shape.type;
-                            map.createShape(
-                              shape.type,
-                              shape.points,
-                              layers[shape.layer]?.color ?? '',
-                              shape.id,
-                              true,
-                            );
-                            drawMode = true;
-                          }
-                        "
-                      >
-                        Edit Shape
-                      </v-btn>
-                      <v-btn
-                        @click="
-                          () => {
-                            targetShape = shape.id;
-                            changeShapeLayerDialog = true;
-                          }
-                        "
-                      >
-                        Change Layer
-                      </v-btn>
-                      <v-btn
-                        @click="
-                          async () => {
-                            deleteShapeFunc(layer.id, shape.id);
-                          }
-                        "
-                      >
-                        Delete Shape
-                      </v-btn>
-                    </v-expansion-panel-text>
-                  </v-expansion-panel>
-                </v-expansion-panels>
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-          </v-expansion-panels>
-        </v-col>
-        <v-col cols="8">
-          <div class="map-container">
-            <div ref="mapEl" class="map" />
+                      <button class="edit-done-btn" type="button" @click="editingItemId = null">
+                        <v-icon size="14">mdi-check</v-icon>
+                      </button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <v-icon class="item-icon" size="14">
+                      {{ shape.type === 'line' ? 'mdi-vector-line' : 'mdi-vector-polygon' }}
+                    </v-icon>
+                    <span class="item-name">{{ shape.name }}</span>
+                    <v-menu>
+                      <template #activator="{ props }">
+                        <button class="item-menu-btn" type="button" v-bind="props">
+                          <v-icon size="14">mdi-dots-horizontal</v-icon>
+                        </button>
+                      </template>
+                      <v-list density="compact">
+                        <v-list-item @click="editingItemId = shape.id">Rename</v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              map.removeShape(shape.id);
+                              targetLayer = layer.id;
+                              tmpShape = shape.shape;
+                              editingShape = true;
+                              targetShape = shape.id;
+                              tmpShapeType = shape.type;
+                              map.createShape(
+                                shape.type,
+                                shape.shape,
+                                layers[shape.layer]?.color ?? '',
+                                shape.id,
+                                true,
+                              );
+                              drawMode = true;
+                            }
+                          "
+                        >
+                          Edit Shape
+                        </v-list-item>
+                        <v-list-item
+                          @click="
+                            () => {
+                              targetShape = shape.id;
+                              changeTarget = 'Shape';
+                              changeLayerDialog = true;
+                            }
+                          "
+                        >
+                          Change Layer
+                        </v-list-item>
+                        <v-list-item @click="deleteShape(shape.id)">Delete</v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </template>
+                </div>
+              </div>
+            </v-expand-transition>
           </div>
-          <v-btn
-            v-if="drawMode"
-            color="primary"
-            @click="
-              async () => {
-                if (editingShape) {
-                  await shapes[targetShape]?.setPoints(tmpShape);
-                  map.removeShape(targetShape);
-                  map.createShape(
-                    shapes[targetShape]?.type ?? 'line',
-                    tmpShape,
-                    layers[targetLayer]?.color ?? '',
-                    targetShape,
-                  );
-                } else {
-                  const s = await createShape(tmpShapeType, tmpShape, targetLayer, shapeName);
-                  if (targetPlace.length > 0) {
-                    await places[targetPlace]?.setShape(s.id);
-                  } else {
-                    if (!shapeMap[targetLayer]) {
-                      shapeMap[targetLayer] = [];
-                    }
-                    shapeMap[targetLayer]?.push(s);
-                  }
-                  map.removeShape(`${prevShape}`);
-                  map.createShape(tmpShapeType, tmpShape, layers[targetLayer]?.color ?? '', s.id);
-                }
-                prevShape = 0;
-                drawMode = false;
-              }
-            "
-          >
-            Save Shape
-          </v-btn>
-          <v-btn
-            v-if="drawMode"
-            color="primary"
-            @click="
-              async () => {
-                if (lastChangedIndex > 0 && lastChangedIndex < tmpShape.length - 1) {
-                  const split1 = tmpShape.slice(0, lastChangedIndex);
-                  const split2 = tmpShape.slice(lastChangedIndex + 1, tmpShape.length);
-                  await shapes[targetShape]?.setPoints(split1);
-                  map.removeShape(targetShape);
-                  map.createShape(
-                    shapes[targetShape]?.type ?? 'line',
-                    split1,
-                    layers[targetLayer]?.color ?? '',
-                    targetShape,
-                  );
-                  const newShape = await createShape(
-                    tmpShapeType,
-                    split2,
-                    targetLayer,
-                    `${shapes[targetShape]?.name} - Split`,
-                  );
-                  if (!shapeMap[targetLayer]) {
-                    shapeMap[targetLayer] = [];
-                  }
-                  shapeMap[targetLayer]?.push(newShape);
-                  map.createShape(
-                    tmpShapeType,
-                    split2,
-                    layers[targetLayer]?.color ?? '',
-                    newShape.id,
-                  );
-                  drawMode = false;
-                }
-              }
-            "
-          >
-            Splt Shape
-          </v-btn>
-          <v-btn
-            v-if="!hideMarkers"
-            @click="
-              () => {
-                hideMarkers = true;
-                map.hideAllMarkers();
-              }
-            "
-          >
-            Hide Markers
-          </v-btn>
-          <v-btn
-            v-if="hideMarkers"
-            @click="
-              () => {
-                hideMarkers = false;
-                map.showAllMarkers();
-              }
-            "
-          >
-            Show Markers
-          </v-btn>
-          <v-btn
-            v-if="!hideLabels"
-            @click="
-              () => {
-                map.setStyle(Map.BlankMap);
-                hideLabels = true;
-                if (hideMarkers) {
-                  map.hideAllMarkers();
-                }
-              }
-            "
-          >
-            Hide Labels
-          </v-btn>
-          <v-btn
-            v-if="hideLabels"
-            @click="
-              () => {
-                map.setStyle(Map.DefaultMap);
-                hideLabels = false;
-                if (hideMarkers) {
-                  map.hideAllMarkers();
-                }
-              }
-            "
-          >
-            Show Labels
-          </v-btn>
-        </v-col>
-      </v-row>
-    </v-container>
-  </v-main>
-  <v-dialog v-model="layerDialog">
-    <v-card>
-      <v-card-title>Create a Layer</v-card-title>
-      <v-card-text>
-        <v-text-field v-model="layerName" label="Name" />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="layerDialog = false">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          @click="
-            async () => {
-              const layer = await createLayer(layerName);
-              placeMap[layer.id] = [];
-              layerDialog = false;
-              layerName = '';
-            }
-          "
-        >
-          Create Layer
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="createDialog">
-    <v-card>
-      <v-card-title>Add a Location to {{ layers[targetLayer]?.name }}</v-card-title>
-      <v-card-text>
-        <v-text-field v-model="placeName" label="Name" />
-        Category: <v-select v-model="placeCategory" :items="categories" />
-        <div class="map-container">
-          <div ref="newPlaceMapEl" class="map" />
         </div>
-        Selected position: {{ position }}<br />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="createDialog = false">Cancel</v-btn>
-        <v-btn
-          color="primary"
-          @click="
-            async () => {
-              const p = await createPlace(placeName, position, targetLayer, placeCategory);
-              placeMap[targetLayer]?.push(p);
-              map.createMarker(
-                locToString(position),
-                p.id,
-                placeCategory,
-                layers[targetLayer]?.color,
-                placeName,
-              );
-              createDialog = false;
-              placeName = '';
-              placeCategory = 'hospital';
-              position = { lat: 0, lng: 0 };
-            }
-          "
-        >
-          Save
+      </v-expand-transition>
+    </div>
+
+    <div class="map-controls">
+      <template v-if="drawMode">
+        <v-btn color="primary" size="small" @click="saveShape()">Save Shape</v-btn>
+        <v-btn v-if="editingShape" color="primary" size="small" @click="splitShape()">
+          Split Shape
         </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="shapeDialog">
-    <v-card>
-      <v-card-title>Create a {{ tmpShapeType }}</v-card-title>
-      <v-card-text>
-        <v-text-field v-model="shapeName" label="Name" />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="shapeDialog = false">Cancel</v-btn>
         <v-btn
-          color="primary"
+          color="error"
+          size="small"
           @click="
             () => {
               tmpShape = [];
-              drawMode = true;
-              shapeDialog = false;
+              const x = shapes[targetShape];
+              if (editingShape && x !== undefined) {
+                map.createShape(x.type, x.shape, layers[x.layer]?.color ?? '', targetShape, false);
+              }
+              map.removeShape(targetShape);
+              drawMode = false;
             }
           "
         >
-          Create
+          Cancel Shape
         </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="changeLayerDialog">
-    <v-card>
-      <v-card-title>Change Layer of {{ places[targetPlace]?.name }}</v-card-title>
-      <v-card-text>
-        <v-select v-model="layerChangeTarget" :items="layerEntryList" />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="changeLayerDialog = false">Cancel</v-btn>
-        <v-btn
-          v-if="layerChangeTarget.length > 0"
-          color="primary"
-          @click="
-            async () => {
-              const prevLayer = places[targetPlace]?.layer;
-              if (prevLayer) {
-                placeMap[prevLayer]?.splice(
-                  placeMap[prevLayer]?.findIndex(p => p.id === targetPlace),
-                  1,
-                );
-              }
-              const p = places[targetPlace];
-              if (p) {
-                p.setLayer(layerChangeTarget);
-                placeMap[layerChangeTarget]?.push(p);
-                const polygon = p.shape;
-                if (polygon.length > 0) {
-                  await shapes[polygon]?.setLayer(layerChangeTarget);
-                }
-                setPlaceColor(p, layers[layerChangeTarget]?.color ?? '');
-              }
-              changeLayerDialog = false;
-              layerChangeTarget = '';
+      </template>
+      <v-btn
+        size="small"
+        @click="
+          () => {
+            if (hideMarkers) {
+              hideMarkers = false;
+              map.showAllMarkers();
+            } else {
+              hideMarkers = true;
+              map.hideAllMarkers();
             }
-          "
-        >
-          Save
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="changeShapeLayerDialog">
-    <v-card>
-      <v-card-title>Change Layer of {{ shapes[targetShape]?.name }}</v-card-title>
-      <v-card-text>
-        <v-select v-model="layerChangeTarget" :items="layerEntryList" />
-      </v-card-text>
-      <v-card-actions>
-        <v-btn @click="changeShapeLayerDialog = false">Cancel</v-btn>
-        <v-btn
-          v-if="layerChangeTarget.length > 0"
-          color="primary"
-          @click="
-            async () => {
-              const prevLayer = shapes[targetShape]?.layer;
-              if (prevLayer) {
-                shapeMap[prevLayer]?.splice(
-                  shapeMap[prevLayer].findIndex(s => s.id === targetShape),
-                  1,
-                );
-              }
-              const s = shapes[targetShape];
-              if (s) {
-                shapeMap[layerChangeTarget]?.push(s);
-                await shapes[targetShape]?.setLayer(layerChangeTarget);
-                setShapeColor(s, layers[layerChangeTarget]?.color ?? '');
-              }
-              changeShapeLayerDialog = false;
-              layerChangeTarget = '';
+          }
+        "
+      >
+        {{ hideMarkers ? 'Show' : 'Hide' }} Markers
+      </v-btn>
+      <v-btn
+        size="small"
+        @click="
+          () => {
+            if (hideLabels) {
+              map.setStyle(Map.DefaultMap);
+              hideLabels = false;
+              if (hideMarkers) map.hideAllMarkers();
+            } else {
+              map.setStyle(Map.BlankMap);
+              hideLabels = true;
+              if (hideMarkers) map.hideAllMarkers();
             }
-          "
-        >
-          Save
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+          }
+        "
+      >
+        {{ hideLabels ? 'Show' : 'Hide' }} Labels
+      </v-btn>
+    </div>
+  </div>
+
+  <form-dialog
+    v-model="createDialog"
+    :reset="
+      () => {
+        targetLayer = undefined;
+        placeFields = {};
+      }
+    "
+    :title="`Add a Location to ${targetLayer ? (layers[targetLayer]?.name ?? '...') : '...'}`"
+    @submit="
+      async () => {
+        missingNewPlaceLoc = placeFields.position === undefined;
+        if (!missingNewPlaceLoc) {
+          await createPlace();
+        }
+      }
+    "
+  >
+    <v-select
+      v-model="targetLayer"
+      color="primary"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(layers)"
+      label="Layer"
+      :rules="[rules.required('A layer is required.')]"
+    />
+    <v-text-field
+      v-model="placeFields.name"
+      color="primary"
+      label="Name"
+      :rules="[rules.required('A place name is required.')]"
+    />
+    <v-select
+      v-model="placeFields.category"
+      color="primary"
+      :items="categories"
+      label="Category"
+      :rules="[rules.required('A category is required.')]"
+    />
+    <br />
+    <div class="map-container">
+      <div ref="newPlaceMapEl" class="map" />
+    </div>
+    <error-hint :message="missingNewPlaceLoc ? 'A location is required.' : undefined" />
+    <br />
+    Selected position: {{ placeFields.position }}<br />
+  </form-dialog>
+  <form-dialog
+    v-model="shapeDialog"
+    :reset="() => (shapeName = '')"
+    :title="`Create a ${tmpShapeType}`"
+    @submit="
+      () => {
+        tmpShape = [];
+        drawMode = true;
+        shapeDialog = false;
+      }
+    "
+  >
+    <v-text-field
+      v-model="shapeName"
+      label="Name"
+      :rules="[rules.required('A shape name is required.')]"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="layerDialog"
+    :reset="() => (layerFields = {})"
+    title="Create Layer"
+    @submit="
+      async () => {
+        missingLayerColor = layerFields.color === undefined;
+        if (!missingLayerColor) {
+          await createLayer();
+        }
+      }
+    "
+  >
+    <v-text-field
+      v-model="layerFields.name"
+      color="primary"
+      label="Name"
+      :rules="[rules.required('Layer name is required')]"
+    />
+    <color-options
+      :error="missingLayerColor"
+      :value="layerFields.color"
+      @select="color => (layerFields.color = color ?? '')"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="changeLayerDialog"
+    :reset="() => (targetLayer = undefined)"
+    title="Change Layer"
+    @submit="
+      async () => {
+        if (changeTarget === 'Place') {
+          await set_place_layer(targetPlace, targetLayer as string);
+        } else {
+          await set_shape_layer(targetShape, targetLayer as string);
+        }
+      }
+    "
+  >
+    <v-select
+      v-model="targetLayer"
+      color="primary"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(layers)"
+      label="Layer"
+      :rules="[rules.required('A layer is required.')]"
+    />
+  </form-dialog>
+  <form-dialog
+    v-model="tripDialog"
+    :reset="() => (tripInfo = {})"
+    title="Add a Trip"
+    @submit="async () => {}"
+  >
+    <v-select
+      v-model="targetLayer"
+      color="primary"
+      item-title="name"
+      item-value="id"
+      :items="Object.values(layers)"
+      label="Layer"
+      :rules="[rules.required('A layer is required.')]"
+    />
+    <v-text-field
+      v-model="tripInfo.name"
+      color="primary"
+      label="Trip Name"
+      :rules="[rules.required('A name is required.')]"
+    />
+    <v-select
+      v-model="tripInfo.shapes"
+      color="primary"
+      label="Shapes"
+      :rules="[rules.required('At least one shape is required. Otherwise, what is the point?')]"
+    />
+    <v-date-input v-model="tripInfo.date" color="primary" label="Trip Date" />
+  </form-dialog>
 </template>
 
 <style scoped>
-  .main {
-    margin: 8px;
+  .locations-page {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
   }
 
-  .map-container {
-    flex: 2;
+  .map-fill {
+    position: absolute;
+    inset: 0;
   }
 
   .map {
-    height: 824px;
+    width: 100%;
+    height: 100%;
   }
 
-  .layer {
+  /* Notice bar for photo-linked navigation (top-center) */
+  .photo-loc-bar {
+    position: absolute;
+    top: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px oklch(5% 0 0 / 0.6);
+    white-space: nowrap;
+  }
+
+  .photo-loc-text {
+    font-size: var(--text-size-body);
+    color: var(--color-text-secondary);
+  }
+
+  /* Floating layers card (top-left) */
+  .layers-float {
+    position: absolute;
+    top: calc(40px + var(--space-md));
+    left: var(--space-md);
+    z-index: 10;
+    width: 288px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px oklch(5% 0 0 / 0.6);
+    overflow: hidden;
+  }
+
+  .layers-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
     width: 100%;
+    padding: 10px var(--space-md);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-primary);
+    font-size: var(--text-size-body);
+    font-weight: var(--text-weight-medium);
+    letter-spacing: var(--text-tracking-label);
+    text-align: left;
+    transition: background var(--duration-fast) var(--ease-standard);
+  }
+
+  .layers-header:hover {
+    background: oklch(94% 0.006 245 / 0.06);
+  }
+
+  .layers-title {
+    flex: 1;
+  }
+
+  .layers-body {
+    border-top: 1px solid var(--color-border);
+    overflow-y: auto;
+    max-height: calc(100vh - 96px);
+  }
+
+  .layers-create-row {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  /* Map view + draw mode controls (bottom-left) */
+  .map-controls {
+    position: absolute;
+    bottom: var(--space-lg);
+    left: var(--space-md);
+    z-index: 10;
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    max-width: calc(100% - 320px);
+  }
+
+  /* Dialog-internal map preview */
+  .map-container {
+    height: 300px;
+  }
+
+  /* Layer group rows */
+  .layer-group {
+    border-bottom: 1px solid oklch(20% 0.004 245);
+  }
+
+  .layer-group:last-child {
+    border-bottom: none;
+  }
+
+  .layer-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px var(--space-md);
+    cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-standard);
+  }
+
+  .layer-row:hover {
+    background: oklch(94% 0.006 245 / 0.05);
+  }
+
+  .layer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .layer-name {
+    flex: 1;
+    font-size: var(--text-size-body);
+    font-weight: var(--text-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .layer-count {
+    font-size: var(--text-size-label);
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+  }
+
+  .layer-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    opacity: 0;
+    flex-shrink: 0;
+    transition:
+      opacity var(--duration-fast) var(--ease-standard),
+      background var(--duration-fast) var(--ease-standard);
+  }
+
+  .layer-row:hover .layer-add-btn {
+    opacity: 1;
+  }
+
+  .layer-add-btn:hover {
+    background: oklch(94% 0.006 245 / 0.08);
+    color: var(--color-text-primary);
+  }
+
+  .layer-chevron {
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+  }
+
+  /* Place and shape list rows */
+  .layer-items {
+    background: oklch(11% 0.003 245);
+  }
+
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px var(--space-md) 5px 28px;
+    min-height: 30px;
+    transition: background var(--duration-fast) var(--ease-standard);
+  }
+
+  .item-row:hover {
+    background: oklch(94% 0.006 245 / 0.04);
+  }
+
+  .item-row--editing {
+    padding: var(--space-sm) var(--space-md);
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .item-icon {
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+  }
+
+  .item-name {
+    flex: 1;
+    font-size: var(--text-size-body);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .item-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    opacity: 0;
+    flex-shrink: 0;
+    transition:
+      opacity var(--duration-fast) var(--ease-standard),
+      background var(--duration-fast) var(--ease-standard);
+  }
+
+  .item-row:hover .item-menu-btn {
+    opacity: 1;
+  }
+
+  .item-menu-btn:hover {
+    background: oklch(94% 0.006 245 / 0.08);
+    color: var(--color-text-primary);
+  }
+
+  /* Inline edit form (triggered from context menu) */
+  .item-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    width: 100%;
+  }
+
+  .edit-done-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    padding: 4px 10px;
+    background: oklch(94% 0.006 245 / 0.06);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--color-text-primary);
+    transition: background var(--duration-fast) var(--ease-standard);
+  }
+
+  .edit-done-btn:hover {
+    background: oklch(94% 0.006 245 / 0.12);
   }
 </style>

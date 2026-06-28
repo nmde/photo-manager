@@ -4,12 +4,14 @@ export type PersonCategoryData = {
   color: string;
 };
 
-export class PersonCategory {
-  public constructor(private _id: string, private _name: string, private _color: string) {}
+export type PersonCategoryRec = Record<PersonCategoryData['id'], PersonCategory>;
 
-  public get id() {
-    return this._id;
-  }
+export class PersonCategory implements PersonCategoryData {
+  public constructor(
+    public readonly id: PersonCategoryData['id'],
+    public _name: PersonCategoryData['name'],
+    public _color: PersonCategoryData['color'],
+  ) {}
 
   public get name() {
     return this._name;
@@ -20,7 +22,7 @@ export class PersonCategory {
   }
 
   public static createCategories(categories: PersonCategoryData[]) {
-    const mapped: Record<string, PersonCategory> = {};
+    const mapped: PersonCategoryRec = {};
     for (const category of categories.map(
       ({ id, name, color }) => new PersonCategory(id, name, color),
     )) {

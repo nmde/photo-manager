@@ -1,0 +1,694 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt::{self, Display, Formatter},
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    sync::{LazyLock, Mutex},
+    time::Duration,
+};
+
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, NaiveDateTime, Utc};
+use diesel::{
+    delete, dsl::update, insert_into, BoolExpressionMethods, Connection, ExpressionMethods,
+    QueryDsl, SqliteConnection,
+};
+use diesel_async::{sync_connection_wrapper::SyncConnectionWrapper, AsyncConnection, RunQueryDsl};
+use diesel_migrations::MigrationHarness;
+use exif::In;
+use log::{debug, error, info, warn};
+use regex::Regex;
+use rusty_pool::{JoinHandle, ThreadPool};
+use serde::{Serialize, Serializer};
+use thiserror::Error;
+use tokio::{fs, sync::Mutex as AsyncMutex};
+use walkdir::WalkDir;
+
+use crate::{
+    models::{Layer, Person, Photo, Place, Tag},
+    people::{PEOPLE, PEOPLE_COUNTS, PHOTOGRAPHER_COUNTS},
+    photos::{get_asset_path, PHOTOS, RAW, VALIDATION_CACHE, VIDEO},
+    places::{LAYERS, LAYER_COUNTS, PLACES, PLACE_COUNTS},
+    schema::{layers, people, photos, places, tags},
+    tags::{validate_tags, TAGS, TAG_COUNTS},
+    MIGRATIONS,
+};
+
+pub mod api;
+pub mod search;
+
+pub const DATE_FORMAT: &str = "%F";
+
+pub static DB: LazyLock<AsyncMutex<Option<SyncConnectionWrapper<SqliteConnection>>>> =
+    LazyLock::new(|| AsyncMutex::new(None));
+pub static OPEN_FOLDER: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
+pub static THUMBNAIL_DIR: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
+
+pub fn row_to_vec(row_text: &Option<String>) -> Vec<String> {
+    if row_text.is_none() {
+        return Vec::new();
+    }
+    let row_text = row_text.as_ref().unwrap();
+    let mut re = vec![];
+    if !row_text.is_empty() {
+        re = row_text.split(",").map(str::to_string).collect();
+    }
+    re
+}
+
+pub fn vec_to_row(row_vec: &[String]) -> Option<String> {
+    if row_vec.is_empty() {
+        None
+    } else {
+        Some(row_vec.join(","))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ApiError {
+    TauriError(#[from] tauri::Error),
+    Error(#[from] anyhow::Error),
+    KeyError(#[from] strum::ParseError),
+    NotFound(String),
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            ApiError::TauriError(e) => format!("Application error: {}", e),
+            ApiError::Error(e) => format!("{}", e),
+            ApiError::KeyError(e) => format!("Key error: {}", e),
+            ApiError::NotFound(msg) => format!("Item not found: {}", msg),
+        };
+        error!("{message}");
+        write!(f, "{message}")
+    }
+}
+
+impl Serialize for ApiError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[derive(Serialize)]
+pub struct LoadedPhotos {
+    removed: Vec<String>,
+    new_photos: Vec<String>,
+}
+
+fn clean_thumbnail_path(path: &str) -> String {
+    path.chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_string()
+            } else {
+                "_".to_string()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("")
+}
+
+pub async fn ensure_db() -> Result<()> {
+    let db_lock = DB.lock().await;
+    if db_lock.is_none() {
+        return Err(anyhow!("No database connection established!"));
+    }
+    Ok(())
+}
+
+pub async fn get_photo_targets(id: &String) -> Result<Vec<Photo>> {
+    ensure_db().await?;
+    let mut targets = Vec::<Photo>::new();
+    targets.push(
+        photos::table
+            .filter(photos::name.eq(id))
+            .first::<Photo>(DB.lock().await.as_mut().unwrap())
+            .await?,
+    );
+    let existing_group = &targets[0].photo_group;
+    if existing_group.is_some() {
+        for row in photos::table
+            .filter(
+                photos::photo_group
+                    .eq(existing_group.as_ref().unwrap())
+                    .and(photos::name.ne(id)),
+            )
+            .load::<Photo>(DB.lock().await.as_mut().unwrap())
+            .await?
+        {
+            targets.push(row);
+        }
+    }
+    for raw in targets
+        .clone()
+        .iter()
+        .filter_map(|photo| photo.grouped_raw())
+    {
+        targets.push(
+            photos::table
+                .filter(photos::name.eq(raw))
+                .first::<Photo>(DB.lock().await.as_mut().unwrap())
+                .await?,
+        );
+    }
+    Ok(targets)
+}
+
+fn degrees_to_dec(input: &str) -> Result<f32> {
+    let mut extracted = vec![];
+    for digit in Regex::new(r"([0-9\.]+)").unwrap().find_iter(input) {
+        extracted.push(digit.as_str());
+    }
+    let digits = extracted
+        .into_iter()
+        .map(|c| c.parse::<f32>().unwrap())
+        .collect::<Vec<f32>>();
+    if digits.len() != 3 {
+        return Err(anyhow!("Invalid format for GPS degrees"));
+    }
+
+    Ok(digits[0] + (digits[1] / 60.0) + (digits[2] / 3600.0))
+}
+
+// Reads EXIF/filesystem metadata and returns a filled Photo. Purely synchronous
+// so it can run safely inside a thread pool without holding async mutex guards.
+fn prepare_photo(_photo: &Photo) -> Result<Photo> {
+    let mut photo = _photo.clone();
+    let filename = &photo.name;
+    debug!("Creating new photo {filename}");
+    let mut file_open = File::open(filename)?;
+    let mut file_reader = BufReader::new(&mut file_open);
+    let exif = exif::Reader::new().read_from_container(&mut file_reader);
+    let mut file_date: Option<NaiveDateTime> = None;
+    let mut file_location: Option<(f32, f32)> = None;
+    if let Ok(exif) = exif {
+        let time_taken = exif.get_field(exif::Tag::DateTime, In::PRIMARY);
+        if let Some(time_taken) = time_taken {
+            let value = &time_taken.value;
+            let parsed = NaiveDateTime::parse_from_str(
+                &value.display_as(exif::Tag::DateTime).to_string(),
+                "%F %T",
+            );
+            if let Ok(parsed) = parsed {
+                file_date = Some(parsed);
+            } else {
+                warn!(
+                    "Exif date exists but failed to parse for {filename}: {}",
+                    parsed.err().unwrap()
+                );
+            }
+        }
+
+        let lat = exif.get_field(exif::Tag::GPSLatitude, In::PRIMARY);
+        let lng = exif.get_field(exif::Tag::GPSLongitude, In::PRIMARY);
+        if let (Some(lat), Some(lng)) = (lat, lng) {
+            // degress, min, sec format
+            let lat_val = degrees_to_dec(&lat.value.display_as(exif::Tag::GPSLatitude).to_string());
+            let lng_val =
+                degrees_to_dec(&lng.value.display_as(exif::Tag::GPSLongitude).to_string());
+            if let (Ok(mut lat_val), Ok(mut lng_val)) = (lat_val, lng_val) {
+                if exif
+                    .get_field(exif::Tag::GPSLatitudeRef, In::PRIMARY)
+                    .unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLatitudeRef)
+                    .to_string()
+                    == "S"
+                {
+                    lat_val = -lat_val;
+                }
+                if exif
+                    .get_field(exif::Tag::GPSLongitudeRef, In::PRIMARY)
+                    .unwrap()
+                    .value
+                    .display_as(exif::Tag::GPSLongitudeRef)
+                    .to_string()
+                    == "W"
+                {
+                    lng_val = -lng_val;
+                }
+                file_location = Some((lat_val, lng_val));
+            } else {
+                error!("Could not parse exif lat ad/or lng for {filename}");
+            }
+        }
+    } else {
+        // If exif read fails, fall back to file metadata
+        // Take the min between file created and file modified, often in my project the modified is more accurate than created
+        let mut min_meta_time: Option<DateTime<Utc>> = None;
+        let metadata = file_open.metadata()?;
+        let created = metadata.created();
+        if let Ok(created) = created {
+            min_meta_time = Some(DateTime::<Utc>::from(created));
+        }
+        let modified = metadata.modified();
+        if let Ok(modified) = modified {
+            let modified = DateTime::<Utc>::from(modified);
+            if min_meta_time.is_none() || &modified < min_meta_time.as_ref().unwrap() {
+                min_meta_time = Some(modified);
+            }
+        }
+        if let Some(min_meta_time) = min_meta_time {
+            file_date = Some(min_meta_time.naive_utc());
+        }
+    }
+
+    if let Some(file_date) = file_date {
+        let date_str = file_date.format(DATE_FORMAT).to_string();
+        debug!("Resolved photo date from file {filename}: {date_str}");
+        photo.metadata_date = Some(date_str.clone());
+    }
+
+    if let Some(file_location) = file_location {
+        debug!(
+            "Resolved photo location from file {filename}: {0}, {1}",
+            file_location.0, file_location.1
+        );
+        photo.metadata_location = Some(format!("{0},{1}", file_location.0, file_location.1));
+    }
+
+    Ok(photo)
+}
+
+async fn insert_photo(photo: &Photo) -> Result<()> {
+    let mut conn = DB.lock().await;
+    let conn = conn.as_mut().unwrap();
+    if insert_into(photos::table)
+        .values(photo.clone())
+        .execute(conn)
+        .await
+        .is_err()
+    {
+        error!(
+            "ERROR: Could not insert photo {} into database!",
+            &photo.name,
+        );
+    }
+    Ok(())
+}
+
+fn generate_thumbnail(filename: &String, thumbnail_dir: &Path) -> Result<String> {
+    let thumbnail_path_str = thumbnail_dir.join(clean_thumbnail_path(filename));
+    let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+    let thumbnail_path = Path::new(&thumbnail_path_str);
+    // TODO - A lot of thumbnails for HEIC files are not getting successfully set on the first pass here
+    if RAW.is_match(&filename.to_uppercase()) {
+        if !thumbnail_path.exists() {
+            debug!("Generating thumbnail for raw {filename}");
+            let output = Command::new("magick")
+                .args([filename, &thumbnail_path_str])
+                .stderr(Stdio::piped())
+                .output();
+            if let Ok(output) = output {
+                let stderr = output.stderr;
+                if !stderr.is_empty() {
+                    return Err(anyhow!(
+                        "magick error: {}",
+                        String::from_utf8(stderr).ok().unwrap_or_default()
+                    ));
+                }
+            } else {
+                return Err(anyhow!(
+                    "ERROR: Could not generate thumbnail for {0}: {1}",
+                    &filename.to_string(),
+                    &output.err().unwrap().to_string()
+                ));
+            }
+        }
+    } else if VIDEO.is_match(&filename.to_uppercase()) && !thumbnail_path.exists() {
+        debug!("Generating thumbnail for video {filename}");
+        let output = Command::new("ffmpeg")
+            .args([
+                "-i",
+                &filename.to_string(),
+                "-ss",
+                "00:00:00.00",
+                "-frames:v",
+                "1",
+                "-update",
+                "1",
+                &thumbnail_path_str,
+            ])
+            .stderr(Stdio::piped())
+            .output();
+        if let Ok(output) = output {
+            let stderr = output.stderr;
+            if !stderr.is_empty() {
+                return Err(anyhow!(
+                    "ffmpeg error: {}",
+                    String::from_utf8(stderr).ok().unwrap_or_default()
+                ));
+            }
+        } else {
+            return Err(anyhow!(
+                "ERROR: Could not generate thumbnail for {0}: {1}",
+                &filename.to_string(),
+                &output.err().unwrap().to_string()
+            ));
+        }
+    }
+    Ok(get_asset_path(&thumbnail_path_str))
+}
+
+async fn load_photos() -> Result<LoadedPhotos> {
+    let path = {
+        let guard = OPEN_FOLDER
+            .lock()
+            .map_err(|_| anyhow!("Lock is poisoned"))?;
+        if guard.is_none() {
+            return Err(anyhow!("No open folder found"));
+        }
+        guard.as_ref().unwrap().clone()
+    };
+    let thumbnail_dir = {
+        let guard = THUMBNAIL_DIR
+            .lock()
+            .map_err(|_| anyhow!("Lock is poisoned"))?;
+        if guard.is_none() {
+            return Err(anyhow!("No thumbnail dir found"));
+        }
+        guard.as_ref().unwrap().clone()
+    };
+    info!("Loading photos from {}", path.display());
+    ensure_db().await?;
+    // Photos stored in the database, which does not necessarily reflect photos actually present in the folder
+    let mut existing = HashMap::new();
+    let mut new_photos = vec![];
+
+    {
+        let mut conn = DB.lock().await;
+        let conn = conn.as_mut().unwrap();
+        let photo_load = photos::table.load::<Photo>(conn).await;
+        if photo_load.is_err() {
+            return Err(anyhow!(
+                "Failed to load photos from database: {}",
+                photo_load.err().unwrap()
+            ));
+        }
+        for photo in photo_load.unwrap() {
+            existing.insert(photo.name.clone(), photo);
+        }
+    }
+    debug!("Found {} existing photos", existing.len());
+
+    // The processed list of extant photos in the folder, a combination of existing database entries and new empty objects for new files
+    let mut photos = HashMap::new();
+
+    // Read the files in the selected folder
+    let mut file_queue = VecDeque::<PathBuf>::new();
+    let dir = fs::read_dir(&path).await;
+    if dir.is_err() {
+        return Err(anyhow!(
+            "Failed to read the selected folder: {}",
+            dir.err().unwrap()
+        ));
+    }
+    let mut dir = dir.unwrap();
+    while let Some(entry) = dir.next_entry().await? {
+        file_queue.push_back(entry.path());
+    }
+    let pool = ThreadPool::new(4, 4, Duration::from_millis(50));
+    let mut threads = Vec::<JoinHandle<Result<Photo>>>::new();
+    for file in WalkDir::new(path) {
+        let file = file?;
+        if file.metadata().unwrap().is_file() {
+            let filename = file.path().display().to_string();
+            let extension = file.path().extension();
+            if extension.is_some() && extension.unwrap().to_str().unwrap() == "zip" {
+                warn!("Skipping zip file: {filename}");
+                continue;
+            } else if filename.contains(".dropbox.cache") {
+                continue;
+            }
+            if existing.contains_key(&filename) {
+                let existing_photo = existing.get_mut(&filename.to_string()).unwrap();
+                let thumbnail_path_str =
+                    thumbnail_dir.join(clean_thumbnail_path(&existing_photo.name));
+                let thumbnail_path_str = format!("{}.jpg", thumbnail_path_str.display());
+                let thumbnail_path = Path::new(&thumbnail_path_str);
+                // Check if the photo is supposed to have a thumbnail but doesn't
+                // This accounts for updates to the list of recognized raw & video extensions, or the computer running out of space while generating thumbnails
+                if existing_photo.thumbnail.is_none()
+                    && (existing_photo.is_raw() || existing_photo.is_video())
+                {
+                    warn!(
+                        "{} should have a thumbnail, but a thumbnail is not set",
+                        existing_photo.name
+                    );
+                    if thumbnail_path.exists() {
+                        let thumbnail_asset = get_asset_path(&thumbnail_path_str);
+                        existing_photo.thumbnail = Some(thumbnail_asset.clone());
+                        let mut conn = DB.lock().await;
+                        let conn = conn.as_mut().unwrap();
+                        update(photos::table.filter(photos::name.eq(existing_photo.name.clone())))
+                            .set(photos::thumbnail.eq(thumbnail_asset.clone()))
+                            .execute(conn)
+                            .await?;
+                        debug!(
+                            "Set thumbnail for {} to existing file {thumbnail_asset}",
+                            existing_photo.name
+                        );
+                    } else {
+                        debug!("Regenerating thumbnail for {}", existing_photo.name);
+                        let thumb_res = generate_thumbnail(&filename, &thumbnail_dir);
+                        if thumb_res.is_err() {
+                            error!(
+                                "Failed to generate thumbnail for {0}: {1}",
+                                existing_photo.name,
+                                thumb_res.err().unwrap()
+                            );
+                        }
+                    }
+                // Check if the photo has a thumbnail set, but the file doesn't exist
+                } else if existing_photo.thumbnail.is_some() && !thumbnail_path.exists() {
+                    debug!("Regenerating thumbnail for {}", existing_photo.name);
+                    let thumb_res = generate_thumbnail(&filename, &thumbnail_dir);
+                    if thumb_res.is_err() {
+                        error!(
+                            "Failed to generate thumbnail for {0}: {1}",
+                            existing_photo.name,
+                            thumb_res.err().unwrap()
+                        );
+                    }
+                }
+                photos.insert(existing_photo.name.clone(), existing_photo.clone());
+                existing.remove(&filename.to_string());
+            } else {
+                let moved_thumbnail_dir = thumbnail_dir.clone();
+                threads.push(pool.evaluate(move || {
+                    let mut photo = Photo::new(filename.clone());
+                    if RAW.is_match(&filename) || VIDEO.is_match(&filename) {
+                        let thumb_res = generate_thumbnail(&filename, &moved_thumbnail_dir);
+                        if let Ok(thumb_res) = thumb_res {
+                            photo.thumbnail = Some(thumb_res);
+                        } else {
+                            error!(
+                                "Failed to generate thumbnail for {filename}: {}",
+                                thumb_res.err().unwrap()
+                            );
+                        }
+                    }
+                    prepare_photo(&photo)
+                }));
+            }
+        }
+    }
+
+    for thread in threads {
+        let photo = thread.await_complete()?;
+        insert_photo(&photo).await?;
+        photos.insert(photo.name.clone(), photo.clone());
+        new_photos.push(photo.name);
+    }
+
+    debug!("Validating photos");
+    let mut validations = Vec::new();
+    for photo in photos.values() {
+        let validation = validate_tags(&photo.tags()).await?;
+        validations.push((photo.name.clone(), validation));
+    }
+
+    {
+        let mut validation_cache = VALIDATION_CACHE.lock().unwrap();
+        for (photo_name, validation) in validations {
+            validation_cache.insert(photo_name, validation);
+        }
+    }
+
+    info!("Loaded {} photos", photos.len());
+    *PHOTOS.lock().await = photos;
+
+    Ok(LoadedPhotos {
+        removed: existing.keys().cloned().collect(),
+        new_photos,
+    })
+}
+
+/// Sets the working folder path & initializes the SQLite database connection.
+/// Returns initial information from the database.
+pub async fn initialize(path: &String, app_dir: &Path) -> Result<LoadedPhotos> {
+    // Establish a sync connection just to apply migrations
+    let path = Path::new(path);
+    let db_path = path.join("photos.db");
+    let db_path = db_path.to_str().unwrap();
+
+    let conn = SqliteConnection::establish(db_path);
+    if conn.is_err() {
+        return Err(anyhow!(
+            "Failed to establish database connection: {}",
+            conn.err().unwrap()
+        ));
+    }
+    let mut conn = conn.unwrap();
+    let migrations = conn.run_pending_migrations(MIGRATIONS);
+    if migrations.is_err() {
+        return Err(anyhow!(
+            "Failed to run database migrations: {}",
+            migrations.err().unwrap()
+        ));
+    }
+    debug!("Applied migrations to {db_path}");
+
+    let conn = SyncConnectionWrapper::<SqliteConnection>::establish(db_path).await;
+    if conn.is_err() {
+        return Err(anyhow!(
+            "Failed to establish async database connection: {}",
+            conn.err().unwrap()
+        ));
+    }
+    let mut conn = conn.unwrap();
+    debug!("Loaded async database connection from {db_path}");
+
+    let thumbnail_dir = app_dir.join("thumbnails");
+    if !thumbnail_dir.exists() && fs::create_dir_all(&thumbnail_dir).await.is_err() {
+        return Err(anyhow!(
+            "Failed to create thumbnail directory: {}",
+            thumbnail_dir.to_str().unwrap()
+        ));
+    }
+
+    let layers_data = layers::table.load::<Layer>(&mut conn).await?;
+    let places_data = places::table.load::<Place>(&mut conn).await?;
+    let tags_data = tags::table.load::<Tag>(&mut conn).await?;
+    let people_data = people::table.load::<Person>(&mut conn).await?;
+
+    *DB.lock().await = Some(conn);
+    *OPEN_FOLDER
+        .lock()
+        .map_err(|_| anyhow!("Lock is poisoned"))? = Some(path.to_path_buf());
+    *THUMBNAIL_DIR
+        .lock()
+        .map_err(|_| anyhow!("Lock is poisoned"))? = Some(thumbnail_dir);
+
+    let photo_load = load_photos().await?;
+
+    let mut layers = LAYERS.lock().await;
+    let mut places = PLACES.lock().await;
+    let mut tags = TAGS.lock().await;
+    let mut people = PEOPLE.lock().await;
+    let loaded_photos = PHOTOS.lock().await;
+    let mut layer_counts = LAYER_COUNTS.lock().unwrap();
+    let mut place_counts = PLACE_COUNTS.lock().unwrap();
+    let mut tag_counts = TAG_COUNTS.lock().unwrap();
+    let mut people_counts = PEOPLE_COUNTS.lock().unwrap();
+    let mut photographer_counts = PHOTOGRAPHER_COUNTS.lock().unwrap();
+
+    *layers = HashMap::<String, Layer>::new();
+    *places = HashMap::<String, Place>::new();
+    *tags = HashMap::<String, Tag>::new();
+    *people = HashMap::<String, Person>::new();
+    *layer_counts = HashMap::<String, usize>::new();
+    *place_counts = HashMap::<String, usize>::new();
+    *tag_counts = HashMap::<String, usize>::new();
+    *people_counts = HashMap::<String, usize>::new();
+    *photographer_counts = HashMap::<String, usize>::new();
+
+    for layer in layers_data {
+        layer_counts.insert(layer.id.clone(), 0);
+        layers.insert(layer.id.clone(), layer);
+    }
+
+    for place in places_data {
+        place_counts.insert(place.id.clone(), 0);
+        if layer_counts.contains_key(&place.layer) {
+            *layer_counts.get_mut(&place.layer).unwrap() += 1;
+        }
+        places.insert(place.id.clone(), place);
+    }
+
+    for tag in tags_data {
+        tag_counts.insert(tag.name.clone(), 0);
+        tags.insert(tag.name.clone(), tag);
+    }
+
+    for person in people_data {
+        people_counts.insert(person.id.clone(), 0);
+        people.insert(person.id.clone(), person);
+    }
+
+    for photo in loaded_photos.values() {
+        for tag in photo.tags() {
+            if !tags.contains_key(&tag) {
+                tags.insert(tag.clone(), Tag::new(&tag));
+            }
+            if tag_counts.contains_key(&tag) {
+                *tag_counts.get_mut(&tag).unwrap() += 1;
+            } else {
+                tag_counts.insert(tag.clone(), 1);
+            }
+        }
+        for person in photo.people() {
+            if people_counts.contains_key(&person) {
+                *people_counts.get_mut(&person).unwrap() += 1;
+            } else {
+                people_counts.insert(person.clone(), 1);
+            }
+        }
+        if let Some(photographer) = &photo.photographer {
+            if photographer_counts.contains_key(photographer) {
+                *photographer_counts.get_mut(photographer).unwrap() += 1;
+            } else {
+                photographer_counts.insert(photographer.clone(), 1);
+            }
+        }
+        if let Some(location) = &photo.location {
+            if places.contains_key(location) {
+                if place_counts.contains_key(location) {
+                    *place_counts.get_mut(location).unwrap() += 1;
+                } else {
+                    place_counts.insert(location.clone(), 1);
+                }
+            } else {
+                warn!(
+                    "Place referenced by photo {0} not found: {1}",
+                    photo.name, location
+                );
+            }
+        }
+    }
+
+    Ok(photo_load)
+}
+
+pub async fn remove_deleted(deleted: &Vec<String>) -> Result<()> {
+    ensure_db().await?;
+
+    for name in deleted {
+        delete(photos::table.filter(photos::name.eq(name)))
+            .execute(DB.lock().await.as_mut().unwrap())
+            .await?;
+    }
+    Ok(())
+}
+
+pub async fn refresh() -> Result<Vec<String>> {
+    let photo_load = load_photos().await?;
+    Ok(photo_load.removed)
+}

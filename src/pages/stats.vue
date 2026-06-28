@@ -1,342 +1,517 @@
 <script setup lang="ts">
-  import type { Photo } from '../classes/Photo';
-  import {
-    BarElement,
-    CategoryScale,
-    Chart as ChartJS,
-    LinearScale,
-    LineElement,
-    PointElement,
-    Title,
-    Tooltip,
-  } from 'chart.js';
-  import { onMounted, ref } from 'vue';
-  import { Bar, Line } from 'vue-chartjs';
-  import { fileStore } from '../stores/fileStore';
+  import { useFileStore } from '@/stores/fileStore';
 
-  ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    BarElement,
+  const store = useFileStore();
+  const { query, searchHistory } = storeToRefs(store);
+
+  const running = ref(false);
+  const hasRun = ref(false);
+  const photoCount = ref<number | null>(null);
+
+  interface Metrics {
+    count: number;
+    dateSpan: string;
+    rated: number;
+    tagged: number;
+  }
+  const metrics = ref<Metrics | null>(null);
+
+  async function runStats() {
+    if (running.value) return;
+    running.value = true;
+    // TODO: replace with invoke('get_stats', { query: query.value })
+    await new Promise(resolve => setTimeout(resolve, 700));
+    photoCount.value = 412;
+    metrics.value = {
+      count: 412,
+      dateSpan: 'Mar 2021 – Jun 2024',
+      rated: 87,
+      tagged: 394,
+    };
+    hasRun.value = true;
+    running.value = false;
+  }
+
+  function applyHistory(entry: string[]) {
+    query.value = [...entry];
+    store.pushHistory(entry);
+  }
+
+  const comboItems = computed(() =>
+    searchHistory.value.map(entry => ({ type: 'history', value: entry })),
   );
 
-  const { people, peopleCategories, query, search } = fileStore;
+  // ── Stub chart data ────────────────────────────────────────────────────────
 
-  let targetFiles: Photo[] = [];
+  const MONTH_LABELS = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const SHOT_DATA = [12, 8, 24, 36, 18, 45, 52, 38, 29, 14, 8, 20];
+  const RATING_DATA = [32, 71, 125, 95, 89]; // counts for 1★ – 5★
 
-  type Target = {
-    title: string;
-    value: string | number;
-  };
+  const maxShots = Math.max(...SHOT_DATA);
+  const maxRating = Math.max(...RATING_DATA);
 
-  const targetOptions = ref<Target[]>([
-    {
-      title: 'People',
-      value: 'people',
-    },
-  ]);
-  const typeOptions = ref<Record<string, Target[]>>({
-    people: [
-      {
-        title: 'Count',
-        value: 'count',
-      },
-      {
-        title: 'Timeline',
-        value: 'timeline',
-      },
-    ],
-  });
-  const precisionOptions = ref<Target[]>([
-    {
-      title: 'Year',
-      value: 0,
-    },
-    {
-      title: 'Month',
-      value: 1,
-    },
-    {
-      title: 'Day',
-      value: 2,
-    },
-  ]);
-
-  const graphTarget = ref('');
-  const graphType = ref('');
-  const precision = ref(0);
-  const running = ref(false);
-  const hasResults = ref(false);
-
-  fileStore.on('search', results => {
-    targetFiles = results;
-  });
-
-  const chartData = ref<{
-    labels: string[];
-    datasets: any[];
-  }>({
-    labels: [],
-    datasets: [],
-  });
-
-  type Dataset = {
-    label: string;
-    backgroundColor: string[];
-    data: any[];
-  };
-
-  function runCount() {
-    const keyMap: Record<string, number> = {};
-    // Collect data
-    for (const photo of targetFiles) {
-      if (graphTarget.value === 'people') {
-        for (const person of photo.people) {
-          if (!keyMap[person]) {
-            keyMap[person] = 0;
-          }
-          keyMap[person] += 1;
-        }
-      }
-    }
-    const results = Object.entries(keyMap).toSorted((a, b) => b[1] - a[1]);
-
-    // Generate ChartJS datasets
-    const labels: string[] = [];
-    const datasets: Dataset[] = [
-      {
-        label: 'Count',
-        backgroundColor: [],
-        data: [],
-      },
-    ];
-    for (const entry of results) {
-      if (graphTarget.value === 'people') {
-        const p = people[entry[0]];
-        if (p) {
-          labels.push(p.name);
-          datasets[0]?.backgroundColor.push(peopleCategories[p.category]?.color ?? '');
-          datasets[0]?.data.push(entry[1]);
-        }
-      }
-    }
-
-    chartData.value = {
-      labels,
-      datasets,
+  // viewBox "0 0 480 150" — bar area y 0–115, baseline y 115, labels y 133
+  const shotBars = SHOT_DATA.map((val, i) => {
+    const slotW = 40;
+    const barW = 22;
+    const areaH = 110;
+    const barH = Math.round((val / maxShots) * areaH);
+    return {
+      x: i * slotW + (slotW - barW) / 2,
+      y: 115 - barH,
+      w: barW,
+      h: barH,
+      labelX: i * slotW + slotW / 2,
+      label: MONTH_LABELS[i]!,
     };
-    hasResults.value = true;
-    running.value = false;
-  }
+  });
 
-  function runTimeline() {
-    // Collect data & determine bounds of timeline
-    let minDate = new Date();
-    let maxDate = new Date(1900, 0, 0);
-    const totals: Record<string, number> = {};
-    const keyMap: Record<string, Record<string, number>> = {};
-    for (const photo of targetFiles
-      .filter(photo => photo.hasDate)
-      .toSorted((a, b) => {
-        if (a.date > b.date) {
-          return 1;
-        }
-        if (a.date < b.date) {
-          return -1;
-        }
-        return 0;
-    })) {
-      if (photo.date < minDate) {
-        minDate = photo.date;
-      }
-      if (photo.date > maxDate) {
-        maxDate = photo.date;
-      }
-      const year = photo.date.getFullYear();
-      let key = year.toString();
-      if (precision.value >= 1) {
-        const month = photo.date.getMonth();
-        key = `${year.toString()}/${month.toString()}`;
-        if (precision.value >= 2) {
-          key = `${year.toString()}/${month.toString()}/${photo.date.getDate().toString()}`;
-        }
-      }
-      if (graphTarget.value === 'people') {
-        for (const person of photo.people) {
-          if (!keyMap[key]) {
-            keyMap[key] = {};
-          }
-          if (!totals[person]) {
-            totals[person] = 0;
-          }
-          if (!keyMap[key]?.[person]) {
-            keyMap[key][person] = totals[person];
-          }
-          keyMap[key][person] += 1;
-          totals[person] += 1;
-        }
-      }
-    }
-
-    // Fill out timeline
-    const labels: string[] = [];
-    const timeline: Record<string, number[]> = {};
-    let x = 0;
-    for (let year = minDate.getFullYear(); year <= maxDate.getFullYear(); year += 1) {
-      if (precision.value === 0) {
-        const key = year.toString();
-        labels.push(key);
-        if (keyMap[key]) {
-          for (const [person, value] of Object.entries(keyMap[key])) {
-            if (!timeline[person]) {
-              timeline[person] = [];
-            }
-            timeline[person][x] = value;
-          }
-        }
-        x += 1;
-      } else {
-        let month = 0;
-        if (year === minDate.getFullYear()) {
-          month = minDate.getMonth();
-        }
-        let stopMonth = 11;
-        if (year === maxDate.getFullYear()) {
-          stopMonth = maxDate.getMonth();
-        }
-        for (month; month <= stopMonth; month += 1) {
-          if (precision.value === 1) {
-            const key = `${year.toString()}/${month.toString()}`;
-            labels.push(key);
-            if (keyMap[key]) {
-              for (const [person, value] of Object.entries(keyMap[key])) {
-                if (!timeline[person]) {
-                  timeline[person] = [];
-                }
-                timeline[person][x] = value;
-              }
-            }
-            x += 1;
-          } else {
-            let day = 1;
-            if (year === minDate.getFullYear() && month === minDate.getMonth()) {
-              day = minDate.getDate();
-            }
-            let stopDay = new Date(year, month + 1, 0).getDate();
-            if (year === maxDate.getFullYear() && month === maxDate.getMonth()) {
-              stopDay = maxDate.getDate();
-            }
-            for (day; day <= stopDay; day += 1) {
-              const key = `${year.toString()}/${month.toString()}/${day.toString()}`;
-              labels.push(key);
-              if (keyMap[key]) {
-                for (const [person, value] of Object.entries(keyMap[key])) {
-                  if (!timeline[person]) {
-                    timeline[person] = [];
-                  }
-                  timeline[person][x] = value;
-                }
-              }
-              x += 1;
-            }
-          }
-        }
-      }
-    }
-
-    // Generate datasets from timeline
-    const datasets: any[] = [];
-    console.log(timeline);
-    for (const [person, data] of Object.entries(timeline)) {
-      const c = people[person]?.category;
-      if (c) {
-        datasets.push({
-          label: people[person]?.name,
-          backgroundColor: peopleCategories[c]?.color,
-          borderColor: peopleCategories[c]?.color,
-          data,
-          spanGaps: true,
-        });
-      }
-    }
-
-    chartData.value = {
-      labels,
-      datasets,
+  // viewBox "0 0 200 150"
+  const ratingBars = RATING_DATA.map((val, i) => {
+    const slotW = 40;
+    const barW = 24;
+    const areaH = 110;
+    const barH = Math.round((val / maxRating) * areaH);
+    return {
+      x: i * slotW + (slotW - barW) / 2,
+      y: 115 - barH,
+      w: barW,
+      h: barH,
+      labelX: i * slotW + slotW / 2,
+      stars: i + 1,
     };
-    hasResults.value = true;
-    running.value = false;
-  }
-
-  onMounted(() => {
-    search([]);
   });
 </script>
 
 <template>
-  <v-main>
-    <v-container class="fill-height" fluid>
-      <v-row class="fill-height">
-        <v-col class="fill-height" cols="8">
-          <template v-if="hasResults">
-            <Bar
-              v-if="graphType === 'count'"
-              :data="chartData"
-              :options="{
-                maintainAspectRatio: false,
-              }"
-            />
-            <Line v-if="graphType === 'timeline'" :data="chartData" />
-          </template>
-        </v-col>
-        <v-col cols="4">
-          <SearchInput :value="query" /> Computing stats for {{ targetFiles.length }} photos.
-          <v-select
-            v-model="graphTarget"
-            :disabled="running"
-            :items="targetOptions"
-            label="Statistic"
-          />
-          <v-select
-            v-if="typeOptions[graphTarget]"
-            v-model="graphType"
-            :disabled="running"
-            :items="typeOptions[graphTarget]"
-            label="Type"
-          />
-          <v-select
-            v-if="graphType === 'timeline'"
-            v-model="precision"
-            :items="precisionOptions"
-            label="Precision"
-          />
-          <v-btn
-            :loading="running"
-            @click="
-              async () => {
-                running = true;
-                if (graphType === 'count') {
-                  runCount();
-                } else if (graphType === 'timeline') {
-                  runTimeline();
-                }
-              }
-            "
+  <div class="stats-page">
+    <!-- ── Scope Panel ──────────────────────────────────────────────────────── -->
+    <div class="scope-panel">
+      <span class="scope-label">SCOPE</span>
+
+      <v-combobox
+        v-model="query"
+        chips
+        class="scope-field"
+        clearable
+        density="compact"
+        hide-details
+        :items="comboItems"
+        multiple
+        placeholder="All photos"
+        variant="outlined"
+      >
+        <template #item="{ props, item }">
+          <v-list-item v-bind="props" title="" @click="applyHistory(item.value)">
+            <template #prepend>
+              <v-icon size="16">mdi-history</v-icon>
+            </template>
+            <v-chip-group>
+              <v-chip v-for="(token, j) in item.value" :key="j" size="small">
+                {{ token }}
+              </v-chip>
+            </v-chip-group>
+          </v-list-item>
+        </template>
+      </v-combobox>
+
+      <div class="scope-count">
+        <template v-if="!running && photoCount !== null">
+          <span class="count-number">{{ photoCount.toLocaleString() }}</span>
+          <span class="count-unit">{{ photoCount === 1 ? 'photo' : 'photos' }}</span>
+        </template>
+        <span v-else class="count-dash">—</span>
+      </div>
+
+      <v-btn
+        class="run-btn"
+        color="primary"
+        :loading="running"
+        variant="flat"
+        @click="runStats"
+      >
+        Run Statistics
+      </v-btn>
+    </div>
+
+    <!-- ── Zero-results notice ────────────────────────────────────────────── -->
+    <div v-if="hasRun && photoCount === 0" class="scope-empty">No photos match this scope.</div>
+
+    <!-- ── Metrics Strip ──────────────────────────────────────────────────── -->
+    <div class="metrics-strip">
+      <div class="metric-block">
+        <span class="metric-value">
+          <template v-if="hasRun">{{ metrics!.count.toLocaleString() }}</template>
+          <span v-else class="metric-skel" style="width: 52px" />
+        </span>
+        <span class="metric-label">in scope</span>
+      </div>
+
+      <div class="metric-divider" />
+
+      <div class="metric-block">
+        <span class="metric-value metric-value--date">
+          <template v-if="hasRun">{{ metrics!.dateSpan }}</template>
+          <span v-else class="metric-skel" style="width: 118px" />
+        </span>
+        <span class="metric-label">date range</span>
+      </div>
+
+      <div class="metric-divider" />
+
+      <div class="metric-block">
+        <span class="metric-value">
+          <template v-if="hasRun">{{ metrics!.rated }}</template>
+          <span v-else class="metric-skel" style="width: 40px" />
+        </span>
+        <span class="metric-label">rated</span>
+      </div>
+
+      <div class="metric-divider" />
+
+      <div class="metric-block">
+        <span class="metric-value">
+          <template v-if="hasRun">{{ metrics!.tagged }}</template>
+          <span v-else class="metric-skel" style="width: 40px" />
+        </span>
+        <span class="metric-label">tagged</span>
+      </div>
+    </div>
+
+    <!-- ── Charts ─────────────────────────────────────────────────────────── -->
+    <div class="charts-grid">
+      <section class="chart-panel">
+        <h2 class="chart-title">Shots per month</h2>
+        <div class="chart-body">
+          <div v-if="!hasRun" class="chart-skel" />
+          <svg
+            v-else
+            class="bar-chart"
+            preserveAspectRatio="none"
+            viewBox="0 0 480 148"
+            xmlns="http://www.w3.org/2000/svg"
           >
-            Run
-          </v-btn>
-        </v-col>
-      </v-row>
-    </v-container>
-  </v-main>
+            <!-- Baseline -->
+            <line
+              stroke="oklch(30% 0.008 245)"
+              stroke-width="0.75"
+              x1="0"
+              x2="480"
+              y1="115"
+              y2="115"
+            />
+            <!-- Mid grid -->
+            <line
+              stroke="oklch(25% 0.006 245)"
+              stroke-dasharray="4 4"
+              stroke-width="0.5"
+              x1="0"
+              x2="480"
+              y1="60"
+              y2="60"
+            />
+            <!-- Bars -->
+            <rect
+              v-for="bar in shotBars"
+              :key="bar.label"
+              fill="oklch(65% 0.14 245 / 0.52)"
+              :height="bar.h"
+              rx="2"
+              :width="bar.w"
+              :x="bar.x"
+              :y="bar.y"
+            />
+            <!-- Month labels -->
+            <text
+              v-for="bar in shotBars"
+              :key="`lbl-${bar.label}`"
+              fill="oklch(55% 0.006 245)"
+              font-family="Roboto, sans-serif"
+              font-size="11"
+              text-anchor="middle"
+              :x="bar.labelX"
+              y="135"
+            >
+              {{ bar.label }}
+            </text>
+          </svg>
+        </div>
+      </section>
+
+      <section class="chart-panel">
+        <h2 class="chart-title">Rating distribution</h2>
+        <div class="chart-body">
+          <div v-if="!hasRun" class="chart-skel" />
+          <svg
+            v-else
+            class="bar-chart"
+            preserveAspectRatio="none"
+            viewBox="0 0 200 148"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <!-- Baseline -->
+            <line
+              stroke="oklch(30% 0.008 245)"
+              stroke-width="0.75"
+              x1="0"
+              x2="200"
+              y1="115"
+              y2="115"
+            />
+            <!-- Mid grid -->
+            <line
+              stroke="oklch(25% 0.006 245)"
+              stroke-dasharray="4 4"
+              stroke-width="0.5"
+              x1="0"
+              x2="200"
+              y1="60"
+              y2="60"
+            />
+            <!-- Bars — increasing opacity toward 5★ -->
+            <rect
+              v-for="bar in ratingBars"
+              :key="bar.stars"
+              :fill="`oklch(65% 0.14 245 / ${(0.28 + (bar.stars / 5) * 0.55).toFixed(2)})`"
+              :height="bar.h"
+              rx="2"
+              :width="bar.w"
+              :x="bar.x"
+              :y="bar.y"
+            />
+            <!-- Star labels -->
+            <text
+              v-for="bar in ratingBars"
+              :key="`lbl-${bar.stars}`"
+              fill="oklch(55% 0.006 245)"
+              font-family="Roboto, sans-serif"
+              font-size="11"
+              text-anchor="middle"
+              :x="bar.labelX"
+              y="135"
+            >
+              {{ bar.stars }}★
+            </text>
+          </svg>
+        </div>
+      </section>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-  .fill-height {
+  .stats-page {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    overflow-y: auto;
+  }
+
+  /* ── Scope Panel ─────────────────────────────────────────────────────────── */
+
+  .scope-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .scope-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .scope-field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .scope-count {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: 80px;
+    justify-content: flex-end;
+  }
+
+  .count-number {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+
+  .count-unit {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  .count-dash {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+  }
+
+  .run-btn {
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+    font-size: 13px;
+  }
+
+  /* ── Zero-results ────────────────────────────────────────────────────────── */
+
+  .scope-empty {
+    padding: 10px 24px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  /* ── Metrics Strip ───────────────────────────────────────────────────────── */
+
+  .metrics-strip {
+    display: flex;
+    align-items: center;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .metric-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 20px 16px;
+  }
+
+  .metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+  }
+
+  .metric-value--date {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+  }
+
+  .metric-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--color-border);
+    flex-shrink: 0;
+  }
+
+  /* Skeleton shimmer */
+  .metric-skel {
+    display: inline-block;
+    height: 22px;
+    border-radius: 3px;
+    background: linear-gradient(
+      90deg,
+      oklch(21% 0.006 245) 25%,
+      oklch(27% 0.007 245) 50%,
+      oklch(21% 0.006 245) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  /* ── Charts ──────────────────────────────────────────────────────────────── */
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    padding: 24px;
+  }
+
+  .chart-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+    color: var(--color-text-primary);
+    margin: 0;
+  }
+
+  .chart-body {
+    flex: 1;
+  }
+
+  .chart-skel {
+    width: 100%;
+    height: 160px;
+    border-radius: 4px;
+    background: linear-gradient(
+      90deg,
+      oklch(21% 0.006 245) 25%,
+      oklch(27% 0.007 245) 50%,
+      oklch(21% 0.006 245) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .bar-chart {
+    display: block;
+    width: 100%;
+    height: 160px;
   }
 </style>
